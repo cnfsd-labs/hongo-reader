@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  /* A real Japanese font: the default fallback on Linux CI has broken vertical metrics
+     (zero-height character boxes). Android uses Noto CJK. Installed by
+     "playwright install --with-deps". */
+  body { margin: 0; font-size: 24px; line-height: 2; font-family: "IPAGothic", serif; }
+  .vertical { writing-mode: vertical-rl; height: 360px; }
+  .horizontal { writing-mode: horizontal-tb; }
+</style>
+</head>
+<body>
+  <!-- Mirrors ttu's structure: the reader wraps book HTML in .book-content. -->
+  <div class="book-content vertical" id="vertical">
+    <p id="v1">「吾輩は<ruby>猫<rt>ねこ</rt></ruby>である。名前はまだ無い。」</p>
+    <p id="v2">どこで生れたかとんと見当がつかぬ。</p>
+  </div>
+  <div class="book-content horizontal" id="horizontal">
+    <p id="h1">昨日は本を<ruby>読<rp>(</rp><rt>よ</rt><rp>)</rp></ruby>みませんでした。<a href="#">リンク</a></p>
+    <p id="h2">𠮟られた。</p>
+    <p id="h3"><ruby>漢字<rt>かんじ</rt></ruby>と<ruby>東<rt>とう</rt>京<rt>きょう</rt></ruby>と<ruby><rb>明日</rb><rt>あした</rt></ruby>。</p>
+  </div>
+  <p id="outside">本の外のテキスト。</p>
+</body>
+</html>

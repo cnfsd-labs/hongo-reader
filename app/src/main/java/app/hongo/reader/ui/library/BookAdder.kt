@@ -1,0 +1,59 @@
+package app.hongo.reader.ui.library
+
+import app.hongo.reader.data.library.BookDao
+import app.hongo.reader.data.library.BookEntity
+import app.hongo.reader.data.library.BookImporter
+import app.hongo.reader.data.library.BookSource
+import app.hongo.reader.ui.reader.TtuBook
+import app.hongo.reader.ui.reader.TtuLibrary
+import app.hongo.reader.ui.reader.TtuLibraryException
+import java.io.InputStream
+
+/** Adds a book to the library and hands it to the reader: picked files and catalogue downloads. */
+class BookAdder(
+    private val dao: BookDao,
+    private val importer: BookImporter,
+    private val ttu: TtuLibrary,
+) {
+    sealed interface Result {
+        data class Added(val book: BookEntity) : Result
+
+        data class AlreadyInLibrary(val book: BookEntity) : Result
+
+        data object Unsupported : Result
+
+        data object Unreadable : Result
+
+        /** ッツ Ebook Reader could not import the book; it was not kept. */
+        data class ReaderFailed(val title: String) : Result
+    }
+
+    suspend fun add(
+        input: InputStream,
+        name: String,
+        source: BookSource = BookSource.FILE,
+        sourceId: String? = null,
+    ): Result = when (val result = importer.import(input, name, source, sourceId)) {
+        is BookImporter.Result.Added -> handToReader(result.book)
+        is BookImporter.Result.AlreadyInLibrary -> Result.AlreadyInLibrary(result.book)
+        BookImporter.Result.Unsupported -> Result.Unsupported
+        BookImporter.Result.Unreadable -> Result.Unreadable
+    }
+
+    /** Imports a new book into the reader now, so problems show up at once and it opens fast. */
+    private suspend fun handToReader(book: BookEntity): Result = try {
+        link(book, ttu.ensure(null, LibraryViewModel.fileUrl(book), LibraryViewModel.readerFileName(book)))
+        Result.Added(book)
+    } catch (_: TtuLibraryException) {
+        // A book the reader cannot show is no use in the library.
+        dao.delete(book.id)
+        importer.deleteFiles(book)
+        Result.ReaderFailed(book.title)
+    }
+
+    suspend fun link(book: BookEntity, ttuBook: TtuBook) {
+        dao.setTtuBook(book.id, ttuBook.id, ttuBook.title)
+        // ttu keeps one book per title; another library book with this title must re-import.
+        dao.forgetTtuBookExcept(ttuBook.id, book.id)
+    }
+}

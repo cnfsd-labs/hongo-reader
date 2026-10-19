@@ -1,0 +1,69 @@
+From: HonGO! <noreply@hongo.invalid>
+Subject: [PATCH] Read Shift_JIS text files and Aozora Bunko markup
+
+Plain-text books were read with FileReader.readAsText, which assumes
+UTF-8, so Aozora Bunko's Shift_JIS files turned into mojibake. Decode as
+UTF-8 when valid and fall back to Shift_JIS. For Aozora Bunko files,
+remove readings, ruby marks, editor notes and the notation guide, which
+would otherwise appear as text.
+
+diff --git a/apps/web/src/lib/functions/file-loaders/txt/extract-txt.ts b/apps/web/src/lib/functions/file-loaders/txt/extract-txt.ts
+index b76b84a..bd0679b 100644
+--- a/apps/web/src/lib/functions/file-loaders/txt/extract-txt.ts
++++ b/apps/web/src/lib/functions/file-loaders/txt/extract-txt.ts
+@@ -4,18 +4,44 @@
+  * All rights reserved.
+  */
+ 
+-export default function extract(file: File) {
+-  return new Promise<string>((resolve, reject) => {
+-    const reader = new FileReader();
++export default async function extract(file: File) {
++  let buffer: ArrayBuffer;
+ 
+-    reader.addEventListener('load', () => {
+-      resolve(reader.result as string);
+-    });
++  try {
++    buffer = await file.arrayBuffer();
++  } catch {
++    throw new Error(`Error reading file ${file.name}`);
++  }
+ 
+-    reader.addEventListener('error', () => {
+-      reject(new Error(`Error reading file ${file.name}`));
+-    });
++  const text = decode(new Uint8Array(buffer));
+ 
+-    reader.readAsText(file);
+-  });
++  return isAozoraBunko(text) ? stripAozoraMarkup(text) : text;
++}
++
++/** UTF-8 (with or without BOM) if valid, otherwise Shift_JIS, as used by Aozora Bunko. */
++function decode(bytes: Uint8Array) {
++  try {
++    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
++  } catch {
++    return new TextDecoder('shift_jis').decode(bytes);
++  }
++}
++
++function isAozoraBunko(text: string) {
++  return (
++    text.includes('【テキスト中に現れる記号について】') ||
++    (text.includes('《') && text.includes('》') && text.includes('底本：'))
++  );
++}
++
++/**
++ * Removes Aozora Bunko markup that would otherwise show as text: readings (漢字《かんじ》),
++ * ruby start marks (｜), editor notes (［＃…］) and the notation guide at the top.
++ */
++function stripAozoraMarkup(text: string) {
++  return text
++    .replace(/-{20,}[\s\S]*?【テキスト中に現れる記号について】[\s\S]*?-{20,}\r?\n/, '')
++    .replace(/《[^》\r\n]*》/g, '')
++    .replace(/｜/g, '')
++    .replace(/［＃[^］\r\n]*］/g, '');
+ }

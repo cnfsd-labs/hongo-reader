@@ -1,0 +1,44 @@
+// @ts-check
+/** Builds a minimal EPUB 3 in memory. */
+const { zipSync, strToU8 } = require('fflate');
+
+/** Paragraphs are wrapped in <p> unless `raw` is set, in which case they are XHTML blocks. */
+function buildEpub({ title, paragraphs, raw = false }) {
+  const body = paragraphs.map((p) => (raw ? p : `<p>${p}</p>`)).join('\n');
+  const files = {
+    mimetype: [strToU8('application/epub+zip'), { level: 0 }],
+    'META-INF/container.xml': strToU8(`<?xml version="1.0" encoding="UTF-8"?>
+<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles>
+</container>`),
+    'OEBPS/content.opf': strToU8(`<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="id" xml:lang="ja">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="id">urn:uuid:3f1e1c4a-5c0e-4f6a-9d63-0a1b2c3d4e5f</dc:identifier>
+    <dc:title>${title}</dc:title>
+    <dc:language>ja</dc:language>
+    <meta property="dcterms:modified">2026-01-01T00:00:00Z</meta>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="ch1" href="ch1.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine page-progression-direction="rtl"><itemref idref="ch1"/></spine>
+</package>`),
+    'OEBPS/nav.xhtml': strToU8(`<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+<head><title>目次</title></head>
+<body><nav epub:type="toc"><ol><li><a href="ch1.xhtml">一</a></li></ol></nav></body>
+</html>`),
+    'OEBPS/ch1.xhtml': strToU8(`<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja">
+<head><title>一</title></head>
+<body>
+${body}
+</body>
+</html>`),
+  };
+  return Buffer.from(zipSync(files));
+}
+
+module.exports = { buildEpub };

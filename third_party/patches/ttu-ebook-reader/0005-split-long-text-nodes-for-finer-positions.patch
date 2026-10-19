@@ -1,0 +1,71 @@
+From: HonGO! <noreply@hongo.invalid>
+Subject: [PATCH] Split long text nodes so positions move within long paragraphs
+
+ttu works out the character count and bookmarks per text node. In books
+with paragraphs longer than a page (web novels), the count and the saved
+position stayed on the same number for several pages. Long text nodes are
+split at sentence ends; the text looks the same.
+
+diff -ru a/apps/web/src/lib/components/book-reader/get-paragraph-nodes.ts b/apps/web/src/lib/components/book-reader/get-paragraph-nodes.ts
+--- a/apps/web/src/lib/components/book-reader/get-paragraph-nodes.ts	2026-10-18 18:26:04.130759989 +0000
++++ b/apps/web/src/lib/components/book-reader/get-paragraph-nodes.ts	2026-10-18 18:26:04.149065408 +0000
+@@ -29,6 +29,50 @@
+   });
+ }
+ 
++/**
++ * Positions (the character count, bookmarks) are worked out per text node, so a paragraph
++ * longer than a page kept the same count page after page. Long text nodes are split, at sentence
++ * ends where possible: the text looks the same, positions get finer.
++ */
++const MAX_TEXT_LENGTH = 120;
++const MIN_PIECE_LENGTH = 20;
++const SENTENCE_END = /[。！？!?…]+[」』）)]*/g;
++
++function splitLongText(node: Text): Node[] {
++  const text = node.data;
++  if (text.length <= MAX_TEXT_LENGTH || !node.parentNode) {
++    return [node];
++  }
++  const cuts: number[] = [];
++  let last = 0;
++  for (const match of text.matchAll(SENTENCE_END)) {
++    const end = (match.index ?? 0) + match[0].length;
++    if (end - last >= MIN_PIECE_LENGTH && text.length - end >= MIN_PIECE_LENGTH) {
++      cuts.push(end);
++      last = end;
++    }
++  }
++  // Text without sentence ends: plain cuts.
++  const pieces: number[] = [];
++  let start = 0;
++  for (const cut of [...cuts, text.length]) {
++    for (let next = start + MAX_TEXT_LENGTH; next < cut; next += MAX_TEXT_LENGTH) {
++      pieces.push(next);
++    }
++    if (cut < text.length) pieces.push(cut);
++    start = cut;
++  }
++  const nodes: Node[] = [node];
++  let current = node;
++  let offset = 0;
++  for (const cut of pieces) {
++    current = current.splitText(cut - offset);
++    offset = cut;
++    nodes.push(current);
++  }
++  return nodes;
++}
++
+ function getTextNodeOrGaijiNodes(node: Node, filterFn: (n: Node) => boolean): Node[] {
+   if (!node.hasChildNodes() || !filterFn(node)) {
+     return [];
+@@ -37,7 +81,7 @@
+   return Array.from(node.childNodes)
+     .flatMap((n) => {
+       if (n.nodeType === Node.TEXT_NODE) {
+-        return [n];
++        return splitLongText(n as Text);
+       }
+       if (isNodeGaiji(n)) {
+         return [n];

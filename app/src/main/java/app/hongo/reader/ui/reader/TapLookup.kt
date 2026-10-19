@@ -1,0 +1,151 @@
+package app.hongo.reader.ui.reader
+
+import app.hongo.reader.lookup.RubySpan
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.json.Json
+
+/** A message from `assets/hongo/tap-bridge.js` or `library-bridge.js`. */
+sealed interface BridgeMessage {
+    data class Lookup(val tap: TapLookup) : BridgeMessage
+
+    /** A tap on the book away from text: close the lookup panel. */
+    data object Dismiss : BridgeMessage
+
+    data class Library(val message: LibraryMessage) : BridgeMessage
+
+    /** An opened book is laid out and on screen (`assets/hongo/book-shown.js`). */
+    data class BookShown(val id: Long) : BridgeMessage
+
+    /** ttu saved the reading position of a book after a page turn (`assets/hongo/reading-activity.js`). */
+    data class Position(val id: Long, val characters: Long) : BridgeMessage
+
+    /** The reader bar's Settings entry: open HonGO!'s reader settings (`assets/hongo/reader-settings.js`). */
+    data object OpenSettings : BridgeMessage
+
+    /** ttu's settings are drawn on screen (`assets/hongo/book-shown.js`). */
+    data object SettingsShown : BridgeMessage
+
+    /** The reader touched or scrolled the book (`assets/hongo/reading-activity.js`). */
+    data object Activity : BridgeMessage
+
+    companion object {
+        /** Parses a bridge message, or returns null for anything unknown or malformed. */
+        fun parse(message: String?): BridgeMessage? =
+            TapLookup.parse(message)?.let(::Lookup)
+                ?: Dismiss.takeIf { message?.replace(" ", "") == """{"type":"dismiss"}""" }
+                ?: LibraryMessage.parse(message)?.let(::Library)
+                ?: parseBookShown(message)
+                ?: parsePosition(message)
+                ?: Activity.takeIf { message?.replace(" ", "") == ACTIVITY_MESSAGE }
+                ?: SettingsShown.takeIf { message?.replace(" ", "") == SETTINGS_SHOWN_MESSAGE }
+                ?: OpenSettings.takeIf { message?.replace(" ", "") == OPEN_SETTINGS_MESSAGE }
+
+        // JSON, not a regular expression: Android's regex engine (ICU) rejects patterns the
+        // JVM accepts, such as an unescaped "}", and that closed the app at its first message.
+        private val bookShownJson = Json { ignoreUnknownKeys = true }
+
+        @Serializable
+        private data class BookShownEnvelope(val type: String = "", val id: Long = 0)
+
+        private fun parseBookShown(message: String?): BookShown? {
+            if (message == null || message.length > MAX_BOOK_SHOWN_LENGTH || "bookShown" !in message) return null
+            val envelope = try {
+                bookShownJson.decodeFromString<BookShownEnvelope>(message)
+            } catch (_: SerializationException) {
+                return null
+            } catch (_: IllegalArgumentException) {
+                return null
+            }
+            return if (envelope.type == "bookShown" && envelope.id > 0) BookShown(envelope.id) else null
+        }
+
+        @Serializable
+        private data class PositionEnvelope(val type: String = "", val id: Long = 0, val characters: Long = -1)
+
+        private fun parsePosition(message: String?): Position? {
+            if (message == null || message.length > MAX_BOOK_SHOWN_LENGTH || "reader.position" !in message) return null
+            val envelope = try {
+                bookShownJson.decodeFromString<PositionEnvelope>(message)
+            } catch (_: SerializationException) {
+                return null
+            } catch (_: IllegalArgumentException) {
+                return null
+            }
+            val valid = envelope.type == "reader.position" && envelope.id > 0 && envelope.characters >= 0
+            return if (valid) Position(envelope.id, envelope.characters) else null
+        }
+
+        private const val MAX_BOOK_SHOWN_LENGTH = 200
+        private const val SETTINGS_SHOWN_MESSAGE = """{"type":"pageShown","path":"/settings"}"""
+        private const val OPEN_SETTINGS_MESSAGE = """{"type":"reader.settings"}"""
+        private const val ACTIVITY_MESSAGE = """{"type":"reader.activity"}"""
+    }
+}
+
+/** A tap on book text, as reported by `assets/hongo/tap-bridge.js`. */
+data class TapLookup(
+    /** Up to 20 characters starting at the tapped one; the lookup scans prefixes of this. */
+    val text: String,
+    /** The sentence containing the tap, for card context. */
+    val sentence: String,
+    /** Index of [text] within [sentence]. */
+    val sentenceOffset: Int,
+    /** Furigana over ruby bases inside [text], sorted. */
+    val ruby: List<RubySpan> = emptyList(),
+) {
+    companion object {
+        // Generous bounds; the bridge sends at most 20 code points and 400 sentence chars.
+        private const val MAX_TEXT_LENGTH = 64
+        private const val MAX_SENTENCE_LENGTH = 1_000
+        private const val MAX_RUBY_SPANS = 20
+        private const val MAX_READING_LENGTH = 32
+
+        private val json = Json { ignoreUnknownKeys = true }
+
+        /**
+         * Parses a bridge message, or returns null for anything else. Messages come from page
+         * script on the reader origin, which includes book content, so they are untrusted.
+         */
+        fun parse(message: String?): TapLookup? {
+            if (message == null || message.length > 4 * MAX_SENTENCE_LENGTH) return null
+            val envelope = try {
+                json.decodeFromString<Envelope>(message)
+            } catch (_: SerializationException) {
+                return null
+            } catch (_: IllegalArgumentException) {
+                return null
+            }
+            if (envelope.type != "lookup") return null
+            val lookup = TapLookup(envelope.text, envelope.sentence, envelope.sentenceOffset)
+            if (!lookup.isValid()) return null
+            // Furigana only helps ranking: drop it, not the lookup, if its indexes do not fit.
+            val ruby = envelope.ruby.map { RubySpan(it.start, it.end, it.reading) }
+            return if (isValidRuby(ruby, lookup.text.length)) lookup.copy(ruby = ruby) else lookup
+        }
+
+        private fun isValidRuby(ruby: List<RubySpan>, textLength: Int): Boolean =
+            ruby.size <= MAX_RUBY_SPANS &&
+                ruby.all { it.start >= 0 && it.end in (it.start + 1)..textLength } &&
+                ruby.all { it.reading.isNotBlank() && it.reading.length <= MAX_READING_LENGTH } &&
+                ruby.zipWithNext().all { (a, b) -> a.end <= b.start }
+    }
+
+    private fun isValid(): Boolean =
+        text.isNotBlank() &&
+            text.length <= MAX_TEXT_LENGTH &&
+            sentence.length <= MAX_SENTENCE_LENGTH &&
+            sentenceOffset in 0..sentence.length
+
+    @Serializable
+    private data class Envelope(
+        val type: String,
+        val text: String = "",
+        val sentence: String = "",
+        val sentenceOffset: Int = 0,
+        val ruby: List<RubyEnvelope> = emptyList(),
+    )
+
+    @Serializable
+    private data class RubyEnvelope(val start: Int, val end: Int, val reading: String)
+}

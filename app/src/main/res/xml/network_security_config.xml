@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Book catalogues are often servers at home: plain http on the local network, or https with a
+     certificate from the user's own CA (installed in the phone's settings). Both are allowed; the
+     catalogue dialog warns when a password would go over plain http. Dictionary downloads use
+     https with public certificates. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

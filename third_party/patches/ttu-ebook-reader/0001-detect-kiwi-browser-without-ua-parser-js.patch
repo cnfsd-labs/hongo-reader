@@ -1,0 +1,29 @@
+From: HonGO! <noreply@hongo.invalid>
+Subject: [PATCH] Detect Kiwi Browser without ua-parser-js
+
+ua-parser-js 2.x is AGPL-3.0-or-later. ttu only uses it to decide whether
+zip.js may use web workers, which a user-agent check covers. Dropping it
+keeps the bundle HonGO! ships under permissive licenses.
+
+diff --git a/apps/web/src/lib/functions/file-loaders/utils/init-zip-settings.ts b/apps/web/src/lib/functions/file-loaders/utils/init-zip-settings.ts
+index d9121a9..8bad923 100644
+--- a/apps/web/src/lib/functions/file-loaders/utils/init-zip-settings.ts
++++ b/apps/web/src/lib/functions/file-loaders/utils/init-zip-settings.ts
+@@ -4,7 +4,6 @@
+  * All rights reserved.
+  */
+ 
+-import { UAParser } from 'ua-parser-js';
+ import { configure as zipConfigure } from '@zip.js/zip.js';
+ 
+ export default function initZipSettings() {
+@@ -15,6 +14,7 @@ export default function initZipSettings() {
+ 
+ function isKiwiBrowser() {
+   if (typeof window === 'undefined') return false;
+-  const parseResult = new UAParser(window.navigator.userAgent).getResult();
+-  return parseResult.os.name === 'Android' && parseResult.browser.name === 'Chrome';
++  // Chrome-based browser on Android, excluding WebView ("; wv)").
++  const userAgent = window.navigator.userAgent;
++  return /Android/.test(userAgent) && /Chrome\//.test(userAgent) && !/; wv\)/.test(userAgent);
+ }

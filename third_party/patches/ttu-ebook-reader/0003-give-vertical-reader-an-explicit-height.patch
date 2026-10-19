@@ -1,0 +1,34 @@
+From: HonGO! <noreply@hongo.invalid>
+Subject: [PATCH] Give the vertical reader an explicit height
+
+In vertical mode the book content is an orthogonal flow (vertical-rl in
+a horizontal page). The paginated reader only set a max-height and the
+continuous one a percentage height, so the line length was left to the
+browser's fallback for orthogonal flows. Desktop Chromium uses the
+viewport height; Android WebView 153 on a OnePlus 12 resolved it to 0,
+and pages were blank. Set the computed height explicitly in both.
+
+diff --git a/apps/web/src/lib/components/book-reader/book-reader-paginated/book-reader-paginated.svelte b/apps/web/src/lib/components/book-reader/book-reader-paginated/book-reader-paginated.svelte
+index f7bb9d6..a27fd4c 100644
+--- a/apps/web/src/lib/components/book-reader/book-reader-paginated/book-reader-paginated.svelte
++++ b/apps/web/src/lib/components/book-reader/book-reader-paginated/book-reader-paginated.svelte
+@@ -693,6 +693,7 @@
+     : undefined}
+   style:max-width={width ? `${width}px` : undefined}
+   style:max-height={verticalMode && height ? `${height}px` : undefined}
++  style:height={verticalMode && height ? `${height}px` : undefined}
+   style:--font-family-serif={fontFamilyGroupOne}
+   style:--font-family-sans-serif={fontFamilyGroupTwo}
+   style:--font-weight={fontWeight}
+diff --git a/apps/web/src/lib/components/book-reader/book-reader-continuous/book-reader-continuous.svelte b/apps/web/src/lib/components/book-reader/book-reader-continuous/book-reader-continuous.svelte
+index 5685e66..473b5b2 100644
+--- a/apps/web/src/lib/components/book-reader/book-reader-continuous/book-reader-continuous.svelte
++++ b/apps/web/src/lib/components/book-reader/book-reader-continuous/book-reader-continuous.svelte
+@@ -663,6 +663,7 @@
+     ? `${secondDimensionMaxValue}px`
+     : undefined}
+   style:max-height={maxHeight ? `${maxHeight}px` : undefined}
++  style:height={verticalMode && height ? `${height}px` : undefined}
+   style:padding-left={verticalMode && firstDimensionMargin
+     ? `${firstDimensionMargin}px`
+     : undefined}

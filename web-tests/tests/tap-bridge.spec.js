@@ -1,0 +1,307 @@
+// @ts-check
+const path = require('node:path');
+const { test, expect } = require('@playwright/test');
+
+const BRIDGE = path.join(__dirname, '../../app/src/main/assets/hongo/tap-bridge.js');
+const FIXTURE = 'file://' + path.join(__dirname, '../fixtures/book.html');
+
+test.beforeEach(async ({ page }) => {
+  // Stand-in for the object WebViewCompat.addWebMessageListener injects.
+  await page.addInitScript(() => {
+    window.__messages = [];
+    window.hongo = { postMessage: (message) => window.__messages.push(JSON.parse(message)), onmessage: null };
+  });
+  // Same timing as WebViewCompat.addDocumentStartJavaScript.
+  await page.addInitScript({ path: BRIDGE });
+  await page.goto(FIXTURE);
+});
+
+/** Center of the `occurrence`-th match of `char` in the element's own text nodes (rt excluded). */
+async function charCenter(page, selector, char, occurrence = 0) {
+  return page.evaluate(
+    ({ selector, char, occurrence }) => {
+      const walker = document.createTreeWalker(document.querySelector(selector), NodeFilter.SHOW_TEXT);
+      let seen = 0;
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        if (node.parentElement.closest('rt, rp')) continue;
+        for (let i = node.data.indexOf(char); i >= 0; i = node.data.indexOf(char, i + 1)) {
+          if (seen++ === occurrence) {
+            const range = document.createRange();
+            range.setStart(node, i);
+            range.setEnd(node, i + char.length);
+            // First non-empty box; see charRects() in tap-bridge.js.
+            const rect = Array.from(range.getClientRects()).find((r) => r.width > 0 && r.height > 0);
+            return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+          }
+        }
+      }
+      throw new Error(`"${char}" not found in ${selector}`);
+    },
+    { selector, char, occurrence },
+  );
+}
+
+async function tapChar(page, selector, char, occurrence = 0) {
+  const { x, y } = await charCenter(page, selector, char, occurrence);
+  await page.mouse.click(x, y);
+}
+
+const messages = (page) => page.evaluate(() => window.__messages);
+
+test('vertical text: scans forward from the tapped character, skipping furigana', async ({ page }) => {
+  await tapChar(page, '#v1', '吾');
+
+  expect(await messages(page)).toEqual([
+    {
+      type: 'lookup',
+      text: '吾輩は猫である。名前はまだ無い。」',
+      sentence: '「吾輩は猫である。',
+      sentenceOffset: 1,
+      ruby: [{ start: 3, end: 4, reading: 'ねこ' }],
+    },
+  ]);
+});
+
+test('sends furigana of ruby words in the scanned text: joint, per character and with <rb>', async ({ page }) => {
+  await tapChar(page, '#h3', '漢');
+
+  const [message] = await messages(page);
+  expect(message.text).toBe('漢字と東京と明日。');
+  expect(message.ruby).toEqual([
+    { start: 0, end: 2, reading: 'かんじ' },
+    { start: 3, end: 4, reading: 'とう' },
+    { start: 4, end: 5, reading: 'きょう' },
+    { start: 6, end: 8, reading: 'あした' },
+  ]);
+});
+
+test('leaves out furigana of a ruby word tapped in the middle', async ({ page }) => {
+  await tapChar(page, '#h3', '字');
+
+  const [message] = await messages(page);
+  expect(message.text).toBe('字と東京と明日。');
+  expect(message.ruby.map((span) => span.reading)).toEqual(['とう', 'きょう', 'あした']);
+});
+
+test('sends no ruby field without furigana in the scanned text', async ({ page }) => {
+  await tapChar(page, '#v2', 'ど');
+
+  const [message] = await messages(page);
+  expect(message).not.toHaveProperty('ruby');
+});
+
+test('tapping ruby base text starts at the base, not the furigana', async ({ page }) => {
+  await tapChar(page, '#v1', '猫');
+
+  const [message] = await messages(page);
+  expect(message.text).toBe('猫である。名前はまだ無い。」');
+  expect(message.sentence).toBe('「吾輩は猫である。');
+  expect(message.sentenceOffset).toBe(4);
+});
+
+test('taps on ruby still work when the page cancels the click, as ttu does', async ({ page }) => {
+  await page.evaluate(() => {
+    for (const ruby of document.querySelectorAll('ruby')) {
+      ruby.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        ruby.classList.add('reveal-rt');
+      });
+    }
+  });
+
+  await tapChar(page, '#v1', '猫');
+
+  const [message] = await messages(page);
+  expect(message.text).toBe('猫である。名前はまだ無い。」');
+  // The page's own handler still ran.
+  expect(await page.locator('#v1 ruby').getAttribute('class')).toBe('reveal-rt');
+});
+
+test('sentence includes closing quote and stops at the paragraph', async ({ page }) => {
+  await tapChar(page, '#v1', '名');
+
+  const [message] = await messages(page);
+  expect(message.text).toBe('名前はまだ無い。」');
+  expect(message.sentence).toBe('名前はまだ無い。」');
+  expect(message.sentenceOffset).toBe(0);
+});
+
+test('scan text is capped at 20 characters', async ({ page }) => {
+  await tapChar(page, '#v2', 'ど');
+
+  const [message] = await messages(page);
+  expect(Array.from(message.text)).toHaveLength(17);
+  expect(message.text).toBe('どこで生れたかとんと見当がつかぬ。');
+});
+
+test('horizontal text works and rp/rt are skipped', async ({ page }) => {
+  await tapChar(page, '#h1', '読');
+
+  const [message] = await messages(page);
+  expect(message.text).toBe('読みませんでした。リンク');
+  expect(message.sentence).toBe('昨日は本を読みませんでした。');
+  expect(message.sentenceOffset).toBe(5);
+});
+
+test('characters outside the BMP are kept whole', async ({ page }) => {
+  await tapChar(page, '#h2', '𠮟');
+
+  const [message] = await messages(page);
+  expect(message.text).toBe('𠮟られた。');
+});
+
+test('taps on links, furigana, empty space and non-book text start no lookup', async ({ page }) => {
+  await tapChar(page, '#h1', 'リ');
+  await page.click('#v1 rt');
+  await page.mouse.click(5, 5);
+  await tapChar(page, '#outside', '本');
+
+  const types = (await messages(page)).map((message) => message.type);
+  expect(types).not.toContain('lookup');
+});
+
+test('a tap on book content that is not text asks the app to close the panel', async ({ page }) => {
+  await page.click('#v1 rt');
+  await tapChar(page, '#outside', '本');
+  await tapChar(page, '#h1', 'リ');
+
+  // Furigana is book content but not lookup text; outside text and links are neither.
+  expect(await messages(page)).toEqual([{ type: 'dismiss' }]);
+});
+
+/** Sends a reply as the app would, through the handler the bridge installed. */
+async function reply(page, message) {
+  await page.evaluate((message) => window.hongo.onmessage({ data: JSON.stringify(message) }), message);
+}
+
+const highlighted = (page) =>
+  page.evaluate(() => {
+    const highlight = CSS.highlights.get('hongo-lookup');
+    return highlight ? Array.from(highlight).map((range) => range.toString()) : null;
+  });
+
+test('the app can highlight the matched text, skipping furigana, and clear it', async ({ page }) => {
+  await tapChar(page, '#v1', '猫');
+  await reply(page, { type: 'highlight', length: 3 });
+
+  // 猫 is ruby base text; ねこ is skipped and the mark continues into the next text node.
+  expect(await highlighted(page)).toEqual(['猫', 'であ']);
+  const style = await page.evaluate(() => document.getElementById('hongo-style')?.textContent);
+  expect(style).toContain('::highlight(hongo-lookup)');
+
+  await reply(page, { type: 'clear' });
+  expect(await highlighted(page)).toBeNull();
+});
+
+test('the highlight takes the app\'s accent colour', async ({ page }) => {
+  await tapChar(page, '#v2', 'ど');
+  await reply(page, { type: 'highlight', length: 2, color: '#8A5CF5' });
+  const style = () => page.evaluate(() => document.getElementById('hongo-style')?.textContent);
+  expect(await style()).toContain('rgba(138, 92, 245, 0.4)');
+
+  // Anything but #rrggbb falls back to the default mark.
+  await reply(page, { type: 'highlight', length: 2, color: 'red; } body { display: none' });
+  expect(await style()).toContain('rgba(255, 196, 0, 0.45)');
+  expect(await highlighted(page)).toEqual(['どこ']);
+});
+
+test('a new tap replaces the highlight; a blank tap clears it', async ({ page }) => {
+  await tapChar(page, '#v2', 'ど');
+  await reply(page, { type: 'highlight', length: 2 });
+  expect(await highlighted(page)).toEqual(['どこ']);
+
+  await tapChar(page, '#h1', '読');
+  await reply(page, { type: 'highlight', length: 1 });
+  expect(await highlighted(page)).toEqual(['読']);
+
+  await page.click('#v1 rt');
+  expect(await highlighted(page)).toBeNull();
+});
+
+test('malformed replies are ignored', async ({ page }) => {
+  await tapChar(page, '#v2', 'ど');
+  await page.evaluate(() => window.hongo.onmessage({ data: 'not json' }));
+  await reply(page, { type: 'highlight', length: 'all' });
+
+  expect(await highlighted(page)).toBeNull();
+});
+
+/** Rects of the fallback mark's boxes, or null without the overlay. */
+const overlayBoxes = (page) =>
+  page.evaluate(() => {
+    const overlay = document.getElementById('hongo-highlight-overlay');
+    return overlay
+      ? Array.from(overlay.children).map((box) => {
+          const rect = box.getBoundingClientRect();
+          return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+        })
+      : null;
+  });
+
+/** WebViews before Chromium 105 (e.g. Android 12 phones that never update it) lack the API. */
+const withoutHighlightApi = (page) => page.evaluate(() => delete window.Highlight);
+
+test('without the Custom Highlight API the mark is drawn as boxes over the text', async ({ page }) => {
+  await withoutHighlightApi(page);
+  await tapChar(page, '#v1', '猫');
+  await reply(page, { type: 'highlight', length: 1, color: '#8A5CF5' });
+
+  const boxes = await overlayBoxes(page);
+  expect(boxes).toHaveLength(1);
+  const cat = await charCenter(page, '#v1', '猫');
+  const [box] = boxes;
+  expect(cat.x).toBeGreaterThan(box.left);
+  expect(cat.x).toBeLessThan(box.left + box.width);
+  expect(cat.y).toBeGreaterThan(box.top);
+  expect(cat.y).toBeLessThan(box.top + box.height);
+  const background = await page.evaluate(
+    () => document.getElementById('hongo-highlight-overlay').firstElementChild.style.backgroundColor,
+  );
+  expect(background).toBe('rgba(138, 92, 245, 0.4)');
+
+  await reply(page, { type: 'clear' });
+  expect(await overlayBoxes(page)).toBeNull();
+});
+
+test('the fallback mark skips furigana and lets taps through to the book', async ({ page }) => {
+  await withoutHighlightApi(page);
+  await tapChar(page, '#v1', '猫');
+  await reply(page, { type: 'highlight', length: 3 });
+  // 猫 and であ are separate text nodes, so two boxes; none for ねこ.
+  expect(await overlayBoxes(page)).toHaveLength(2);
+
+  // A tap on the marked text reaches the book and starts a new lookup.
+  await tapChar(page, '#v1', 'で');
+  const lookups = (await messages(page)).filter((message) => message.type === 'lookup');
+  expect(lookups.map((message) => message.text[0])).toEqual(['猫', 'で']);
+  expect(await overlayBoxes(page)).toBeNull();
+});
+
+test('the fallback mark follows the text when the page scrolls', async ({ page }) => {
+  await withoutHighlightApi(page);
+  await page.evaluate(() => {
+    const spacer = document.createElement('div');
+    spacer.style.height = '3000px';
+    document.body.appendChild(spacer);
+  });
+  await tapChar(page, '#v2', 'ど');
+  await reply(page, { type: 'highlight', length: 2 });
+  const [before] = await overlayBoxes(page);
+
+  await page.evaluate(() => window.scrollBy(0, 40));
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(resolve)));
+  const [after] = await overlayBoxes(page);
+  expect(after.top).toBeCloseTo(before.top - 40, 0);
+});
+
+test('no lookup while text is selected', async ({ page }) => {
+  await page.evaluate(() => {
+    const range = document.createRange();
+    range.selectNodeContents(document.querySelector('#v2'));
+    window.getSelection().addRange(range);
+  });
+  await tapChar(page, '#v2', '生');
+
+  expect(await messages(page)).toEqual([]);
+});

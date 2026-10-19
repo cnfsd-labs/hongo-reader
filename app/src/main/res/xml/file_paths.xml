@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- What the file provider may share: only card audio waiting for AnkiDroid. -->
+<paths>
+    <cache-path name="anki-audio" path="anki-audio/" />
+</paths>

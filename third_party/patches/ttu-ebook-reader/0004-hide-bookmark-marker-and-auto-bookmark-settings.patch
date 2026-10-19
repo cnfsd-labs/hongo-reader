@@ -1,0 +1,97 @@
+From: HonGO! <noreply@hongo.invalid>
+Subject: [PATCH] Hide the bookmark marker and the auto bookmark settings
+
+HonGO! saves the reading position on every page turn (autoBookmarkTime 0,
+set by ttu-defaults.js). The marker on the bookmarked page is then on every
+page, and the settings could only undo that (the time field resets to 3 s).
+
+diff -ru a/apps/web/src/lib/components/book-reader/book-reader-continuous/book-reader-continuous.svelte b/apps/web/src/lib/components/book-reader/book-reader-continuous/book-reader-continuous.svelte
+--- a/apps/web/src/lib/components/book-reader/book-reader-continuous/book-reader-continuous.svelte
++++ b/apps/web/src/lib/components/book-reader/book-reader-continuous/book-reader-continuous.svelte
+@@ -720,28 +720,6 @@
+   />
+ {/if}
+ 
+-{#if bookmarkPos}
+-  {#if verticalMode}
+-    <div
+-      class="pointer-events-none absolute text-xl opacity-25"
+-      style:color={fontColor}
+-      style:right={`calc(${bookmarkPos.right} + 1rem)`}
+-      style:top={bookmarkAdjustment}
+-    >
+-      <Fa icon={faBookmark} />
+-    </div>
+-  {:else}
+-    <div
+-      class="pointer-events-none absolute text-sm opacity-25 sm:text-xl"
+-      style:color={fontColor}
+-      style:left={bookmarkAdjustment}
+-      style:top={`calc(${bookmarkPos.top} + 1.5rem)`}
+-    >
+-      <Fa icon={faBookmark} />
+-    </div>
+-  {/if}
+-{/if}
+-
+ {#if !allowDisplay}
+   <div
+     class="fixed inset-0 flex h-full w-full items-center justify-center text-7xl"
+diff -ru a/apps/web/src/lib/components/book-reader/book-reader-paginated/book-reader-paginated.svelte b/apps/web/src/lib/components/book-reader/book-reader-paginated/book-reader-paginated.svelte
+--- a/apps/web/src/lib/components/book-reader/book-reader-paginated/book-reader-paginated.svelte
++++ b/apps/web/src/lib/components/book-reader/book-reader-paginated/book-reader-paginated.svelte
+@@ -742,18 +742,6 @@
+   </div>
+ {/if}
+ 
+-{#if isBookmarkScreen}
+-  <div
+-    class="fixed h-3 w-3 text-base opacity-25 sm:text-xl"
+-    style:color={fontColor}
+-    style:top={bookmarkTopAdjustment}
+-    style:left={bookmarkLeftAdjustment}
+-    style:right={bookmarkRightAdjustment}
+-  >
+-    <Fa icon={faBookmark} />
+-  </div>
+-{/if}
+-
+ <svelte:window on:keydown={onKeydown} on:resize={() => (isResizing = true)} />
+ 
+ <style lang="scss">
+diff -ru a/apps/web/src/lib/components/settings/settings-content.svelte b/apps/web/src/lib/components/settings/settings-content.svelte
+--- a/apps/web/src/lib/components/settings/settings-content.svelte
++++ b/apps/web/src/lib/components/settings/settings-content.svelte
+@@ -733,22 +733,6 @@
+         }}
+       />
+     </SettingsItemGroup>
+-    {#if autoBookmark}
+-      <SettingsItemGroup title="Auto Bookmark Time" tooltip={'Time in s for Auto Bookmark'}>
+-        <input
+-          type="number"
+-          step="1"
+-          min="1"
+-          class={inputClasses}
+-          bind:value={autoBookmarkTime}
+-          on:blur={() => {
+-            if (autoBookmarkTime < 1 || typeof autoBookmarkTime !== 'number') {
+-              autoBookmarkTime = 3;
+-            }
+-          }}
+-        />
+-      </SettingsItemGroup>
+-    {/if}
+     <SettingsItemGroup title="Writing mode">
+       <ButtonToggleGroup options={optionsForWritingMode} bind:selectedOptionId={writingMode} />
+     </SettingsItemGroup>
+@@ -852,9 +836,6 @@
+     >
+       <ButtonToggleGroup options={optionsForToggle} bind:selectedOptionId={manualBookmark} />
+     </SettingsItemGroup>
+-    <SettingsItemGroup title="Auto Bookmark" tooltip={autoBookmarkTooltip}>
+-      <ButtonToggleGroup options={optionsForToggle} bind:selectedOptionId={autoBookmark} />
+-    </SettingsItemGroup>
+     <SettingsItemGroup title="Blur image">
+       <ButtonToggleGroup options={optionsForToggle} bind:selectedOptionId={blurImage} />
+     </SettingsItemGroup>

@@ -1,0 +1,44 @@
+# Third-party notices
+
+HonGO! uses the following third-party software. Shipped notices must be kept in sync with
+this file and shown in the app's About screen once it exists.
+
+## App
+
+| Component | License |
+|---|---|
+| AndroidX / Jetpack libraries (Compose, Room, Navigation, Lifecycle, Activity, Core, WebKit, WorkManager) | Apache-2.0 |
+| Kotlin standard library, kotlinx.coroutines, kotlinx.serialization | Apache-2.0 |
+
+## ッツ Ebook Reader (bundled as `assets/ttu/`)
+
+ッツ Ebook Reader, https://github.com/ttu-ttu/ebook-reader, BSD-3-Clause,
+Copyright (c) ッツ Reader Authors. Built from source with the patches in
+`third_party/patches/ttu-ebook-reader`. Its bundled web fonts are not included.
+
+Runtime libraries compiled into the ttu bundle:
+
+| Component | License |
+|---|---|
+| Svelte | MIT |
+| Font Awesome Free (SVG core, solid and regular icons) | MIT (code), CC-BY-4.0 (icons) |
+| @zip.js/zip.js | BSD-3-Clause |
+| RxJS | Apache-2.0 |
+| fake-indexeddb | Apache-2.0 |
+| idb | ISC |
+| fast-xml-parser, @popperjs/core, balanced-match, p-limit, path-browserify, svelte-fa, svelte-gestures, svelte-meta-tags | MIT |
+
+ttu also depends on ua-parser-js (AGPL-3.0-or-later); our patch removes its only use, so it is
+not part of the bundle.
+
+## Dictionaries
+
+HonGO! ships no dictionary data. Users import their own or download them from their publishers'
+own release links from within the app: Jitendex (https://jitendex.org, CC BY-SA 4.0) and JMdict
+for Yomitan (https://github.com/yomidevs/jmdict-yomitan; JMdict is EDRDG-licensed, CC BY-SA 4.0). Each dictionary's attribution from its
+`index.json` is stored and should be shown with its entries.
+
+## Planned (not yet included)
+
+Kuromoji or Sudachi (Apache-2.0) with their dictionary licenses, AnkiDroid Instant-Add API
+(LGPL-3.0).

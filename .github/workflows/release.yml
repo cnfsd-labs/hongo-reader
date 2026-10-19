@@ -1,0 +1,84 @@
+name: Release bundle
+
+# The app bundle (.aab) for Google Play, signed with the upload key, for a commit whose Android
+# workflow is green. Started by pushing a tag `release/<anything>` on that commit (for example
+# `git tag release/0.1.0-1 && git push origin release/0.1.0-1`), or by hand (Actions → Release
+# bundle → Run workflow; GitHub offers that only once this file is on main). The run number is
+# the version code, so every bundle can be uploaded.
+#
+# Repository secrets (Settings → Secrets and variables → Actions):
+#   HONGO_UPLOAD_KEYSTORE_BASE64    the upload keystore (PKCS12), base64-encoded
+#   HONGO_UPLOAD_KEYSTORE_PASSWORD  its password (store and key)
+#   HONGO_UPLOAD_KEY_ALIAS          the key's alias
+
+on:
+  push:
+    tags:
+      - "release/*"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.3.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+          cache: pnpm
+          cache-dependency-path: third_party/ttu-ebook-reader/pnpm-lock.yaml
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Upload key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.HONGO_UPLOAD_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::The upload key secrets are missing (see the top of release.yml)."
+            exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/upload.p12"
+
+      - name: Signed app bundle
+        env:
+          HONGO_UPLOAD_KEYSTORE: ${{ runner.temp }}/upload.p12
+          HONGO_UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.HONGO_UPLOAD_KEYSTORE_PASSWORD }}
+          HONGO_UPLOAD_KEY_ALIAS: ${{ secrets.HONGO_UPLOAD_KEY_ALIAS }}
+          HONGO_VERSION_CODE: ${{ github.run_number }}
+        run: ./gradlew --stacktrace bundleRelease
+
+      - name: Bundle checks (signed, bundled reader, licences, no source maps)
+        run: |
+          aab=app/build/outputs/bundle/release/app-release.aab
+          if ! jarsigner -J-Duser.language=en -verify "$aab" | grep -q "jar verified"; then echo "::error::the bundle is not signed"; exit 1; fi
+          entries="$(unzip -Z1 "$aab")"
+          for required in base/assets/ttu/index.html base/assets/licenses/ttu.txt; do
+            grep -qxF "$required" <<<"$entries" || { echo "::error::$required is missing"; exit 1; }
+          done
+          grep -q '^base/assets/ttu/_app/' <<<"$entries" || { echo "::error::ttu's _app/ is missing"; exit 1; }
+          # R8's mapping in BUNDLE-METADATA stays: Play uses it to deobfuscate crash reports.
+          if grep -q '^base/assets/.*\.map$' <<<"$entries"; then echo "::error::source maps in the bundle"; exit 1; fi
+          echo "Version code ${{ github.run_number }}"
+
+      - name: Upload bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: hongo-play-bundle-${{ github.run_number }}
+          path: app/build/outputs/bundle/release/app-release.aab
