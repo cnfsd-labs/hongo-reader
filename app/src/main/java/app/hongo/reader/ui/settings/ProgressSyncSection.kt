@@ -29,7 +29,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.hongo.reader.HongoApplication
 import app.hongo.reader.R
-import app.hongo.reader.data.sync.KoSyncAccount
 import app.hongo.reader.data.sync.KoSyncException
 import kotlinx.coroutines.launch
 
@@ -86,27 +85,17 @@ private fun SignInDialog(onDismiss: () -> Unit) {
     var checking by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<Int?>(null) }
 
-    fun submit(register: Boolean) {
+    fun submit() {
         if (server.isBlank() || username.isBlank() || password.isEmpty() || checking) return
         checking = true
         error = null
         scope.launch {
             try {
-                val account = if (register) {
-                    KoSyncAccount(server.trim(), username.trim(), KoSyncAccount.userKey(password)).also {
-                        container.koSyncClient.register(it)
-                        container.koSyncClient.authorize(it)
-                    }
-                } else {
-                    container.koSyncClient.signIn(server, username, password)
-                }
-                container.koSyncSettings.signIn(account)
+                container.koSyncSettings.signIn(container.koSyncClient.signIn(server, username, password))
                 onDismiss()
             } catch (e: KoSyncException) {
                 error = when (e.reason) {
                     KoSyncException.Reason.UNAUTHORIZED -> R.string.sync_error_unauthorized
-                    KoSyncException.Reason.USER_EXISTS -> R.string.sync_error_user_exists
-                    KoSyncException.Reason.REGISTRATION_CLOSED -> R.string.sync_error_registration_closed
                     KoSyncException.Reason.NETWORK -> R.string.sync_error_network
                     KoSyncException.Reason.SERVER -> R.string.sync_error_server
                 }
@@ -164,14 +153,12 @@ private fun SignInDialog(onDismiss: () -> Unit) {
             }
         },
         confirmButton = {
-            TextButton(onClick = { submit(register = false) }, enabled = !checking) {
+            TextButton(onClick = { submit() }, enabled = !checking) {
                 Text(stringResource(R.string.sync_sign_in))
             }
         },
         dismissButton = {
-            TextButton(onClick = { submit(register = true) }, enabled = !checking) {
-                Text(stringResource(R.string.sync_register))
-            }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
         },
     )
 }

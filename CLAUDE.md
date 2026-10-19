@@ -87,6 +87,8 @@ repository is public: never copy those notes, personal details or discussions in
   falls back to Basic and to `<address>/kosync`, and only then keeps the password (encrypted).
   The book server dialog has a "Sync reading progress here" switch (`CatalogSync`): sync on the
   catalogue's origin with its login; nothing is saved if that sign-in fails.
+  No account creation in HonGO! (Play wants deletion for accounts an app creates; the protocol
+  has none): accounts come from KOReader or the server.
 - Library: HonGO! owns the book files (app storage, named by SHA-256); ttu's IndexedDB is a
   rebuildable cache. Books reach ttu through ttu's own import input (`library-bridge.js`), not a
   ttu patch and not a native EPUB renderer.

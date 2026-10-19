@@ -69,16 +69,6 @@ class KoSyncClientTest {
     }
 
     @Test
-    fun registers_andSaysWhenTheNameIsTaken() = runTest {
-        val newcomer = account.copy(username = "new")
-        client.register(newcomer)
-        client.authorize(newcomer)
-        assertFails(KoSyncException.Reason.USER_EXISTS) { client.register(account) }
-        // Registering sends no login headers.
-        assertNull(server.requests.first().headers["x-auth-key"])
-    }
-
-    @Test
     fun errorsSayWhatWentWrong() = runTest {
         assertFails(KoSyncException.Reason.UNAUTHORIZED) { client.authorize(account.copy(userKey = "wrong")) }
         assertFails(KoSyncException.Reason.NETWORK) { client.authorize(account.copy(server = server.url + "/nothing-here")) }

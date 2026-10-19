@@ -54,12 +54,6 @@ class KoSyncException(val reason: Reason, message: String, cause: Throwable? = n
         /** Wrong user name or password. */
         UNAUTHORIZED,
 
-        /** Registering: the user name is taken. */
-        USER_EXISTS,
-
-        /** Registering: the server doesn't allow new accounts. */
-        REGISTRATION_CLOSED,
-
         /** No answer, or not a sync server. */
         NETWORK,
 
@@ -67,26 +61,15 @@ class KoSyncException(val reason: Reason, message: String, cause: Throwable? = n
     }
 }
 
-/** The KOReader sync API (`plugins/kosync.koplugin/api.json` in KOReader). */
+/**
+ * The KOReader sync API (`plugins/kosync.koplugin/api.json` in KOReader). Accounts are made in
+ * KOReader or on the server, never here: Play wants a way to delete an account an app created,
+ * and the protocol has none.
+ */
 class KoSyncClient(
     private val connectTimeoutMs: Int = 10_000,
     private val readTimeoutMs: Int = 15_000,
 ) {
-    /** Creates the account on the server. */
-    suspend fun register(account: KoSyncAccount) {
-        val body = buildJsonObject {
-            put("username", account.username)
-            put("password", account.userKey)
-        }
-        val (status, _) = request(account, "POST", "/users/create", body.toString(), auth = false)
-        when (status) {
-            201 -> Unit
-            402 -> throw KoSyncException(KoSyncException.Reason.USER_EXISTS, "User name taken")
-            403 -> throw KoSyncException(KoSyncException.Reason.REGISTRATION_CLOSED, "Registration closed")
-            else -> throw unexpected(status)
-        }
-    }
-
     /**
      * Signs in with what the reader typed and returns the account that worked:
      * - KOReader's login (the MD5 key) first, then the password with HTTP Basic, which
@@ -164,7 +147,6 @@ class KoSyncClient(
         method: String,
         path: String,
         body: String? = null,
-        auth: Boolean = true,
     ): Pair<Int, String> = withContext(Dispatchers.IO) {
         val url = try {
             URL(endpoint(account.server, path))
@@ -186,10 +168,10 @@ class KoSyncClient(
             connection.instanceFollowRedirects = false
             connection.requestMethod = method
             connection.setRequestProperty("Accept", ACCEPT)
-            if (auth && account.password != null) {
+            if (account.password != null) {
                 val token = "${account.username}:${account.password}".toByteArray(Charsets.UTF_8)
                 connection.setRequestProperty("Authorization", "Basic " + Base64.getEncoder().encodeToString(token))
-            } else if (auth) {
+            } else {
                 connection.setRequestProperty("x-auth-user", account.username)
                 connection.setRequestProperty("x-auth-key", account.userKey)
             }

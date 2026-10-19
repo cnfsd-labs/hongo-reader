@@ -43,16 +43,6 @@ internal class FakeKoSyncServer(
             when {
                 cwa && !fullPath.startsWith("/kosync/") -> out.respond("308 Permanent Redirect", "")
                 request.headers["accept"] != "application/vnd.koreader.v1+json" -> out.respond("412 Precondition Failed", "{}")
-                request.method == "POST" && path == "/users/create" -> {
-                    val body = Json.parseToJsonElement(request.body) as JsonObject
-                    val name = body["username"]!!.jsonPrimitive.content
-                    if (users.containsKey(name)) {
-                        out.respond("402 Payment Required", """{"code":2002,"message":"Username is already registered."}""")
-                    } else {
-                        users[name] = body["password"]!!.jsonPrimitive.content
-                        out.respond("201 Created", """{"username":"$name"}""")
-                    }
-                }
                 !authorized -> out.respond("401 Unauthorized", """{"code":2001,"message":"Unauthorized"}""")
                 path == "/users/auth" -> out.respond("200 OK", """{"authorized":"OK"}""")
                 request.method == "PUT" && path == "/syncs/progress" -> {
