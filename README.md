@@ -210,7 +210,9 @@ Custom Highlight API.
 
 `lookup/DictionaryLookup` deinflects every prefix of the tapped text, finds entries by written
 form and reading in enabled dictionaries, drops entries whose word class does not fit, and ranks
-the rest: longer match, fewer inflection steps, written-form match, frequency (best rank among
+the rest: entries that only point to another entry (Jitendex's rare spellings such as
+生れる → 生まれる, Wiktionary's conjugated forms such as 食べた → 食べる; `lookup/Redirect`) are
+replaced by the entry they point to, then the rest is ranked: longer match, fewer inflection steps, written-form match, frequency (best rank among
 the enabled frequency dictionaries), dictionary priority, popularity. Each word carries its
 frequencies and pitch accent (`WordMeta`); the panel draws the accent over the reading
 (`lookup/PitchAccent`) and Anki cards get it as HTML.

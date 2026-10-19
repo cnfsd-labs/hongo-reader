@@ -272,4 +272,79 @@ class DictionaryLookupTest {
         database.dictionaryDao().setEnabled(first, false)
         assertEquals(listOf("meal"), lookup.kanji("食").getValue("食").meanings)
     }
+
+    /** Pointer entries as Jitendex (link plus Yomitan's form-of item) and JMdict write them. */
+    private suspend fun installWithPointers(title: String, jitendexStyle: Boolean): Long {
+        val pointer = if (jitendexStyle) {
+            """[{"type":"structured-content","content":{"tag":"div","content":["⟶",""" +
+                """{"tag":"a","href":"?query=%E7%94%9F%E3%81%BE%E3%82%8C%E3%82%8B&wildcards=off","content":"生まれる"}]}},""" +
+                """["生まれる",["redirected from 生れる"]]]"""
+        } else {
+            """[{"type":"structured-content","content":{"tag":"span","content":["⟶",""" +
+                """{"tag":"a","href":"?query=生まれる&wildcards=off","content":"生まれる"}]}}]"""
+        }
+        val bank = """[
+            ["生まれる","うまれる","","v1",200,["to be born"],1378690,""],
+            ["産まれる","うまれる","","v1",99,["to be born (of a child)"],1378690,""],
+            ["生れる","","","v1",-102,$pointer,-1378690,""],
+            ["生れ","","","",-102,[{"type":"structured-content","content":{"tag":"a","href":"?query=missing","content":"missing"}}],-42,""],
+            ["生","なま","","",10,["raw"],7,""]
+        ]"""
+        val files = mapOf("index.json" to index(title), "term_bank_1.json" to bank)
+        return DictionaryImporter(database).import(writeZip(temp.root, files, "$title.zip")).id
+    }
+
+    @Test
+    fun pointerEntriesShowTheWordTheyPointTo() = runTest {
+        for (jitendexStyle in listOf(true, false)) {
+            val id = installWithPointers(if (jitendexStyle) "Jitendex" else "JMdict", jitendexStyle)
+
+            val result = lookup.lookup("生れた")
+
+            val first = result.entries.first()
+            assertEquals("生まれる", first.term.expression)
+            assertEquals("うまれる", first.term.reading)
+            assertEquals("生れた", first.source)
+            assertEquals(listOf(Inflection.PAST), first.inflections)
+            assertEquals("[\"to be born\"]", first.term.glossary.json)
+            assertFalse(result.headwords().contains("生れる"))
+            database.dictionaryDao().setEnabled(id, false)
+        }
+    }
+
+    @Test
+    fun aPointerWithoutItsTargetRanksBelowRealEntries() = runTest {
+        installWithPointers("Jitendex", jitendexStyle = true)
+        install("Other", listOf("生れ", "うまれ", "", 1, "birth"))
+
+        val result = lookup.lookup("生れ")
+
+        assertEquals(
+            listOf("Other 生れ", "Jitendex 生まれる", "Jitendex 生れ"),
+            result.entries.filter { it.source == "生れ" }.map { "${it.dictionary.title} ${it.term.expression}" },
+        )
+    }
+
+    @Test
+    fun formOfEntriesGiveWayToTheirLemma() = runTest {
+        // As in the Japanese Wiktionary (wty): conjugated forms as entries that only name the lemma.
+        val bank = """[
+            ["食べる","たべる","","v1",0,["食物を口に入れる。"],0,""],
+            ["食べた","食べた","non-lemma","v",0,[["食べる",["past"]]],0,""],
+            ["ふん","ふん","","",0,["hmph"],0,""],
+            ["ふふん","ふふん","non-lemma","",0,[["ふん",["reduplication"]]],0,""]
+        ]"""
+        val files = mapOf("index.json" to index("wty-ja-ja"), "term_bank_1.json" to bank)
+        DictionaryImporter(database).import(writeZip(temp.root, files, "wty.zip"))
+
+        val eaten = lookup.lookup("食べた")
+        assertEquals(listOf("食べる"), eaten.headwords())
+        assertEquals(listOf(Inflection.PAST), eaten.entries.single().inflections)
+
+        // A lemma only the dictionary knows is still shown, for the whole form.
+        val hmph = lookup.lookup("ふふん")
+        assertEquals("ふん", hmph.headwords().first())
+        assertEquals("ふふん", hmph.entries.first().source)
+        assertFalse(hmph.headwords().contains("ふふん"))
+    }
 }

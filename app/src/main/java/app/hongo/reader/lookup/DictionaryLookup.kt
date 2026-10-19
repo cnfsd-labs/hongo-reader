@@ -147,9 +147,14 @@ class DictionaryLookup(
                 }
         }
         // Only the entries that matched are unpacked.
-        val entries = matched.map { it.copy(term = unpacked(it.term, it.dictionary)) }
+        val unpackedEntries = matched.map { it.copy(term = unpacked(it.term, it.dictionary)) }
+        val (entries, pointers) = followPointers(unpackedEntries) { source, reading ->
+            readingPrefix(source)?.let { Furigana.agrees(it, reading) } ?: false
+        }
         val meta = meta(entries, dictionaries)
         val order = compareByDescending<LookupEntry> { it.source.length }
+            // A pointer whose target is missing says nothing itself.
+            .thenBy { it.term.id in pointers }
             .thenByDescending { it.matchesFurigana }
             .thenBy { it.inflections.size }
             .thenByDescending { it.matchedExpression }
@@ -157,6 +162,53 @@ class DictionaryLookup(
             .thenBy { meta[metaKey(it.term.expression, it.term.reading)]?.rank ?: Double.MAX_VALUE }
             .then(entryOrder)
         return LookupResult(entries.sortedWith(order), meta = meta)
+    }
+
+    /**
+     * [entries] with each pointer entry ([Redirect]) replaced by the entries it points to in the
+     * same dictionary, matched as the pointer was: 生れた shows 生まれる's definitions, not
+     * "⟶ 生れる". Also returns the ids of pointers whose target is missing.
+     */
+    private suspend fun followPointers(
+        entries: List<LookupEntry>,
+        matchesFurigana: (source: String, reading: String) -> Boolean,
+    ): Pair<List<LookupEntry>, Set<Long>> {
+        val targets = entries
+            .mapNotNull { entry -> Redirect.target(entry.term.sequence, entry.term.glossary.json)?.let { entry.term.id to it } }
+            .toMap()
+        if (targets.isEmpty()) return entries to emptySet()
+        val found = targets.values.distinct().chunked(MAX_LOOKUP_TEXTS)
+            .flatMap { termDao.findByExpressionOrReading(it) }
+        val unresolved = HashSet<Long>()
+        val resolved = entries.flatMap { entry ->
+            val target = targets[entry.term.id] ?: return@flatMap listOf(entry to false)
+            val sequence = entry.term.sequence
+            val terms = found
+                .filter {
+                    it.dictionaryId == entry.term.dictionaryId && it.expression == target &&
+                        (sequence == null || sequence >= 0 || it.sequence == -sequence)
+                }
+                .map { unpacked(it, entry.dictionary) }
+                // One step only: a pointer to a pointer is left alone.
+                .filter { Redirect.target(it.sequence, it.glossary.json) == null }
+            if (terms.isEmpty()) {
+                unresolved += entry.term.id
+                listOf(entry to false)
+            } else {
+                terms.map { term ->
+                    entry.copy(
+                        term = term,
+                        matchesFurigana = matchesFurigana(entry.source, term.reading.ifEmpty { term.expression }),
+                    ) to true
+                }
+            }
+        }
+        // A target the text also matched directly shows once, preferably as matched directly
+        // (食べた as 食べる's past form rather than as the form-of entry's lemma).
+        val order = compareByDescending<Pair<LookupEntry, Boolean>> { it.first.source.length }
+            .thenBy { it.second }
+            .thenBy(entryOrder) { it.first }
+        return resolved.sortedWith(order).distinctBy { it.first.term.id }.map { it.first } to unresolved
     }
 
     /**
