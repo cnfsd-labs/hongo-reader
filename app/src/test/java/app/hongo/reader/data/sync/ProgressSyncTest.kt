@@ -126,7 +126,7 @@ class ProgressSyncTest {
     }
 
     @Test
-    fun thePageStartAfterAJumpIsNotSentBack_butReadingOnIs() = runBlocking {
+    fun thePageStartAfterAJumpIsNotSentBack_butTurningBackIs() = runBlocking {
         server.save(document, "/body/DocFragment[2]/body/p/text().3", 0.58, "Kindle", "K1", timestamp = 2_000)
         pull(local = 0, savedAtMs = 0)
         // ttu opens on the page holding character 18 and saves that page's start.
@@ -135,9 +135,10 @@ class ProgressSyncTest {
         Thread.sleep(300)
         assertEquals(0, server.requests.count { it.method == "PUT" })
 
-        sync.onPosition(5, 25)
+        // Turning back a page afterwards is reading, and is sent.
+        sync.onPosition(5, 12)
         sync.flush()
-        assertEquals("/body/DocFragment[2]/body/p[1]/text()[1].10", waitForProgress(device = settings.deviceId)["progress"]!!.jsonPrimitive.content)
+        assertEquals("/body/DocFragment[1]/body/div[1]/p[2]/text()[2].1", waitForProgress(device = settings.deviceId)["progress"]!!.jsonPrimitive.content)
     }
 
     @Test

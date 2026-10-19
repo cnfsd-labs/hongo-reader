@@ -57,8 +57,9 @@ class ProgressSync(
     private val synced = HashMap<Long, Long>()
 
     /**
-     * Positions taken from the server per ttu book: ttu then saves the start of the page that
-     * holds it, a little earlier, which must not go back as if the reader had turned back.
+     * Positions just taken from the server per ttu book: ttu then saves the start of the page
+     * that holds it, a little earlier, which must not go back as if the reader had turned back.
+     * Only that first save is skipped.
      */
     private val pulledTo = HashMap<Long, Long>()
     private var pending: Pair<Long, Long>? = null
@@ -119,6 +120,11 @@ class ProgressSync(
     /** ttu saved a reading position (a page turn); sent after [pushDelayMs], with later ones. */
     fun onPosition(ttuId: Long, characters: Long) {
         if (settings.account.value == null) return
+        // The first save after a jump is ttu opening the page that holds the pulled position.
+        val pageStart = synchronized(synced) {
+            pulledTo.remove(ttuId)?.let { pulled -> characters in (pulled - PAGE_CHARACTERS)..pulled } == true
+        }
+        if (pageStart) return
         synchronized(this) {
             pending = ttuId to characters
             if (pushJob?.isActive == true) return
@@ -140,13 +146,7 @@ class ProgressSync(
 
     private suspend fun push() = pushLock.withLock {
         val (ttuId, characters) = synchronized(this) { pending.also { pending = null } } ?: return@withLock
-        val unchanged = synchronized(synced) {
-            val pulled = pulledTo[ttuId]
-            if (pulled != null && characters in (pulled - PAGE_CHARACTERS)..pulled) return@synchronized true
-            pulledTo.remove(ttuId)
-            synced[ttuId] == characters
-        }
-        if (unchanged) return@withLock
+        if (synchronized(synced) { synced[ttuId] } == characters) return@withLock
         val account = settings.account.value ?: return@withLock
         try {
             val book = books.findByTtuId(ttuId)?.takeIf { it.format == BookFormat.EPUB } ?: return@withLock
