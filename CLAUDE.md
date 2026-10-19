@@ -72,7 +72,9 @@ repository is public: never copy those notes, personal details or discussions in
   computer names deck and tags in columns (Anki ignores a `#deck:` header for a missing deck); the Google Cloud key is
   Keystore-encrypted and only sent to Google in the `X-Goog-Api-Key` header.
 - OPDS: own Atom parser (DOM via `SafeXml`) and `HttpURLConnection` client, no library. Login
-  only sent to the catalogue's origin (redirects followed manually). Password AES-GCM-encrypted
+  only sent to the catalogue's origin (redirects followed manually); Basic first, Digest (RFC 7616)
+  when a 401 asks for it, then remembered per origin for the session. No OPDS 2.0 (servers in use
+  speak 1.x). Password AES-GCM-encrypted
   with an Android Keystore key (not androidx security-crypto, which is deprecated); the database
   is excluded from backup anyway. Cleartext and user CAs allowed for home servers, with a warning
   in the dialog. Catalogues are opened from "Add book", not a separate tab.

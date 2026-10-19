@@ -124,7 +124,8 @@ the library is shown; removing a book deletes it from ttu too.
 
 "Add book" offers files on the phone or a book server: an OPDS 1.x catalogue such as
 Calibre-Web (`data/opds/`). `OpdsParser` reads Atom navigation and acquisition feeds (paging,
-thumbnails, OpenSearch search); `OpdsClient` fetches them with Basic auth, follows redirects
+thumbnails, OpenSearch search); `OpdsClient` fetches them with Basic auth, or Digest auth
+when the server asks for it (Calibre's own content server; `DigestChallenge`), follows redirects
 itself and sends the login only to the catalogue's own origin. Typing just a host works: missing
 `https://` is added and `/opds` is tried. Passwords are encrypted with an AES key in the Android
 Keystore before they go into the `opds_catalog` table. A download goes through the same import

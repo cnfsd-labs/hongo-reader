@@ -7,6 +7,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Rule
 import org.junit.Test
@@ -99,6 +100,61 @@ class OpdsClientTest {
         assertNull(OpdsClient.fileNameFromDisposition("attachment"))
         assertNull(OpdsClient.fileNameFromDisposition("attachment; filename=\"..\""))
     }
+
+    /** A server like Calibre's content server: Digest only, nonce "n1" until it goes stale. */
+    private fun digestServer(password: String, staleAfter: Int = Int.MAX_VALUE): HeaderServer {
+        lateinit var server: HeaderServer
+        var answered = 0
+        server = server { path, out ->
+            val params = server.authorizations.last()?.takeIf { it.startsWith("Digest ") }
+                ?.let { DigestChallenge.challenges(it).single().second }
+            val nonce = if (answered >= staleAfter) "n2" else "n1"
+            val expected = params?.let {
+                val ha1 = md5("${it["username"]}:calibre:$password")
+                val ha2 = md5("GET:${it["uri"]}")
+                md5("$ha1:${it["nonce"]}:${it["nc"]}:${it["cnonce"]}:auth:$ha2")
+            }
+            if (params != null && params["uri"] == path && params["nonce"] == nonce && params["response"] == expected) {
+                answered++
+                out.respond("200 OK", FEED)
+            } else {
+                val stale = if (params?.get("response") == expected && params?.get("nonce") != nonce) ", stale=true" else ""
+                out.respond("401 Unauthorized", "", "WWW-Authenticate: Digest realm=\"calibre\", nonce=\"$nonce\", qop=\"auth\", opaque=\"o\"$stale")
+            }
+        }
+        return server
+    }
+
+    @Test
+    fun answersDigest_andKeepsUsingItForThatServer() = runTest {
+        val calibre = digestServer("秘密")
+        val opds = OpdsServer("http://127.0.0.1:${calibre.port}/opds", "reader", "秘密")
+
+        assertEquals("Test", client.feed(opds, opds.url).title)
+        assertEquals("Test", client.feed(opds, opds.url + "/new?page=2").title)
+
+        val sent = calibre.authorizations.map { it?.substringBefore(' ') }
+        assertEquals(listOf("Basic", "Digest", "Digest"), sent)
+        assertTrue(calibre.authorizations.last()!!.contains("uri=\"/opds/new?page=2\""))
+        assertTrue(calibre.authorizations.last()!!.contains("nc=00000002"))
+        assertTrue(calibre.authorizations.none { it!!.contains("秘密") })
+    }
+
+    @Test
+    fun aStaleNonceIsRenewed_butAWrongPasswordFails() = runTest {
+        val calibre = digestServer("right", staleAfter = 1)
+        val opds = OpdsServer("http://127.0.0.1:${calibre.port}/opds", "reader", "right")
+        client.feed(opds, opds.url)
+        assertEquals("Test", client.feed(opds, opds.url).title)
+
+        val wrong = digestServer("right")
+        val badLogin = OpdsServer("http://127.0.0.1:${wrong.port}/opds", "reader", "wrong")
+        assertFails(OpdsException.Reason.UNAUTHORIZED) { client.feed(badLogin, badLogin.url) }
+        assertEquals(2, wrong.authorizations.size)
+    }
+
+    private fun md5(text: String) =
+        java.security.MessageDigest.getInstance("MD5").digest(text.toByteArray()).joinToString("") { "%02x".format(it) }
 
     @Test
     fun authorizationOnlyForTheSameOrigin() {

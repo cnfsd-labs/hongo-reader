@@ -13,6 +13,7 @@ import java.net.URL
 import java.net.URLDecoder
 import java.net.UnknownHostException
 import java.util.Base64
+import java.util.concurrent.ConcurrentHashMap
 import javax.net.ssl.SSLException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
@@ -46,11 +47,17 @@ class OpdsException(val reason: Reason, message: String, cause: Throwable? = nul
     }
 }
 
-/** HTTP for OPDS catalogues: feeds, cover thumbnails and book downloads, with Basic auth. */
+/**
+ * HTTP for OPDS catalogues: feeds, cover thumbnails and book downloads. Logins go as Basic auth
+ * until a server asks for Digest (Calibre's content server); its challenge is then remembered.
+ */
 class OpdsClient(
     private val connectTimeoutMs: Int = 15_000,
     private val readTimeoutMs: Int = 30_000,
 ) {
+    /** The latest Digest challenge per origin, so only the first request is answered twice. */
+    private val digests = ConcurrentHashMap<String, DigestChallenge>()
+
     suspend fun feed(server: OpdsServer, url: String): OpdsFeed {
         val bytes = bytes(server, url, MAX_FEED_BYTES)
         // Off the main thread: a feed can be megabytes of XML.
@@ -121,7 +128,9 @@ class OpdsClient(
         read: suspend (HttpURLConnection) -> T,
     ): T = withContext(Dispatchers.IO) {
         var current = url
-        repeat(MAX_REDIRECTS + 1) {
+        var redirects = 0
+        var digestTries = 0
+        while (redirects <= MAX_REDIRECTS) {
             // Only web addresses: another scheme (ftp:, file:) gives no HTTP connection.
             if (!isWeb(current)) {
                 throw OpdsException(OpdsException.Reason.NOT_A_CATALOGUE, "Not a web address: $current")
@@ -133,7 +142,7 @@ class OpdsClient(
                     instanceFollowRedirects = false
                     setRequestProperty("User-Agent", USER_AGENT)
                     setRequestProperty("Accept", ACCEPT)
-                    authorization(server, current)?.let { setRequestProperty("Authorization", it) }
+                    login(server, current)?.let { setRequestProperty("Authorization", it) }
                 }
             } catch (e: IOException) {
                 throw networkError(e)
@@ -158,8 +167,22 @@ class OpdsClient(
                         current = connection.getHeaderField("Location")
                             ?.let { location -> resolve(current, location) }
                             ?: throw OpdsException(OpdsException.Reason.SERVER, "Redirect without a location")
+                        redirects++
+                        digestTries = 0
                     }
-                    401, 403 -> throw OpdsException(OpdsException.Reason.UNAUTHORIZED, "The server answered $status")
+                    401 -> {
+                        // A server that wants Digest: answer its challenge (again once if the
+                        // nonce went stale), then the login was wrong.
+                        val challenge = authorization(server, current)?.let {
+                            DigestChallenge.from(connection.headerFields["WWW-Authenticate"].orEmpty())
+                        }
+                        if (challenge == null || digestTries >= (if (challenge.stale) 2 else 1)) {
+                            throw OpdsException(OpdsException.Reason.UNAUTHORIZED, "The server answered 401")
+                        }
+                        digests[origin(current)!!] = challenge
+                        digestTries++
+                    }
+                    403 -> throw OpdsException(OpdsException.Reason.UNAUTHORIZED, "The server answered $status")
                     404, 410 -> throw OpdsException(OpdsException.Reason.NOT_A_CATALOGUE, "The server answered $status")
                     else -> throw OpdsException(OpdsException.Reason.SERVER, "The server answered $status")
                 }
@@ -168,6 +191,15 @@ class OpdsClient(
             }
         }
         throw OpdsException(OpdsException.Reason.SERVER, "Too many redirects")
+    }
+
+    /** The Authorization header for [url]: Digest once the origin asked for it, else Basic. */
+    private fun login(server: OpdsServer, url: String): String? {
+        val basic = authorization(server, url) ?: return null
+        val digest = digests[origin(url)] ?: return basic
+        val uri = URI(url)
+        val target = (uri.rawPath?.ifEmpty { null } ?: "/") + (uri.rawQuery?.let { "?$it" } ?: "")
+        return digest.authorization(server.username!!, server.password.orEmpty(), "GET", target)
     }
 
     private fun tooLarge(url: String): Nothing =
