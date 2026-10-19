@@ -94,6 +94,7 @@ fun SettingsScreen(
         onShareDiagnostics = onShareDiagnostics,
         onOpenAbout = { showingAbout = true },
         anki = { AnkiSettingsSection() },
+        sync = { ProgressSyncSection() },
     )
 }
 
@@ -109,6 +110,7 @@ private fun SettingsContent(
     onShareDiagnostics: () -> Unit,
     onOpenAbout: () -> Unit,
     anki: @Composable () -> Unit = {},
+    sync: @Composable () -> Unit = {},
 ) {
     Scaffold(
         topBar = { HongoTopAppBar(title = stringResource(R.string.settings_title)) },
@@ -149,6 +151,7 @@ private fun SettingsContent(
                 }
             }
             item { anki() }
+            item { sync() }
             item {
                 ListItem(
                     headlineContent = { Text(stringResource(R.string.settings_reader)) },

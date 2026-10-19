@@ -14,6 +14,12 @@
  *     Deletes the book and its bookmark from ttu. → { type: 'library.removed', requestId }
  *   hongoLibrary.resetProgress({ requestId, ttuId })
  *     Deletes ttu's bookmark for the book, so it opens at the start. → { type: 'library.reset', requestId }
+ *   hongoLibrary.bookmark({ requestId, ttuId })
+ *     → { type: 'library.bookmark', requestId, characters, modified }: the reading position ttu
+ *     saved for the book (characters before it, when it was saved in ms); characters null if none.
+ *   hongoLibrary.setBookmark({ requestId, ttuId, characters, progress })
+ *     Saves a reading position for the book (from progress sync), which ttu opens it at.
+ *     → { type: 'library.bookmarkSet', requestId }
  *   hongoLibrary.progress()
  *     → { type: 'library.progress', books: [{ id, progress, characters }] }, progress 0..1 and
  *     the characters read up to the reading position (exploredCharCount), from ttu's bookmarks.
@@ -244,6 +250,44 @@
     });
   }
 
+  function bookmark({ requestId, ttuId }) {
+    enqueue(async () => {
+      let found = null;
+      try {
+        found = await withDb(async (db) => {
+          if (!db.objectStoreNames.contains('bookmark')) return null;
+          return (await done(db.transaction('bookmark').objectStore('bookmark').get(ttuId))) || null;
+        });
+      } catch (error) {
+        // No database yet: no bookmark.
+      }
+      const characters = found && Number.isFinite(found.exploredCharCount) ? Math.max(0, found.exploredCharCount) : null;
+      const modified = found && Number.isFinite(found.lastBookmarkModified) ? found.lastBookmarkModified : 0;
+      post({ type: 'library.bookmark', requestId, characters, modified });
+    });
+  }
+
+  function setBookmark({ requestId, ttuId, characters, progress }) {
+    enqueue(async () => {
+      try {
+        await withDb(async (db) => {
+          if (!db.objectStoreNames.contains('bookmark')) return;
+          const transaction = db.transaction('bookmark', 'readwrite');
+          transaction.objectStore('bookmark').put({
+            dataId: ttuId,
+            exploredCharCount: Math.max(0, Math.floor(characters)),
+            progress: Math.min(1, Math.max(0, progress)),
+            lastBookmarkModified: Date.now(),
+          });
+          await committed(transaction);
+        });
+      } catch (error) {
+        // No database: ttu opens the book at its start, as without sync.
+      }
+      post({ type: 'library.bookmarkSet', requestId });
+    });
+  }
+
   function toFraction(progress) {
     const value = typeof progress === 'string' ? parseFloat(progress) / (progress.includes('%') ? 100 : 1) : progress;
     return typeof value === 'number' && isFinite(value) ? Math.min(1, Math.max(0, value)) : null;
@@ -295,5 +339,5 @@
 
   watchDataWrites();
   watchImportErrors();
-  window.hongoLibrary = Object.freeze({ ensure, remove, resetProgress, progress, open, navigate });
+  window.hongoLibrary = Object.freeze({ ensure, remove, resetProgress, bookmark, setBookmark, progress, open, navigate });
 })();

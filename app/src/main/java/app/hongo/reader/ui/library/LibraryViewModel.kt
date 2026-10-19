@@ -3,12 +3,14 @@ package app.hongo.reader.ui.library
 import android.content.ContentResolver
 import android.net.Uri
 import android.provider.OpenableColumns
+import android.widget.Toast
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import app.hongo.reader.HongoApplication
+import app.hongo.reader.R
 import app.hongo.reader.data.library.BookDao
 import app.hongo.reader.data.library.BookEntity
 import app.hongo.reader.data.library.BookImporter
@@ -104,6 +106,8 @@ class LibraryViewModel(
     private val reading: suspend (String) -> String = { it },
     /** The sample book offered on the first-start screen. */
     private val openSample: () -> PickedFile? = { null },
+    /** Takes a newer reading position from progress sync before the book (ttu id) opens. */
+    private val syncPosition: suspend (BookEntity, Long) -> Unit = { _, _ -> },
 ) : ViewModel() {
     private val adding = MutableStateFlow<String?>(null)
     private val opening = MutableStateFlow<Long?>(null)
@@ -229,6 +233,7 @@ class LibraryViewModel(
                     return@launch
                 }
                 if (ttuBook != known) adder.link(book, ttuBook)
+                syncPosition(book, ttuBook.id)
                 ttu.open(ttuBook.id)
                 dao.setLastOpened(book.id, now())
             } catch (_: TtuLibraryException) {
@@ -347,6 +352,24 @@ class LibraryViewModel(
                         runCatching { PickedFile(SAMPLE_FILE_NAME, application.assets.open(SAMPLE_ASSET)) }.getOrNull()
                     },
                     autoImport = container.opdsAutoImport.status,
+                    syncPosition = { book, ttuId ->
+                        val ttu = container.ttuLibrary
+                        // Sync is a bonus: the book opens where it was if the reader page can't answer.
+                        val pulled = try {
+                            container.progressSync.pull(
+                                book,
+                                ttuId,
+                                bookmark = { ttu.bookmark(ttuId) },
+                                setBookmark = { characters, progress -> ttu.setBookmark(ttuId, characters, progress) },
+                            )
+                        } catch (_: TtuLibraryException) {
+                            null
+                        }
+                        if (pulled != null) {
+                            val text = application.getString(R.string.sync_continued, pulled.percent, pulled.device)
+                            Toast.makeText(application, text, Toast.LENGTH_LONG).show()
+                        }
+                    },
                     // Lookups off the main thread: a romaji search reads every title in the library.
                     reading = { text ->
                         val lookup = container.dictionaryLookup

@@ -1,6 +1,7 @@
 package app.hongo.reader
 
 import android.content.Context
+import android.os.Build
 import android.util.Log
 import androidx.room.withTransaction
 import app.hongo.reader.anki.AnkiDroid
@@ -28,6 +29,9 @@ import app.hongo.reader.data.stats.ReadingDao
 import app.hongo.reader.data.stats.ReadingDayEntity
 import app.hongo.reader.data.stats.ReadingStore
 import app.hongo.reader.data.stats.ReadingTracker
+import app.hongo.reader.data.sync.KoSyncClient
+import app.hongo.reader.data.sync.KoSyncSettings
+import app.hongo.reader.data.sync.ProgressSync
 import app.hongo.reader.data.words.WordRepository
 import app.hongo.reader.diagnostics.ReaderDiagnostics
 import app.hongo.reader.lookup.DictionaryLookup
@@ -106,6 +110,21 @@ class AppContainer(context: Context) {
     }
 
     val ankiDroid: AnkiDroid by lazy { AnkiDroid(appContext) }
+
+    val koSyncSettings: KoSyncSettings by lazy { KoSyncSettings(devicePreferences, credentialCipher) }
+
+    val koSyncClient: KoSyncClient by lazy { KoSyncClient() }
+
+    val progressSync: ProgressSync by lazy {
+        ProgressSync(
+            settings = koSyncSettings,
+            client = koSyncClient,
+            books = bookDao,
+            bookFile = bookImporter::bookFile,
+            scope = applicationScope,
+            device = "HonGO! (${Build.MODEL})",
+        )
+    }
 
     /** One phone voice for the app, so its engine stays connected between cards. */
     val phoneVoice: PhoneVoice by lazy { PhoneVoice(appContext, applicationScope) }

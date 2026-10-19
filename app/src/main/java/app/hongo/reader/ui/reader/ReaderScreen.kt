@@ -91,7 +91,10 @@ private fun ReaderWithTabs(viewModel: ReaderViewModel) {
         val observer = LifecycleEventObserver { _, event ->
             tracker.setForeground(lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
             // Characters read count from ttu's positions; ask before the app may be closed.
-            if (event == Lifecycle.Event.ON_STOP) container.ttuLibrary.requestProgress()
+            if (event == Lifecycle.Event.ON_STOP) {
+                container.ttuLibrary.requestProgress()
+                container.progressSync.flush()
+            }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
@@ -99,7 +102,11 @@ private fun ReaderWithTabs(viewModel: ReaderViewModel) {
             tracker.setForeground(false)
         }
     }
-    LaunchedEffect(atLibrary) { tracker.setVisible(!atLibrary) }
+    LaunchedEffect(atLibrary) {
+        tracker.setVisible(!atLibrary)
+        // Back at the library: the position reached goes to the sync server now.
+        if (atLibrary) container.progressSync.flush()
+    }
     // The first-start screen, once: not for a library that has books or dictionaries already.
     val onboardingDone by container.onboardingSettings.done.collectAsStateWithLifecycle()
     var onboardingChecked by remember { mutableStateOf(false) }
@@ -137,7 +144,10 @@ private fun ReaderWithTabs(viewModel: ReaderViewModel) {
                     tracker.setBook(it)
                 },
                 onActivity = tracker::onActivity,
-                onPage = tracker::onPage,
+                onPage = { ttuId, characters ->
+                    tracker.onPage(ttuId, characters)
+                    container.progressSync.onPosition(ttuId, characters)
+                },
                 onOpenSettings = {
                     viewModel.dismiss()
                     readerSettings = true

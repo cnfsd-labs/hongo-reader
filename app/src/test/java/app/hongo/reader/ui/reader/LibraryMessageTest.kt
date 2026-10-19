@@ -27,6 +27,18 @@ class LibraryMessageTest {
             LibraryMessage.Settings(requestId = 7, values = mapOf("fontSize" to "28", "theme" to null)),
             LibraryMessage.parse("""{"type":"library.settings","requestId":7,"settings":{"fontSize":"28","theme":null}}"""),
         )
+        assertEquals(
+            LibraryMessage.Bookmark(requestId = 8, characters = 918, modified = 1_792_438_152_000),
+            LibraryMessage.parse("""{"type":"library.bookmark","requestId":8,"characters":918,"modified":1792438152000}"""),
+        )
+        assertEquals(
+            LibraryMessage.Bookmark(requestId = 9, characters = null, modified = 0),
+            LibraryMessage.parse("""{"type":"library.bookmark","requestId":9,"characters":null,"modified":0}"""),
+        )
+        assertEquals(
+            LibraryMessage.BookmarkSet(requestId = 10),
+            LibraryMessage.parse("""{"type":"library.bookmarkSet","requestId":10}"""),
+        )
     }
 
     @Test

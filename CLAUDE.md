@@ -78,6 +78,10 @@ repository is public: never copy those notes, personal details or discussions in
   with an Android Keystore key (not androidx security-crypto, which is deprecated); the database
   is excluded from backup anyway. Cleartext and user CAs allowed for home servers, with a warning
   in the dialog. Catalogues are opened from "Add book", not a separate tab.
+- Progress sync: KOReader's sync protocol (`data/sync/`), optional, EPUB only, document id =
+  KOReader's partial MD5 of the file. Positions are translated exactly between KOReader's
+  XPointers and ttu's character count (`EpubPositions`, ttu's counting rules); the server's
+  position is written into ttu's bookmark before the book opens. Account in `device` prefs.
 - Library: HonGO! owns the book files (app storage, named by SHA-256); ttu's IndexedDB is a
   rebuildable cache. Books reach ttu through ttu's own import input (`library-bridge.js`), not a
   ttu patch and not a native EPUB renderer.
@@ -102,6 +106,8 @@ app/src/main/java/app/hongo/reader/
                              OpdsAutoImport (new Japanese books on app start)
   data/settings/             AppearanceSettings (accent colour), OnboardingSettings (shared
                              preferences), ReaderSettings (model over ttu's localStorage keys)
+  data/sync/                 KOReader progress sync: KoSyncClient, KoSyncSettings, PartialMd5,
+                             EpubPositions (XPointer <-> ttu characters), Xhtml, ProgressSync
   data/stats/                reading statistics: ReadingDayEntity/ReadingDao, ReadingTracker
                              (time + characters), ReadingStats (summaries)
   anki/                      AnkiCard (note type, fields), AnkiDroid (content provider client),

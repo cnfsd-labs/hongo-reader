@@ -42,6 +42,15 @@ first start with the sample book; tap a few words (conjugated forms, furigana); 
 and an Aozora `.txt`; vertical and horizontal mode; rotate; back to the library; dark mode;
 add a card to AnkiDroid; force-stop and reopen (books, dictionaries, position kept).
 
+## Reading progress sync (KOReader)
+
+With KOReader on an e-reader (or Calibre-Web Automated) signed in to the same sync server:
+put the same EPUB file on both. In HonGO!: Settings → Reading progress sync, sign in, read a few
+pages, go back to the library. In KOReader, open the book: it offers HonGO!'s position (top of
+the page HonGO! showed). Read on in KOReader, then open the book in HonGO!: it says "Continued
+at …% from …" and shows the page KOReader was on. Books converted from Aozora text files only
+match if both devices have the same EPUB.
+
 ## Known limitations (no need to report)
 
 - Diagnostics show "Failed to register a ServiceWorker": ttu tries to install its offline cache,

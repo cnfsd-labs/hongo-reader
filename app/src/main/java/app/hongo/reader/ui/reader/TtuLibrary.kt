@@ -109,6 +109,26 @@ class TtuLibrary(
         }
     }
 
+    /** ttu's saved reading position for the book: characters before it (null if none) and when (ms). */
+    suspend fun bookmark(ttuId: Long): Pair<Long?, Long> {
+        val reply = command(pageTimeoutMs, "bookmark") { requestId ->
+            put("requestId", requestId)
+            put("ttuId", ttuId)
+        }
+        return (reply as? LibraryMessage.Bookmark)?.let { it.characters to it.modified }
+            ?: throw TtuLibraryException("Unexpected reply")
+    }
+
+    /** Saves a reading position for the book, which ttu opens it at next. */
+    suspend fun setBookmark(ttuId: Long, characters: Long, progress: Double) {
+        command(pageTimeoutMs, "setBookmark") { requestId ->
+            put("requestId", requestId)
+            put("ttuId", ttuId)
+            put("characters", characters)
+            put("progress", progress)
+        }
+    }
+
     /** Opens the book in ttu's reader, inside the running page (see `library-bridge.js`). */
     suspend fun open(ttuId: Long) {
         mutex.withLock {

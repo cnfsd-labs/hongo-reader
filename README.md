@@ -10,6 +10,7 @@ what it means, even when it's conjugated: 食べさせられなかった leads s
 - Every word you look up is saved with its sentence; send words to Anki (AnkiDroid) as cards
 - Reading statistics: time, characters, speed
 - Your own book server (OPDS, such as Calibre-Web): browse, search, download
+- Reading progress sync with KOReader (e-readers, Calibre-Web Automated), to the character
 - No account, no ads, no tracking ([privacy policy](docs/privacy-policy.md))
 
 Books are shown by [ッツ Ebook Reader](https://github.com/ttu-ttu/ebook-reader) inside the app;
@@ -135,6 +136,27 @@ catalogue marks books already in the library. Plain http and user-installed CAs 
 when a password would go over http. With automatic import on (per catalogue, default on), each
 app start downloads new Japanese books from the catalogue's newest-books feed
 (`data/opds/OpdsAutoImport`); books the reader removed are remembered and stay away.
+
+## Reading progress sync
+
+Optional, off until the reader signs in (Settings → Reading progress sync): HonGO! speaks
+KOReader's sync protocol (`data/sync/`), so reading positions in EPUBs move between HonGO!,
+KOReader on an e-reader and other phones, through KOReader's own server, a self-hosted
+koreader-sync-server or Calibre-Web Automated's `/kosync`. `KoSyncClient` is the HTTP API (the
+password is only kept as its MD5 key, encrypted with the Keystore key, in the never backed up
+`device` preferences). A book is identified as KOReader does it (`PartialMd5`: 1 KB samples of
+the file), so both devices need the same file.
+
+Positions are exact, not percentages: KOReader saves an XPointer into its DOM
+(`/body/DocFragment[3]/body/p[7]/text().12`), ttu a character count. `EpubPositions` reads the
+book's spine and counts characters the way ttu does (no ruby readings or hidden elements, only
+Japanese letters, digits and Latin letters), and translates between the two with its own lenient
+XHTML reader (`Xhtml`; book pages often have a DOCTYPE or HTML entities). A position whose
+elements don't exist in the file falls back to the percentage. `ProgressSync` asks the server
+before a book opens and, if its position is newer and from another device, writes it into ttu's
+bookmark first (`library-bridge.js`: `bookmark`, `setBookmark`); page turns are sent 15 seconds
+later together, and at once when the reader leaves the book or the app. The start of the page
+ttu opens after such a jump is not sent back.
 
 ## Saved words
 

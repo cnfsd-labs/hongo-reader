@@ -19,6 +19,11 @@ sealed interface LibraryMessage {
 
     data class ProgressReset(override val requestId: Long) : Reply
 
+    /** ttu's saved position for a book: [characters] before it (null if none), saved at [modified] (ms). */
+    data class Bookmark(override val requestId: Long, val characters: Long?, val modified: Long) : Reply
+
+    data class BookmarkSet(override val requestId: Long) : Reply
+
     /** ttu's stored reader settings (`reader-settings.js`), by localStorage key; null for unset. */
     data class Settings(override val requestId: Long, val values: Map<String, String?>) : Reply
 
@@ -61,6 +66,12 @@ sealed interface LibraryMessage {
                 )
                 "library.removed" -> Removed(envelope.requestId ?: return null)
                 "library.reset" -> ProgressReset(envelope.requestId ?: return null)
+                "library.bookmark" -> Bookmark(
+                    envelope.requestId ?: return null,
+                    envelope.characters?.takeIf { it >= 0 },
+                    envelope.modified?.coerceAtLeast(0) ?: 0,
+                )
+                "library.bookmarkSet" -> BookmarkSet(envelope.requestId ?: return null)
                 "library.settings" -> Settings(
                     envelope.requestId ?: return null,
                     envelope.settings.filter { (key, value) ->
@@ -88,6 +99,8 @@ private data class LibraryEnvelope(
     val message: String? = null,
     val books: List<BookProgress> = emptyList(),
     val settings: Map<String, String?> = emptyMap(),
+    val characters: Long? = null,
+    val modified: Long? = null,
 )
 
 @Serializable
