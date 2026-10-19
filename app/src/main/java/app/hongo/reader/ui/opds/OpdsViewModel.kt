@@ -20,6 +20,8 @@ import app.hongo.reader.data.opds.OpdsRepository
 import app.hongo.reader.data.opds.OpdsSearch
 import app.hongo.reader.data.opds.OpdsServer
 import app.hongo.reader.data.opds.bookFileName
+import app.hongo.reader.data.sync.CatalogSync
+import app.hongo.reader.data.sync.KoSyncException
 import app.hongo.reader.ui.library.BookAdder
 import java.io.File
 import java.util.UUID
@@ -75,8 +77,14 @@ data class CatalogEditor(
     val hasPassword: Boolean = false,
     /** Download new Japanese books automatically; on for new catalogues. */
     val autoImport: Boolean = true,
+    /** Reading progress sync runs on this server with this login (Calibre-Web Automated). */
+    val syncProgress: Boolean = false,
+    /** The server sync runs on now, if another one: turning it on here replaces it. */
+    val otherSyncServer: String? = null,
     val checking: Boolean = false,
     val error: OpdsException.Reason? = null,
+    /** Turning sync on failed (the server has none, say); nothing was saved. */
+    val syncError: KoSyncException.Reason? = null,
 )
 
 data class OpdsUiState(
@@ -98,6 +106,8 @@ class OpdsViewModel(
     private val downloadsDir: File,
     /** Starts an automatic import now (after a catalogue with it was saved). */
     private val startAutoImport: () -> Unit = {},
+    /** Reading progress sync with a catalogue's login; null leaves sync out of the dialog. */
+    private val catalogSync: CatalogSync? = null,
 ) : ViewModel() {
     private val browsing = MutableStateFlow<BrowseState?>(null)
     private val editor = MutableStateFlow<CatalogEditor?>(null)
@@ -312,7 +322,7 @@ class OpdsViewModel(
     }
 
     fun startAdding() {
-        editor.value = CatalogEditor()
+        editor.value = CatalogEditor(otherSyncServer = catalogSync?.otherServer("", null))
     }
 
     fun startEditing(catalog: OpdsCatalog) {
@@ -322,6 +332,8 @@ class OpdsViewModel(
             username = catalog.username.orEmpty(),
             hasPassword = catalog.hasPassword,
             autoImport = catalog.autoImport,
+            syncProgress = catalogSync?.isOn(catalog.url, catalog.username) == true,
+            otherSyncServer = catalogSync?.otherServer(catalog.url, catalog.username),
         )
     }
 
@@ -333,10 +345,10 @@ class OpdsViewModel(
      * Checks the catalogue and saves it; a new one opens at once. An empty [password] while editing
      * keeps the stored password.
      */
-    fun saveCatalog(address: String, username: String, password: String, autoImport: Boolean) {
+    fun saveCatalog(address: String, username: String, password: String, autoImport: Boolean, syncProgress: Boolean = false) {
         val current = editor.value ?: return
         if (current.checking) return
-        editor.value = current.copy(address = address, username = username, checking = true, error = null)
+        editor.value = current.copy(address = address, username = username, checking = true, error = null, syncError = null)
         viewModelScope.launch {
             val user = username.trim().ifEmpty { null }
             val keepPassword = current.id != null && current.hasPassword && password.isEmpty() && user != null
@@ -347,6 +359,7 @@ class OpdsViewModel(
             }
             try {
                 val (url, feed) = repository.connect(address, user, loginPassword)
+                if (!updateSync(syncProgress, url, user, loginPassword, password.isNotEmpty())) return@launch
                 val title = feed.title.ifBlank { url.substringAfter("://").substringBefore('/') }
                 val id = repository.save(
                     id = current.id,
@@ -366,6 +379,27 @@ class OpdsViewModel(
             } catch (e: OpdsException) {
                 editor.update { it?.copy(checking = false, error = e.reason) }
             }
+        }
+    }
+
+    /**
+     * Turns sync on or off for the server of [url] as the switch says. False if turning it on
+     * failed: the dialog stays open with the reason and nothing is saved.
+     */
+    private suspend fun updateSync(on: Boolean, url: String, user: String?, password: String?, newPassword: Boolean): Boolean {
+        val sync = catalogSync ?: return true
+        if (!on) {
+            sync.turnOff(url, user)
+            return true
+        }
+        if (sync.isOn(url, user) && !newPassword) return true
+        return try {
+            if (user == null || password == null) throw KoSyncException(KoSyncException.Reason.UNAUTHORIZED, "No login")
+            sync.turnOn(url, user, password)
+            true
+        } catch (e: KoSyncException) {
+            editor.update { it?.copy(checking = false, syncError = e.reason) }
+            false
         }
     }
 
@@ -402,6 +436,7 @@ class OpdsViewModel(
                     bookDao = container.bookDao,
                     downloadsDir = container.downloadsDir,
                     startAutoImport = { container.opdsAutoImport.start(force = true) },
+                    catalogSync = CatalogSync(container.koSyncSettings, container.koSyncClient),
                 )
             }
         }

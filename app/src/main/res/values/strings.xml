@@ -104,6 +104,11 @@
     </plurals>
     <string name="catalog_auto_import">Download Japanese books automatically</string>
     <string name="catalog_auto_import_details">When the app starts, new Japanese books on this server are added to the library. Books you remove stay removed.</string>
+    <string name="catalog_sync">Sync reading progress here</string>
+    <string name="catalog_sync_details">For Calibre-Web Automated: your position in EPUBs is kept on this server with this login, as in KOReader.</string>
+    <string name="catalog_sync_replaces">For Calibre-Web Automated, with this login. Replaces the sync on %1$s.</string>
+    <string name="catalog_sync_error_none">This server has no reading progress sync. In Calibre-Web Automated it can be turned on in its settings; or switch sync off here.</string>
+    <string name="catalog_sync_error_unauthorized">The server did not accept this login for reading progress sync. Enter the password to turn sync on.</string>
     <string name="settings_book_servers">Book servers</string>
     <string name="action_mark_finished">Mark as finished</string>
     <string name="library_search_hint">Title or author</string>

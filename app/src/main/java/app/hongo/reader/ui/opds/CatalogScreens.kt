@@ -67,6 +67,7 @@ import androidx.compose.ui.unit.dp
 import app.hongo.reader.R
 import app.hongo.reader.data.opds.OpdsEntry
 import app.hongo.reader.data.opds.OpdsException
+import app.hongo.reader.data.sync.KoSyncException
 import app.hongo.reader.ui.HongoTopAppBar
 
 /** Browsing a catalogue: its feeds, search, and books to download into the library. */
@@ -343,11 +344,17 @@ private fun Thumbnail(url: String?, load: suspend (String) -> ImageBitmap?) {
     }
 }
 
+private fun catalogSyncErrorText(reason: KoSyncException.Reason) = when (reason) {
+    KoSyncException.Reason.UNAUTHORIZED -> R.string.catalog_sync_error_unauthorized
+    KoSyncException.Reason.SERVER -> R.string.sync_error_server
+    else -> R.string.catalog_sync_error_none
+}
+
 /** Adding a catalogue or changing its address and login. */
 @Composable
 fun CatalogDialog(
     editor: CatalogEditor,
-    onSave: (address: String, username: String, password: String, autoImport: Boolean) -> Unit,
+    onSave: (address: String, username: String, password: String, autoImport: Boolean, syncProgress: Boolean) -> Unit,
     onDelete: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -355,8 +362,11 @@ fun CatalogDialog(
     var username by rememberSaveable { mutableStateOf(editor.username) }
     var password by rememberSaveable { mutableStateOf("") }
     var autoImport by rememberSaveable { mutableStateOf(editor.autoImport) }
+    var syncProgress by rememberSaveable { mutableStateOf(editor.syncProgress) }
     var confirmDelete by remember { mutableStateOf(false) }
-    val save = { if (address.isNotBlank()) onSave(address, username, password, autoImport) }
+    // Sync needs a login: without a user name the switch is off and hidden.
+    val withSync = syncProgress && username.isNotBlank()
+    val save = { if (address.isNotBlank()) onSave(address, username, password, autoImport, withSync) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -428,9 +438,39 @@ fun CatalogDialog(
                     }
                     Switch(checked = autoImport, onCheckedChange = { autoImport = it }, enabled = !editor.checking)
                 }
+                if (username.isNotBlank()) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(enabled = !editor.checking) { syncProgress = !syncProgress },
+                    ) {
+                        Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                            Text(stringResource(R.string.catalog_sync), style = MaterialTheme.typography.bodyMedium)
+                            val other = editor.otherSyncServer
+                            Text(
+                                if (syncProgress && other != null) {
+                                    stringResource(R.string.catalog_sync_replaces, other)
+                                } else {
+                                    stringResource(R.string.catalog_sync_details)
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Switch(checked = syncProgress, onCheckedChange = { syncProgress = it }, enabled = !editor.checking)
+                    }
+                }
                 editor.error?.let {
                     Text(
                         stringResource(catalogErrorText(it)),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+                editor.syncError?.let {
+                    Text(
+                        stringResource(catalogSyncErrorText(it)),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error,
                     )

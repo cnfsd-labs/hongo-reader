@@ -147,7 +147,9 @@ KOReader's servers get the MD5 key of the password (`x-auth-key`); Calibre-Web A
 its own web accounts and wants the password itself as HTTP Basic, so `signIn` tries the key
 first, then Basic, and also the address with `/kosync` added (CWA's KOReader page shows only its
 base address). The key, and the password only when Basic was needed, are encrypted with the
-Keystore key in the never backed up `device` preferences. A book is identified as KOReader does it (`PartialMd5`: 1 KB samples of
+Keystore key in the never backed up `device` preferences. A book server's dialog can turn sync on
+with the server's own address and login (`CatalogSync`), as Calibre-Web Automated serves its
+catalogue and `/kosync` together. A book is identified as KOReader does it (`PartialMd5`: 1 KB samples of
 the file), so both devices need the same file.
 
 Positions are exact, not percentages: KOReader saves an XPointer into its DOM
