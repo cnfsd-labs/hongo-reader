@@ -10,6 +10,7 @@ import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Looper
 import android.webkit.ConsoleMessage
+import android.webkit.RenderProcessGoneDetail
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
@@ -22,6 +23,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -175,65 +178,75 @@ fun ReaderWebView(
         }
     }
 
-    AndroidView(
-        modifier = modifier,
-        factory = { context ->
-            createReaderWebView(
-                context = context,
-                onMessage = { message, replyProxy ->
-                    webViewRef.replyProxy = replyProxy
-                    when (message) {
-                        is BridgeMessage.Lookup -> currentOnLookup(message.tap)
-                        BridgeMessage.Dismiss -> currentOnDismiss()
-                        is BridgeMessage.Library -> ttuLibrary.onMessage(message.message)
-                        is BridgeMessage.BookShown, BridgeMessage.SettingsShown ->
-                            if (uncover[0] != null) uncoverAfter(UNCOVER_SETTLE_MS)
-                        BridgeMessage.Activity -> currentOnActivity()
-                        is BridgeMessage.Position -> currentOnPage(message.id, message.characters)
-                        BridgeMessage.OpenSettings -> currentOnOpenSettings()
-                    }
-                },
-                diagnostics = diagnostics,
-                ttuLibrary = ttuLibrary,
-                booksDir = booksDir,
-                onPathChanged = { path, bookId ->
-                    val wasAtLibrary = atLibrary
-                    atLibrary = path in ReaderBack.LIBRARY_PATHS
-                    when {
-                        wasAtLibrary && !atLibrary && bookId != null -> uncoverAfter(UNCOVER_TIMEOUT_MS)
-                        // ttu's settings likewise stay covered until drawn, or the book list shows.
-                        wasAtLibrary && path == SETTINGS_PATH -> uncoverAfter(UNCOVER_SETTINGS_TIMEOUT_MS)
-                        // Another report for the page still opening: stays covered until shown.
-                        uncover[0] != null && (bookId != null || path == SETTINGS_PATH) -> Unit
-                        else -> {
-                            uncover[0]?.cancel()
-                            uncover[0] = null
-                            currentOnAtLibraryChanged(atLibrary)
+    // A new WebView after the page's renderer died (crashed, or killed by Android for memory):
+    // the old one cannot be used again, and without this Android would close the whole app.
+    var renderer by remember { mutableIntStateOf(0) }
+
+    key(renderer) {
+        AndroidView(
+            modifier = modifier,
+            factory = { context ->
+                createReaderWebView(
+                    context = context,
+                    onRenderProcessGone = { renderer++ },
+                    onMessage = { message, replyProxy ->
+                        webViewRef.replyProxy = replyProxy
+                        when (message) {
+                            is BridgeMessage.Lookup -> currentOnLookup(message.tap)
+                            BridgeMessage.Dismiss -> currentOnDismiss()
+                            is BridgeMessage.Library -> ttuLibrary.onMessage(message.message)
+                            is BridgeMessage.BookShown, BridgeMessage.SettingsShown ->
+                                if (uncover[0] != null) uncoverAfter(UNCOVER_SETTLE_MS)
+                            BridgeMessage.Activity -> currentOnActivity()
+                            is BridgeMessage.Position -> currentOnPage(message.id, message.characters)
+                            BridgeMessage.OpenSettings -> currentOnOpenSettings()
                         }
-                    }
-                    currentOnBookChanged(bookId)
-                    if (atLibrary) ttuLibrary.requestProgress()
-                },
-                onShowFileChooser = { callback, allowsMultiple ->
-                    // The WebView never opens a second chooser before answering the first.
-                    pendingFileCallback?.onReceiveValue(null)
-                    pendingFileCallback = callback
-                    pendingAllowsMultiple = allowsMultiple
-                    // ttu's accept lists mix extensions and MIME types, and file managers often
-                    // report EPUBs as octet-stream, so show everything; ttu validates the file.
-                    filePicker.launch(arrayOf("*/*"))
-                },
-            ).also { webViewRef.view = it }
-        },
-        onRelease = { view ->
-            ttuLibrary.detach()
-            pendingFileCallback?.onReceiveValue(null)
-            pendingFileCallback = null
-            view.destroy()
-            webViewRef.view = null
-            webViewRef.replyProxy = null
-        },
-    )
+                    },
+                    diagnostics = diagnostics,
+                    ttuLibrary = ttuLibrary,
+                    booksDir = booksDir,
+                    onPathChanged = { path, bookId ->
+                        val wasAtLibrary = atLibrary
+                        atLibrary = path in ReaderBack.LIBRARY_PATHS
+                        when {
+                            wasAtLibrary && !atLibrary && bookId != null -> uncoverAfter(UNCOVER_TIMEOUT_MS)
+                            // ttu's settings likewise stay covered until drawn, or the book list shows.
+                            wasAtLibrary && path == SETTINGS_PATH -> uncoverAfter(UNCOVER_SETTINGS_TIMEOUT_MS)
+                            // Another report for the page still opening: stays covered until shown.
+                            uncover[0] != null && (bookId != null || path == SETTINGS_PATH) -> Unit
+                            else -> {
+                                uncover[0]?.cancel()
+                                uncover[0] = null
+                                currentOnAtLibraryChanged(atLibrary)
+                            }
+                        }
+                        currentOnBookChanged(bookId)
+                        if (atLibrary) ttuLibrary.requestProgress()
+                    },
+                    onShowFileChooser = { callback, allowsMultiple ->
+                        // The WebView never opens a second chooser before answering the first.
+                        pendingFileCallback?.onReceiveValue(null)
+                        pendingFileCallback = callback
+                        pendingAllowsMultiple = allowsMultiple
+                        // ttu's accept lists mix extensions and MIME types, and file managers often
+                        // report EPUBs as octet-stream, so show everything; ttu validates the file.
+                        filePicker.launch(arrayOf("*/*"))
+                    },
+                ).also { webViewRef.view = it }
+            },
+            onRelease = { view ->
+                ttuLibrary.detach()
+                pendingFileCallback?.onReceiveValue(null)
+                pendingFileCallback = null
+                view.destroy()
+                // After a renderer loss the new WebView may already be in place.
+                if (webViewRef.view === view) {
+                    webViewRef.view = null
+                    webViewRef.replyProxy = null
+                }
+            },
+        )
+    }
 }
 
 /** `#RRGGBB`, as CSS takes it. */
@@ -258,6 +271,7 @@ private fun createReaderWebView(
     booksDir: File,
     onPathChanged: (path: String, ttuBookId: Long?) -> Unit,
     onShowFileChooser: (ValueCallback<Array<Uri>>, allowsMultiple: Boolean) -> Unit,
+    onRenderProcessGone: () -> Unit,
 ): WebView {
     val debuggable = (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
     WebView.setWebContentsDebuggingEnabled(debuggable)
@@ -284,7 +298,7 @@ private fun createReaderWebView(
         // requests are not network loads), and nothing else may load.
         settings.blockNetworkLoads = true
 
-        webViewClient = ReaderWebViewClient(assetLoader, diagnostics, ttuLibrary, onPathChanged)
+        webViewClient = ReaderWebViewClient(assetLoader, diagnostics, ttuLibrary, onPathChanged, onRenderProcessGone)
         webChromeClient = object : WebChromeClient() {
             override fun onConsoleMessage(message: ConsoleMessage): Boolean {
                 diagnostics.log(
@@ -363,6 +377,7 @@ private class ReaderWebViewClient(
     private val diagnostics: ReaderDiagnostics,
     private val ttuLibrary: TtuLibrary,
     private val onPathChanged: (path: String, ttuBookId: Long?) -> Unit,
+    private val onRenderProcessGone: () -> Unit,
 ) : WebViewClient() {
     /** Counts route changes, so [goBack] can tell whether a history step happened. */
     var routeChanges = 0
@@ -406,6 +421,13 @@ private class ReaderWebViewClient(
                 // No browser installed; ignore the link.
             }
         }
+        return true
+    }
+
+    /** The page's renderer died: the reader starts again on a new WebView, at the book list. */
+    override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
+        diagnostics.log("renderer gone (crashed: ${detail.didCrash()})")
+        onRenderProcessGone()
         return true
     }
 
