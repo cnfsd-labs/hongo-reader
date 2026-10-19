@@ -1,14 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Open book for themed (monochrome) launcher icons, inside the 66dp safe zone. -->
+<!-- 本 (Shippori Mincho ExtraBold, SIL OFL) for themed (monochrome) launcher icons, inside the
+     66dp safe zone. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M30,36 Q42,36 52,41 L52,74 Q42,69 30,69 Z" />
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M78,36 Q66,36 56,41 L56,74 Q66,69 78,69 Z" />
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M68.2 40.66Q68.44 40.32 68.88 39.66Q69.32 39 69.59 38.68Q69.85 38.37 70.05 38.37Q70.34 38.37 71.76 39.54Q73.17 40.71 74.44 41.95Q75.71 43.2 75.71 43.54Q75.56 44.32 74.34 44.32H57.41Q60.34 50.37 65.51 55.1Q70.68 59.83 76.44 62.22L76.24 62.76Q74.59 63.1 73.27 64.44Q71.95 65.78 71.37 67.83Q61.07 60.95 56.54 44.41V65.1H57.9L59.17 62.95Q59.37 62.66 59.76 62.05Q60.15 61.44 60.39 61.12Q60.63 60.8 60.83 60.8Q61.12 60.8 62.37 61.9Q63.61 63 64.71 64.2Q65.8 65.39 65.8 65.73Q65.61 66.46 64.49 66.46H56.54V69.44L56.59 71.24Q56.63 73.24 56.78 75.05Q56.59 75.73 55.1 76.37Q53.61 77 51.95 77Q51.22 77 50.88 76.73Q50.54 76.46 50.54 76.02Q50.73 73.78 50.88 69.98V66.46H47.95Q45.46 66.51 42.68 67.15L41.41 64.71Q44.1 65 47.85 65.1H50.88V51.78Q44.2 62.51 32.05 68.37L31.61 67.88Q37.02 63.68 41.2 57.39Q45.37 51.1 47.51 44.32H40.15Q36.68 44.37 32.83 45L31.56 42.51Q34.24 42.8 38.05 42.9H50.88V41Q50.88 34.85 50.24 31Q54.68 31.93 56.34 32.46Q58 33 58 33.39Q58 33.54 57.78 33.71Q57.56 33.88 57.51 33.93L56.54 34.56V42.9H66.68Z" />
 </vector>
