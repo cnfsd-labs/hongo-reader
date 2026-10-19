@@ -42,6 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -63,7 +64,6 @@ import app.hongo.reader.data.settings.ReaderSettings
 import app.hongo.reader.data.settings.ReaderTheme
 import app.hongo.reader.ui.HongoTopAppBar
 import java.io.File
-import java.util.Locale
 import kotlin.math.roundToInt
 
 /** ttu's settings page, for everything this screen leaves out. */
@@ -149,7 +149,7 @@ private fun ReaderSettingsContent(
                 steps = (ReaderSettings.FONT_SIZES.last - ReaderSettings.FONT_SIZES.first) / 2 - 1,
             )
         }
-        Section(stringResource(R.string.reader_settings_line_spacing, String.format(Locale.getDefault(), "%.1f", settings.lineHeight))) {
+        Section(stringResource(R.string.reader_settings_line_spacing, String.format(LocalConfiguration.current.locales[0], "%.1f", settings.lineHeight))) {
             Slider(
                 value = settings.lineHeight,
                 onValueChange = { onChange(settings.copy(lineHeight = (it * 10).roundToInt() / 10f)) },

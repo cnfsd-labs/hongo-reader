@@ -127,7 +127,7 @@ class PhoneVoice(
                     }
                 }
             }
-            continuation.invokeOnCancellation { engine?.shutdown() }
+            continuation.invokeOnCancellation { engine.shutdown() }
         }
 
     private suspend fun synthesize(engine: TextToSpeech, text: String, out: File) {

@@ -341,7 +341,7 @@ class OpdsViewModel(
             val user = username.trim().ifEmpty { null }
             val keepPassword = current.id != null && current.hasPassword && password.isEmpty() && user != null
             val loginPassword = if (keepPassword) {
-                repository.server(current.id!!)?.password
+                repository.server(current.id)?.password
             } else {
                 password.takeIf { user != null }
             }

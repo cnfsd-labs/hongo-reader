@@ -54,6 +54,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -107,6 +108,7 @@ fun WordsScreen(
     }
     val undoLabel = stringResource(R.string.action_undo)
     val context = LocalContext.current
+    val resources = LocalResources.current
     val anki = rememberAnkiAccess()
     val exportFile = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
         if (uri != null) viewModel.exportToFile(uri.toString())
@@ -120,19 +122,19 @@ fun WordsScreen(
                     if (stopped != null && outcome.added == 0) {
                         showAnkiResult(context, "", stopped)
                     } else {
-                        val added = context.resources.getQuantityString(
+                        val added = resources.getQuantityString(
                             R.plurals.anki_added_many,
                             outcome.added,
                             outcome.added,
                         )
-                        val audio = outcome.audioProblem?.let { " – " + context.getString(it.label()) }.orEmpty()
+                        val audio = outcome.audioProblem?.let { " – " + resources.getString(it.label()) }.orEmpty()
                         Toast.makeText(context, added + audio, Toast.LENGTH_LONG).show()
                         if (stopped != null) showAnkiResult(context, "", stopped)
                     }
                 }
                 is AnkiOutcome.Exported -> Toast.makeText(
                     context,
-                    context.resources.getQuantityString(R.plurals.anki_exported, outcome.count, outcome.count),
+                    resources.getQuantityString(R.plurals.anki_exported, outcome.count, outcome.count),
                     Toast.LENGTH_LONG,
                 ).show()
                 AnkiOutcome.ExportFailed ->
@@ -161,7 +163,7 @@ fun WordsScreen(
         onDelete = viewModel::delete,
         onAddToAnki = { word, lookup -> anki.whenReady { viewModel.addToAnki(word, lookup) } },
         onAddAllToAnki = { anki.whenReady(viewModel::addAllToAnki) },
-        onExport = { exportFile.launch(context.getString(R.string.anki_export_file_name)) },
+        onExport = { exportFile.launch(resources.getString(R.string.anki_export_file_name)) },
     )
 }
 

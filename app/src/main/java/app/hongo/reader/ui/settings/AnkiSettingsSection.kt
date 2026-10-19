@@ -33,6 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
@@ -70,6 +71,7 @@ private sealed interface KeyCheck {
 @Composable
 fun AnkiSettingsSection() {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val container = remember { (context.applicationContext as HongoApplication).container }
     val settings = container.ankiSettings
     val audio by settings.audio.collectAsStateWithLifecycle()
@@ -120,14 +122,14 @@ fun AnkiSettingsSection() {
                     start()
                 }
             } catch (e: VoiceException) {
-                sampleError = context.getString(R.string.voice_sample_failed, context.getString(e.problem.label()))
+                sampleError = resources.getString(R.string.voice_sample_failed, resources.getString(e.problem.label()))
                 playing = false
             } catch (e: java.io.IOException) {
-                sampleError = context.getString(R.string.voice_sample_failed, e.message.orEmpty())
+                sampleError = resources.getString(R.string.voice_sample_failed, e.message.orEmpty())
                 playing = false
             } catch (e: IllegalStateException) {
                 // The phone's media player refused the file.
-                sampleError = context.getString(R.string.voice_sample_failed, e.message.orEmpty())
+                sampleError = resources.getString(R.string.voice_sample_failed, e.message.orEmpty())
                 playing = false
             }
         }

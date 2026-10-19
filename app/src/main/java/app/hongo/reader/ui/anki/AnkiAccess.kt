@@ -10,6 +10,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import app.hongo.reader.HongoApplication
 import app.hongo.reader.R
 import app.hongo.reader.anki.AnkiDroid
@@ -41,12 +42,13 @@ class AnkiAccess internal constructor(
 @Composable
 fun rememberAnkiAccess(): AnkiAccess {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val anki = remember { (context.applicationContext as HongoApplication).container.ankiDroid }
     val pending = remember { arrayOfNulls<() -> Unit>(1) }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         val action = pending[0]
         pending[0] = null
-        if (granted) action?.invoke() else toast(context, context.getString(R.string.anki_no_permission))
+        if (granted) action?.invoke() else toast(context, resources.getString(R.string.anki_no_permission))
     }
     return remember(launcher) {
         AnkiAccess(context, anki) { onGranted ->

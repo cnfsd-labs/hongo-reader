@@ -54,9 +54,10 @@ repository is public: never copy those notes, personal details or discussions in
   `DictionaryImporter`; WorkManager worker as dataSync foreground service.
 - Lookup is tap-based (not selection), scan length 20, longest match first; deinflection rules are
   HonGO!'s own (`lookup/Deinflector.kt`).
-- Version set is pinned to one known-consistent combination (AGP 8.13, Kotlin 2.2.21,
-  KSP 2.2.21-2.0.5, Gradle 8.14.3); Dependabot proposes updates. AGP 9 migration is a separate
-  task.
+- Version set: AGP 9.4 with its built-in Kotlin (no `org.jetbrains.kotlin.android` plugin),
+  Gradle 9.8, Kotlin 2.4.21, KSP 2.3, compileSdk 37, targetSdk 36 (raise it deliberately: it
+  changes behaviour on new Android versions). Dependabot proposes updates; Kotlin and KSP move
+  together.
 - Reader theme follows system dark mode (ttu `black-theme` / `light-theme`) until the user picks
   a theme (`hongoAutoTheme` in localStorage remembers what HonGO! set; "Like the app" in the
   reader settings sets it again).
@@ -169,6 +170,8 @@ docs/                        device-testing.md, privacy-policy.md, samples/, bra
 - Assert the part of a UI state a test is about, not the whole state object: new fields with
   non-empty values break whole-state comparisons.
 - Room in-memory test DBs need `allowMainThreadQueries()` for raw queries in tests.
+- Room 2.8's `MigrationTestHelper` fails on Windows (it compares the database path with `/`
+  separators); `DatabaseMigrationTest` passes on Linux CI.
 - AAPT's default `ignoreAssetsPattern` drops directories starting with `_` (ttu's `_app/`); it is
   overridden in `app/build.gradle.kts`, and `check-apk.sh` guards it.
 - `git apply` inside this repo silently skips paths for a work dir under it; `buildTtu` sets

@@ -4,7 +4,6 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
@@ -13,7 +12,7 @@ plugins {
 
 android {
     namespace = "app.hongo.reader"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "app.hongo.reader"
@@ -87,7 +86,7 @@ android {
     // The exported database schemas, for the migration tests: MigrationTestHelper reads them as
     // assets, and Robolectric only sees the app's merged assets (not the test source set's). Debug
     // builds only, which the unit tests run against; release and internal don't carry them.
-    sourceSets.getByName("debug").assets.srcDir("$projectDir/schemas")
+    sourceSets.getByName("debug").assets.directories += "$projectDir/schemas"
 
     lint {
         abortOnError = true
