@@ -149,6 +149,63 @@ class AnkiExporterTest {
     }
 
     @Test
+    fun wordsBecomeAnAnkiPackage_withNoteTypeDeckAndAudio() = runBlocking {
+        settings.setDeck("日本語::HonGO!")
+        val out = java.io.ByteArrayOutputStream()
+        val progress = mutableListOf<Int>()
+
+        val problem = exporter.ankiPackage(listOf(savedWord()), out) { progress += it }
+
+        assertEquals(null, problem)
+        assertEquals(listOf(1), progress)
+        assertEquals(listOf("なまえ", "名前はまだ無い。"), voice.spoken)
+        val entries = mutableMapOf<String, ByteArray>()
+        java.util.zip.ZipInputStream(out.toByteArray().inputStream()).use { zip ->
+            while (true) entries[(zip.nextEntry ?: break).name] = zip.readBytes()
+        }
+        assertEquals(setOf("collection.anki2", "media", "0", "1"), entries.keys)
+        val media = kotlinx.serialization.json.Json.parseToJsonElement(entries.getValue("media").decodeToString())
+            as kotlinx.serialization.json.JsonObject
+        val names = (0..1).map { (media.getValue(it.toString()) as kotlinx.serialization.json.JsonPrimitive).content }
+        assertEquals("なまえ", entries.getValue("0").decodeToString())
+
+        val file = folder.newFile("collection.anki2").apply { writeBytes(entries.getValue("collection.anki2")) }
+        android.database.sqlite.SQLiteDatabase.openDatabase(file.path, null, android.database.sqlite.SQLiteDatabase.OPEN_READONLY)
+            .use { db ->
+                db.rawQuery("SELECT models, decks FROM col", null).use {
+                    it.moveToFirst()
+                    assertTrue("\"name\":\"HonGO!\"" in it.getString(0))
+                    assertTrue("\"name\":\"日本語::HonGO!\"" in it.getString(1))
+                }
+                db.rawQuery("SELECT n.flds, n.tags, n.mid, c.did FROM notes n JOIN cards c ON c.nid = n.id", null).use {
+                    assertEquals(1, it.count)
+                    it.moveToFirst()
+                    val fields = it.getString(0).split('\u001f')
+                    assertEquals(AnkiCard.FIELDS.size, fields.size)
+                    assertEquals("名前", fields[0])
+                    assertEquals("<b>名前</b>はまだ無い。", fields[4])
+                    assertEquals("[sound:${names[0]}]", fields[6])
+                    assertEquals("[sound:${names[1]}]", fields[7])
+                    assertEquals(" hongo ", it.getString(1))
+                    assertEquals(AnkiPackage.NOTE_TYPE_ID, it.getLong(2))
+                    assertEquals(AnkiPackage.deckId("日本語::HonGO!"), it.getLong(3))
+                }
+            }
+        // Nothing is added to AnkiDroid, and nothing is left behind.
+        assertTrue(anki.notes.isEmpty())
+        assertEquals(emptyList<String>(), folder.root.resolve("package").list()?.toList().orEmpty())
+    }
+
+    @Test
+    fun aVoiceProblemStillSavesThePackage_withoutAudio() = runBlocking {
+        voice.problem = VoiceProblem.NO_JAPANESE
+        val out = java.io.ByteArrayOutputStream()
+
+        assertEquals(VoiceProblem.NO_JAPANESE, exporter.ankiPackage(listOf(savedWord()), out))
+        assertTrue(out.size() > 0)
+    }
+
+    @Test
     fun aWordAlreadyInAnkiIsNotAddedAgain() = runBlocking {
         val word = savedWord()
         exporter.add(word)

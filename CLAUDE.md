@@ -68,8 +68,9 @@ repository is public: never copy those notes, personal details or discussions in
   decayed score (half-life 14 days), not deleted when old; learned words stay learned when
   looked up again. "Learned" (not "Known"): it only covers words the reader looked up. Anki cards are suggested, not pushed by default.
 - Anki: AnkiDroid's content provider through HonGO!'s own client (not the LGPL JitPack library);
-  note type and deck "HonGO!"; words spoken from their kana reading; the text file for Anki on a
-  computer names deck and tags in columns (Anki ignores a `#deck:` header for a missing deck); the Google Cloud key is
+  note type and deck "HonGO!"; words spoken from their kana reading; for Anki on a computer an
+  `.apkg` with audio (`AnkiPackage`, schema 11, fixed note type id, guid from the word) or a
+  text file that names deck and tags in columns (Anki ignores a `#deck:` header for a missing deck); the Google Cloud key is
   Keystore-encrypted and only sent to Google in the `X-Goog-Api-Key` header.
 - OPDS: own Atom parser (DOM via `SafeXml`) and `HttpURLConnection` client, no library. Login
   only sent to the catalogue's origin (redirects followed manually); Basic first, Digest (RFC 7616)
@@ -82,9 +83,9 @@ repository is public: never copy those notes, personal details or discussions in
   KOReader's partial MD5 of the file. Positions are translated exactly between KOReader's
   XPointers and ttu's character count (`EpubPositions`, ttu's counting rules); the server's
   position is written into ttu's bookmark before the book opens. Account in `device` prefs.
-- Library: HonGO! owns the book files (app storage, named by SHA-256); ttu's IndexedDB is a
   Calibre-Web Automated wants its web password as HTTP Basic (no MD5 key): `KoSyncClient.signIn`
   falls back to Basic and to `<address>/kosync`, and only then keeps the password (encrypted).
+- Library: HonGO! owns the book files (app storage, named by SHA-256); ttu's IndexedDB is a
   rebuildable cache. Books reach ttu through ttu's own import input (`library-bridge.js`), not a
   ttu patch and not a native EPUB renderer.
 
@@ -113,6 +114,7 @@ app/src/main/java/app/hongo/reader/
   data/stats/                reading statistics: ReadingDayEntity/ReadingDao, ReadingTracker
                              (time + characters), ReadingStats (summaries)
   anki/                      AnkiCard (note type, fields), AnkiDroid (content provider client),
+                             AnkiPackage (.apkg), AnkiTextFile,
                              AnkiExporter, AnkiSettings, CardVoice (phone TTS), GoogleCloudVoice
   ui/anki/                   AnkiAccess (permission, install check, result messages)
   ui/library/                LibraryScreen (home, drawn over the reader; toolbar with search and

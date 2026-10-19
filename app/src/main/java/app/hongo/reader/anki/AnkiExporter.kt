@@ -4,6 +4,7 @@ import app.hongo.reader.data.words.WordEntity
 import app.hongo.reader.data.words.WordLookupEntity
 import app.hongo.reader.data.words.WordRepository
 import java.io.File
+import java.io.OutputStream
 import java.security.MessageDigest
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -32,7 +33,8 @@ sealed interface AnkiResult {
 /**
  * Adds saved words to AnkiDroid as HonGO! cards ([AnkiCard]): sets up the note type and the
  * deck chosen in [AnkiSettings], skips words already there, and attaches audio from the chosen
- * voice. Also writes words as a text file for Anki's import ([textFile]).
+ * voice. Also writes words for Anki on a computer: as a package with audio ([ankiPackage]) or as
+ * a text file ([textFile]).
  */
 class AnkiExporter(
     private val anki: AnkiApi,
@@ -53,6 +55,56 @@ class AnkiExporter(
     suspend fun textFile(words: List<WordEntity>): String {
         val cards = words.map { content(it, null) }
         return AnkiTextFile.text(cards, settings.deck.value)
+    }
+
+    /**
+     * [words] as an Anki package ([AnkiPackage]) for the chosen deck, written to [out], with
+     * audio from the chosen voice. [onProgress] gets the number of words done. Returns why
+     * cards went in without audio, if they did (the voice is not asked again after a failure).
+     */
+    suspend fun ankiPackage(words: List<WordEntity>, out: OutputStream, onProgress: (Int) -> Unit = {}): VoiceProblem? =
+        mutex.withLock {
+            withContext(Dispatchers.IO) {
+                val dir = File(audioDir, "package").apply {
+                    deleteRecursively()
+                    mkdirs()
+                }
+                try {
+                    val voice = settings.voice(phoneVoice)
+                    var problem: VoiceProblem? = null
+                    val notes = words.mapIndexed { i, word ->
+                        val content = content(word, null)
+                        val media = mutableListOf<File>()
+                        var wordAudio = ""
+                        var sentenceAudio = ""
+                        if (voice != null && problem == null) {
+                            try {
+                                wordAudio = packageSound(voice, content.reading.ifEmpty { content.expression }, dir, media)
+                                if (content.sentence.isNotBlank()) {
+                                    val rate = settings.sentenceSpeed.value.rate
+                                    sentenceAudio = packageSound(voice, content.sentence, dir, media, rate)
+                                }
+                            } catch (e: VoiceException) {
+                                problem = e.problem
+                            }
+                        }
+                        onProgress(i + 1)
+                        AnkiPackage.Note(AnkiCard.fields(content, wordAudio, sentenceAudio), media)
+                    }
+                    AnkiPackage.write(notes, settings.deck.value, dir, out)
+                    problem
+                } finally {
+                    dir.deleteRecursively()
+                }
+            }
+        }
+
+    /** Speaks [text] into [dir] for a package and returns the field's `[sound:…]`. */
+    private suspend fun packageSound(voice: CardVoice, text: String, dir: File, media: MutableList<File>, rate: Double = 1.0): String {
+        val file = File(dir, soundName(voice, text, rate) + "." + voice.extension)
+        if (!file.exists()) voice.speak(text, file, rate)
+        media += file
+        return "[sound:${file.name}]"
     }
 
     /** The card for [word] with the sentence of [lookup] (null: the latest). */
@@ -134,13 +186,16 @@ class AnkiExporter(
 
     /** Speaks [text], hands the file to AnkiDroid and returns the field's `[sound:…]`. */
     private suspend fun sound(voice: CardVoice, text: String, made: MutableList<File>, rate: Double = 1.0): String {
-        // The rate is part of the name: AnkiDroid keeps the first file of a name.
-        val name = "hongo_" + shortHash(text + "\u0000" + voice.javaClass.simpleName + "\u0000" + rate)
+        val name = soundName(voice, text, rate)
         val file = File(audioDir, "$name.${voice.extension}")
         made += file
         voice.speak(text, file, rate)
         return anki.addSound(file, name) ?: throw VoiceException(VoiceProblem.FAILED)
     }
+
+    /** The rate is part of the name: Anki keeps the first file of a name. */
+    private fun soundName(voice: CardVoice, text: String, rate: Double) =
+        "hongo_" + shortHash(text + "\u0000" + voice.javaClass.simpleName + "\u0000" + rate)
 
     private fun noteType(): Long? {
         val id = settings.noteTypeId?.takeIf { anki.noteTypeExists(it) }

@@ -51,8 +51,10 @@ data class WordsUiState(
     val expanded: Long? = null,
     /** The expanded word's latest lookups, newest first. */
     val lookups: List<WordLookupEntity> = emptyList(),
-    /** Words added so far and how many in all, while "Add all" runs. */
+    /** Words added so far and how many in all, while "Add all" or a package for Anki runs. */
     val ankiProgress: Pair<Int, Int>? = null,
+    /** The progress is that of an Anki package being saved, not of "Add all". */
+    val savingPackage: Boolean = false,
     /** Words whose card is being made right now. */
     val addingToAnki: Set<Long> = emptySet(),
 )
@@ -68,8 +70,12 @@ sealed interface AnkiOutcome {
     data class Many(val added: Int, val stopped: AnkiResult? = null, val audioProblem: VoiceProblem? = null) :
         AnkiOutcome
 
-    /** [count] words were written to a file for Anki's import. */
-    data class Exported(val count: Int) : AnkiOutcome
+    /**
+     * [count] words were written to a file for Anki's import: a package with audio if
+     * [packaged] ([audioProblem]: why some cards have none), else a text file.
+     */
+    data class Exported(val count: Int, val packaged: Boolean = false, val audioProblem: VoiceProblem? = null) :
+        AnkiOutcome
 
     data object ExportFailed : AnkiOutcome
 }
@@ -94,12 +100,19 @@ class WordsViewModel(
     private val ankiText: suspend (List<WordEntity>) -> String = { "" },
     /** Writes text to a document the reader picked (a content URI). */
     private val writeDocument: suspend (uri: String, text: String) -> Unit = { _, _ -> },
+    /**
+     * Writes the words as an Anki package with audio to a document the reader picked, telling
+     * how many are done; returns why cards have no audio, if so.
+     */
+    private val writePackage: suspend (uri: String, List<WordEntity>, onProgress: (Int) -> Unit) -> VoiceProblem? =
+        { _, _, _ -> null },
 ) : ViewModel() {
     private val filter = MutableStateFlow(WordFilter.LEARNING)
     private val expanded = MutableStateFlow<Long?>(null)
     private val _changes = Channel<WordChange>(Channel.BUFFERED)
     private val _ankiOutcomes = Channel<AnkiOutcome>(Channel.BUFFERED)
     private val ankiProgress = MutableStateFlow<Pair<Int, Int>?>(null)
+    private val savingPackage = MutableStateFlow(false)
     private val addingToAnki = MutableStateFlow<Set<Long>>(emptySet())
 
     /** Results of adding to Anki, to tell the reader. */
@@ -126,6 +139,7 @@ class WordsViewModel(
             WordsUiState(filter, words, counts, expanded, if (expanded == null) emptyList() else lookups)
         }.combine(ankiProgress) { state, progress -> state.copy(ankiProgress = progress) }
             .combine(addingToAnki) { state, adding -> state.copy(addingToAnki = adding) }
+            .combine(savingPackage) { state, saving -> state.copy(savingPackage = saving) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), WordsUiState())
 
     fun setFilter(value: WordFilter) {
@@ -218,6 +232,30 @@ class WordsViewModel(
         }
     }
 
+    /** Writes the words of the current list to [uri] as an Anki package with audio. */
+    fun exportPackage(uri: String) {
+        if (ankiProgress.value != null) return
+        viewModelScope.launch {
+            val outcome = try {
+                val list = words.first()
+                savingPackage.value = true
+                ankiProgress.value = 0 to list.size
+                val problem = writePackage(uri, list) { done ->
+                    ankiProgress.value = done.coerceAtMost(list.size - 1) to list.size
+                }
+                AnkiOutcome.Exported(list.size, packaged = true, audioProblem = problem)
+            } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                AnkiOutcome.ExportFailed
+            } finally {
+                ankiProgress.value = null
+                savingPackage.value = false
+            }
+            _ankiOutcomes.send(outcome)
+        }
+    }
+
     fun undo(change: WordChange) {
         viewModelScope.launch {
             when (change) {
@@ -242,6 +280,12 @@ class WordsViewModel(
                                 ?: throw IOException("Cannot write $uri")
                             out.use { it.write(text.toByteArray(Charsets.UTF_8)) }
                         }
+                    },
+                    writePackage = { uri, list, onProgress ->
+                        val out = withContext(Dispatchers.IO) {
+                            application.contentResolver.openOutputStream(Uri.parse(uri), "wt")
+                        } ?: throw IOException("Cannot write $uri")
+                        out.use { container.ankiExporter.ankiPackage(list, it, onProgress) }
                     },
                 )
             }

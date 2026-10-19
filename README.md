@@ -187,6 +187,13 @@ Google Cloud Text-to-Speech with the reader's own API key (stored encrypted, sen
 a header); words are spoken from their kana reading so they are never misread. Audio files reach
 AnkiDroid through a `FileProvider` and are deleted after AnkiDroid copied them.
 
+For Anki on a computer (or AnkiMobile), the Words tab saves the list shown as an Anki package
+(`AnkiPackage`, `.apkg`): Anki's collection format of schema 11 (an SQLite `collection.anki2`
+with the note type, deck and one note and card per word, plus the audio files and their `media`
+map in a zip), made on the phone with the same cards and audio. The note type id is fixed and a
+note's guid comes from its word, so a newer package updates the cards imported before. A plain
+text file for Anki's import (`AnkiTextFile`, without audio) is still offered.
+
 ## Dictionaries
 
 The Dictionaries screen offers one-tap downloads (Jitendex, JMdict, the Japanese Wiktionary for

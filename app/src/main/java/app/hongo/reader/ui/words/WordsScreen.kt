@@ -113,6 +113,11 @@ fun WordsScreen(
     val exportFile = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
         if (uri != null) viewModel.exportToFile(uri.toString())
     }
+    val exportPackage = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/octet-stream"),
+    ) { uri ->
+        if (uri != null) viewModel.exportPackage(uri.toString())
+    }
     LaunchedEffect(viewModel) {
         viewModel.ankiOutcomes.collect { outcome ->
             when (outcome) {
@@ -132,11 +137,15 @@ fun WordsScreen(
                         if (stopped != null) showAnkiResult(context, "", stopped)
                     }
                 }
-                is AnkiOutcome.Exported -> Toast.makeText(
-                    context,
-                    resources.getQuantityString(R.plurals.anki_exported, outcome.count, outcome.count),
-                    Toast.LENGTH_LONG,
-                ).show()
+                is AnkiOutcome.Exported -> {
+                    val saved = resources.getQuantityString(
+                        if (outcome.packaged) R.plurals.anki_exported_package else R.plurals.anki_exported,
+                        outcome.count,
+                        outcome.count,
+                    )
+                    val audio = outcome.audioProblem?.let { " – " + resources.getString(it.label()) }.orEmpty()
+                    Toast.makeText(context, saved + audio, Toast.LENGTH_LONG).show()
+                }
                 AnkiOutcome.ExportFailed ->
                     Toast.makeText(context, R.string.anki_export_failed, Toast.LENGTH_LONG).show()
             }
@@ -164,6 +173,7 @@ fun WordsScreen(
         onAddToAnki = { word, lookup -> anki.whenReady { viewModel.addToAnki(word, lookup) } },
         onAddAllToAnki = { anki.whenReady(viewModel::addAllToAnki) },
         onExport = { exportFile.launch(resources.getString(R.string.anki_export_file_name)) },
+        onExportPackage = { exportPackage.launch(resources.getString(R.string.anki_package_file_name)) },
     )
 }
 
@@ -182,12 +192,17 @@ private fun WordsContent(
     onAddToAnki: (WordEntity, WordLookupEntity?) -> Unit,
     onAddAllToAnki: () -> Unit,
     onExport: () -> Unit,
+    onExportPackage: () -> Unit,
 ) {
     Scaffold(
         topBar = {
             HongoTopAppBar(
                 title = stringResource(R.string.words_title),
-                actions = { if (!uiState.words.isNullOrEmpty()) WordsMenu(onExport) },
+                actions = {
+                    if (!uiState.words.isNullOrEmpty()) {
+                        WordsMenu(onExport, onExportPackage, enabled = uiState.ankiProgress == null)
+                    }
+                },
             )
         },
         bottomBar = bottomBar,
@@ -219,7 +234,11 @@ private fun WordsContent(
             if (progress != null) {
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                     Text(
-                        text = stringResource(R.string.anki_adding_progress, progress.first + 1, progress.second),
+                        text = stringResource(
+                            if (uiState.savingPackage) R.string.anki_package_progress else R.string.anki_adding_progress,
+                            progress.first + 1,
+                            progress.second,
+                        ),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     ProgressBar(
@@ -275,15 +294,23 @@ private fun WordsContent(
     }
 }
 
-/** Exports the list shown as a file for Anki on a computer. */
+/** Exports the list shown as a file for Anki on a computer: a package with audio, or text. */
 @Composable
-private fun WordsMenu(onExport: () -> Unit) {
+private fun WordsMenu(onExport: () -> Unit, onExportPackage: () -> Unit, enabled: Boolean) {
     var open by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { open = true }) {
             Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.words_menu))
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.action_export_anki_package)) },
+                onClick = {
+                    open = false
+                    onExportPackage()
+                },
+                enabled = enabled,
+            )
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.action_export_anki_file)) },
                 onClick = {
@@ -562,6 +589,7 @@ private fun WordsPreview() {
             onAddToAnki = { _, _ -> },
             onAddAllToAnki = {},
             onExport = {},
+            onExportPackage = {},
         )
     }
 }
