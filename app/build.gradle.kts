@@ -1,4 +1,5 @@
 import groovy.json.JsonSlurper
+import java.time.Duration
 import javax.inject.Inject
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
@@ -263,6 +264,14 @@ val buildTtu = tasks.register<BuildTtuTask>("buildTtu") {
     basePath.set("https://appassets.androidplatform.net")
     workDir.set(layout.buildDirectory.dir("ttu-work"))
     outputDir.set(layout.buildDirectory.dir("generated/ttu"))
+}
+
+// A unit test that hangs (a socket or a flow waiting forever) fails the build after a while and
+// is the last one named in the log, instead of holding CI until it is cancelled. The whole
+// suite takes well under a minute.
+tasks.withType<Test>().configureEach {
+    timeout.set(Duration.ofMinutes(10))
+    testLogging { events("started", "failed") }
 }
 
 androidComponents {
