@@ -21,6 +21,7 @@
   const SPINNER_SELECTOR = 'div.fixed.inset-0.text-7xl';
   const SKIPPED_SELECTOR = 'rt, rp, script, style';
   const CHECK_MS = 50;
+  const NAVIGATION_GRACE_MS = 3000;
   /** textAtPoints probes a (GRID - 1) × (GRID - 1) grid of points. */
   const GRID = 6;
 
@@ -141,9 +142,11 @@
   // running would wake the phone 20 times a second while reading, or with the app in the
   // background.
   let timer = null;
+  /** Until when checks go on after a tap outside a book, which may still open one. */
+  let expectingUntil = 0;
   function tick() {
     check();
-    if (settled()) {
+    if (settled() && Date.now() > expectingUntil) {
       clearInterval(timer);
       timer = null;
     }
@@ -159,8 +162,17 @@
   };
   window.addEventListener('popstate', newVisit);
   // ttu's router keeps its own reference to pushState, so the patch below misses its page
-  // changes; they all start with a click (also the app's, see library-bridge.js navigate).
-  window.addEventListener('click', startChecking, true);
+  // changes; they all start with a click (also the app's, see library-bridge.js navigate). ttu
+  // may change the page a while after the click (loading the book first), so a click outside a
+  // book keeps the checks going for a moment even though nothing waits yet.
+  window.addEventListener(
+    'click',
+    () => {
+      if (bookId() === null) expectingUntil = Date.now() + NAVIGATION_GRACE_MS;
+      startChecking();
+    },
+    true,
+  );
   for (const method of ['pushState', 'replaceState']) {
     const original = history[method];
     history[method] = function (...args) {

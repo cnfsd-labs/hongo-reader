@@ -421,6 +421,36 @@ test('opening a book reports it shown once its text is on screen, after the spin
   await expect.poll(async () => (await shown()).length, { timeout: 5_000 }).toBe(2);
 });
 
+// ttu loads a book before it changes the address, through a pushState of its own that
+// book-shown.js cannot see: the checks started by the tap must still be running then.
+test('a book that opens a while after the tap in the library is still reported shown', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__messages = [];
+    window.hongo = { postMessage: (message) => window.__messages.push(JSON.parse(message)), onmessage: null };
+    window.__routerPushState = history.pushState.bind(history);
+  });
+  await page.addInitScript({ path: path.join(ASSETS, 'book-shown.js') });
+  await page.goto(`${server.url}/manage`);
+  await page.evaluate(() => {
+    const button = document.createElement('button');
+    button.id = 'late-open';
+    button.textContent = 'open';
+    button.style.cssText = 'position: fixed; top: 0; left: 0; z-index: 99999';
+    button.addEventListener('click', () =>
+      setTimeout(() => {
+        document.body.innerHTML = '<div class="book-content"><p>吾輩は猫である。</p></div>';
+        window.__routerPushState({}, '', '/b?id=7');
+      }, 500),
+    );
+    document.body.append(button);
+  });
+
+  await page.locator('#late-open').click();
+
+  const shown = () => page.evaluate(() => window.__messages.filter((message) => message.type === 'bookShown'));
+  await expect.poll(shown, { timeout: 3_000 }).toEqual([{ type: 'bookShown', id: 7 }]);
+});
+
 // ttu's stylesheet paints the page light until its script applies the theme; opening a book in
 // the dark flashed white. ttu-defaults.js sets the theme colours before the first frame.
 test('a book page has the dark theme background and no loading circle before ttu has started', async ({ page }) => {

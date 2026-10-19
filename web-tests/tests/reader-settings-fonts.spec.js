@@ -57,8 +57,10 @@ test('file names that are not plain font files are refused; a broken list is rep
 });
 
 /** Does what ttu's layout does: declares the user fonts in <style id="ttu-userfonts">. */
+/** Declares the user fonts as ttu does, once per page (also a page that replaced the one before). */
 async function declareUserFonts(page) {
   await page.evaluate(() => {
+    if (document.getElementById('ttu-userfonts')) return;
     const fonts = JSON.parse(window.localStorage.getItem('userfonts') || '[]');
     const style = document.createElement('style');
     style.id = 'ttu-userfonts';
@@ -80,10 +82,13 @@ test("ttu's face of the chosen HonGO! font starts loading once declared, so ttu 
     window.localStorage.setItem('fontFamilyGroupOne', 'Klee One');
   });
   await page.reload();
-  await declareUserFonts(page);
 
   // One face, ttu's own, requested at once (the file isn't served here, so it ends in an error).
-  await expect.poll(() => faceStatuses(page)).toEqual([expect.stringMatching(/^Klee One: (loading|loaded|error)$/)]);
+  await expect
+    .poll(async () => {
+      await declareUserFonts(page);
+      return faceStatuses(page);
+    }).toEqual([expect.stringMatching(/^Klee One: (loading|loaded|error)$/)]);
 });
 
 test('fonts not downloaded by HonGO! are left to ttu', async ({ page }) => {
@@ -92,7 +97,13 @@ test('fonts not downloaded by HonGO! are left to ttu', async ({ page }) => {
     window.localStorage.setItem('fontFamilyGroupOne', 'Mine');
   });
   await page.reload();
-  await declareUserFonts(page);
+  // Declared until the face is listed: right after a reload, the old page can still take it.
+  await expect
+    .poll(async () => {
+      await declareUserFonts(page);
+      return faceStatuses(page);
+    })
+    .toEqual(['Mine: unloaded']);
   await page.waitForTimeout(200);
 
   expect(await faceStatuses(page)).toEqual(['Mine: unloaded']);
