@@ -24,7 +24,7 @@ jobs:
           java-version: 21
 
       # Node.js and pnpm for building ッツ Ebook Reader; versions follow its own CI.
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 12.3.4
       - uses: actions/setup-node@v4
