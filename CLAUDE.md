@@ -14,8 +14,8 @@ repository is public: never copy those notes, personal details or discussions in
 
 ## Decisions already made (don't relitigate without new facts)
 
-- Fresh build in Kotlin + Compose, not a jidoujisho fork (GPL, outdated) and not a Readest fork
-  (AGPL-3.0, 280k lines).
+- Fresh build in Kotlin + Compose, not a jidoujisho fork (outdated) and not a Readest fork
+  (AGPL-3.0, very large).
 - Copying code or data from other projects is allowed when its licence is
   compatible with GPL-3.0-or-later: GPL-3.0 or later (jidoujisho, Yomitan), LGPL-3.0, Apache-2.0,
   MPL-2.0, MIT, BSD, ISC, 0BSD, CC0. Not GPL-2.0-only, "non-commercial" or unlicensed code.
@@ -28,7 +28,8 @@ repository is public: never copy those notes, personal details or discussions in
   injected scripts in `app/src/main/assets/hongo/` (document-start, reader origin only).
 - Reader origin `https://appassets.androidplatform.net` via `WebViewAssetLoader`. ttu's library
   lives in IndexedDB for this origin, so never change it. The WebView blocks network loads; INTERNET
-  is only for dictionary downloads and OPDS catalogues.
+  is only for downloads (dictionaries, fonts), book servers, progress sync and Google voices, all
+  listed in `docs/privacy-policy.md`, which must change with any new network use.
 - Licence: **GPL-3.0-or-later**, free on Play, copyright "© 2026 CNFSD Labs" (no personal names
   in the app, the docs or commits; commits are authored "CNFSD Labs"). `LICENSE` at the root;
   Settings → "About HonGO!" shows copyright, the no-warranty notice, the GPL text, the source
@@ -37,11 +38,11 @@ repository is public: never copy those notes, personal details or discussions in
 - Backup (cloud and device transfer) keeps only the shared preferences file `settings` (the
   reader's choices). Books, fonts, ttu's data and the database are left out (orphans without the
   database, and over 25 MB Android skips the whole backup); what belongs to this phone (first
-  start done, the Keystore-encrypted Google key, AnkiDroid's note type ids) is in `device`
-  preferences, never backed up. `BackupRulesTest` guards the rules.
-- Play bundles: the "Release bundle" workflow (a pushed `release/*` tag, or by hand) signs `bundleRelease` with the
-  upload key from repository secrets; its run number is the version code. Play App Signing
-  holds the app signing key. Other builds stay unsigned or debug-signed.
+  start done, the Keystore-encrypted Google key, AnkiDroid's note type ids, the sync account) is
+  in `device` preferences, never backed up. `BackupRulesTest` guards the rules.
+- Play bundles: the "Release bundle" workflow (a pushed `release/*` tag, or by hand) signs
+  `bundleRelease` with the upload key from repository secrets; its run number is the version
+  code. Play App Signing holds the app signing key. Other builds stay unsigned or debug-signed.
 - Application ID `app.hongo.reader` (permanent once on Play).
 - Single Room database, **schema frozen since 2026-10-19** (version 1, exported in `app/schemas`).
   A schema change needs a new version, a migration in `HongoDatabase.MIGRATIONS`, a test in
@@ -50,8 +51,9 @@ repository is public: never copy those notes, personal details or discussions in
   `AppContainer`, no Hilt.
 - Glossaries are stored deflated with a per-dictionary 8 KB preset (`GlossaryPacker`; Jitendex
   466 → 59 MB, about 5 µs to unpack an entry); always on, users are not asked.
-- Dictionaries: Yomitan formats 1–3, term + tag banks only so far; imports serialized by a mutex in
-  `DictionaryImporter`; WorkManager worker as dataSync foreground service.
+- Dictionaries: Yomitan formats 1–3 (term, term meta for frequency and pitch, kanji and tag banks;
+  no images); imports serialized by a mutex in `DictionaryImporter`; WorkManager worker as
+  dataSync foreground service.
 - Lookup is tap-based (not selection), scan length 20, longest match first; deinflection rules are
   HonGO!'s own (`lookup/Deinflector.kt`).
 - Version set: AGP 9.4 with its built-in Kotlin (no `org.jetbrains.kotlin.android` plugin),
@@ -66,25 +68,26 @@ repository is public: never copy those notes, personal details or discussions in
   page stays reachable for the rest.
 - Saved words: recorded automatically on every lookup with results (best match); ranked by a
   decayed score (half-life 14 days), not deleted when old; learned words stay learned when
-  looked up again. "Learned" (not "Known"): it only covers words the reader looked up. Anki cards are suggested, not pushed by default.
+  looked up again. "Learned" (not "Known"): it only covers words the reader looked up. Anki cards
+  are suggested, not pushed by default.
 - Anki: AnkiDroid's content provider through HonGO!'s own client (not the LGPL JitPack library);
   note type and deck "HonGO!"; words spoken from their kana reading; for Anki on a computer an
   `.apkg` with audio (`AnkiPackage`, schema 11, fixed note type id, guid from the word) or a
-  text file that names deck and tags in columns (Anki ignores a `#deck:` header for a missing deck); the Google Cloud key is
-  Keystore-encrypted and only sent to Google in the `X-Goog-Api-Key` header.
+  text file that names deck and tags in columns (Anki ignores a `#deck:` header for a missing
+  deck); the Google Cloud key is Keystore-encrypted and only sent to Google in the
+  `X-Goog-Api-Key` header.
 - OPDS: own Atom parser (DOM via `SafeXml`) and `HttpURLConnection` client, no library. Login
   only sent to the catalogue's origin (redirects followed manually); Basic first, Digest (RFC 7616)
   when a 401 asks for it, then remembered per origin for the session. No OPDS 2.0 (servers in use
-  speak 1.x). Password AES-GCM-encrypted
-  with an Android Keystore key (not androidx security-crypto, which is deprecated); the database
-  is excluded from backup anyway. Cleartext and user CAs allowed for home servers, with a warning
-  in the dialog. Catalogues are opened from "Add book", not a separate tab.
+  speak 1.x). Passwords AES-GCM-encrypted with an Android Keystore key (not androidx
+  security-crypto, which is deprecated). Cleartext and user CAs allowed for home servers, with a
+  warning in the login dialogs. Catalogues are opened from "Add book", not a separate tab.
 - Progress sync: KOReader's sync protocol (`data/sync/`), optional, EPUB only, document id =
   KOReader's partial MD5 of the file. Positions are translated exactly between KOReader's
   XPointers and ttu's character count (`EpubPositions`, ttu's counting rules); the server's
   position is written into ttu's bookmark before the book opens. Account in `device` prefs.
   Calibre-Web Automated wants its web password as HTTP Basic (no MD5 key): `KoSyncClient.signIn`
-  falls back to Basic and to `<address>/kosync`, and only then keeps the password (encrypted).
+  falls back to `<address>/kosync` and Basic (only there), and only then keeps the password.
   The book server dialog has a "Sync reading progress here" switch (`CatalogSync`): sync on the
   catalogue's origin with its login; nothing is saved if that sign-in fails.
   No account creation in HonGO! (Play wants deletion for accounts an app creates; the protocol
@@ -108,13 +111,15 @@ app/src/main/java/app/hongo/reader/
                              TextEncoding, AozoraText + AozoraEpub (Aozora .txt → EPUB)
   data/words/                saved words: WordEntity/WordLookupEntity, WordDao, WordRepository
                              (record + dedupe), WordScore (decayed ranking as a rank key)
-  data/opds/                 OPDS: OpdsParser (feeds, OpenSearch), OpdsClient (HTTP, Basic auth),
+  data/opds/                 OPDS: OpdsParser (feeds, OpenSearch), OpdsClient (HTTP, Basic and
+                             Digest auth),
                              OpdsRepository + catalogue table, Keystore CredentialCipher,
                              OpdsAutoImport (new Japanese books on app start)
   data/settings/             AppearanceSettings (accent colour), OnboardingSettings (shared
                              preferences), ReaderSettings (model over ttu's localStorage keys)
   data/sync/                 KOReader progress sync: KoSyncClient, KoSyncSettings, PartialMd5,
-                             EpubPositions (XPointer <-> ttu characters), Xhtml, ProgressSync
+                             EpubPositions (XPointer <-> ttu characters), Xhtml, ProgressSync,
+                             CatalogSync (sync with a book server's login)
   data/stats/                reading statistics: ReadingDayEntity/ReadingDao, ReadingTracker
                              (time + characters), ReadingStats (summaries)
   anki/                      AnkiCard (note type, fields), AnkiDroid (content provider client),
@@ -124,10 +129,10 @@ app/src/main/java/app/hongo/reader/
   ui/library/                LibraryScreen (home, drawn over the reader; toolbar with search and
                              status filters, LibraryFilter) + ViewModel, AddBookSheet,
                              BookAdder (import + hand to ttu, shared with OPDS downloads)
-  ui/opds/                   CatalogBrowser, CatalogDialog, OpdsViewModel
+  ui/opds/                   CatalogScreens (CatalogBrowser, CatalogDialog), OpdsViewModel
   ui/words/                  WordsScreen + ViewModel
   ui/settings/               SettingsScreen (accent colour, diagnostics), AboutScreen (licences),
-                             ReaderSettingsScreen
+                             AnkiSettingsSection, ProgressSyncSection, ReaderSettingsScreen
                              (HonGO!'s reader settings over ttu's localStorage) + ViewModel
   ui/HomeNavigationBar.kt    the bottom bar; ReaderScreen hosts the tabs over the WebView
   ui/reader/                 ReaderScreen, ReaderWebView, LookupPanel, GlossView, TapLookup, TtuLibrary
@@ -147,11 +152,12 @@ docs/                        device-testing.md, privacy-policy.md, samples/, bra
 
 ## Build, test, CI
 
-- Local prerequisites: JDK 21, Android SDK 36, Node 24 + pnpm 12, `git submodule update --init`.
+- Local prerequisites: JDK 21, Android SDK 37, Node 24 + pnpm 12, `git submodule update --init`.
 - Local builds are signed with the local debug key: uninstall a CI build before installing one.
   Machine-specific setup (JDK paths, devices) is in the maintainer's notes.
 - `./gradlew lintDebug testDebugUnitTest assembleRelease assembleInternal assembleDebug`
-- `scripts/check-apk.sh <apk>`; `cd web-tests && npm ci && npx playwright install --with-deps chromium && npx playwright test`
+- `scripts/check-apk.sh <apk>`
+- `cd web-tests && npm ci && npx playwright install --with-deps chromium && npx playwright test`
   (needs the ttu build from `:app:buildTtu`, or `TTU_DIR=...`).
 - CI (`.github/workflows/android.yml`) runs all of this on every push, with
   `cancel-in-progress`: pushing cancels the running build. Don't push while someone waits for an
@@ -228,9 +234,6 @@ docs/                        device-testing.md, privacy-policy.md, samples/, bra
   (`document.fonts.check` needs every face of the family), so books waited for ttu's 30 s font
   timeout. Downloaded fonts use their own family ("HonGO Klee One"), and ttu's face is only
   loaded once something requests it: `reader-settings.js` does, as ttu hides the book until then.
-- Explain changes in plain terms; device testing is the real check. Ask for "Share
-  diagnostics" output when the reader misbehaves.
-
 ## Conventions
 
 - Commit messages: imperative subject; body explains why; end with the session attribution
@@ -239,3 +242,5 @@ docs/                        device-testing.md, privacy-policy.md, samples/, bra
   JS / ttu).
 - Strings in `res/values/strings.xml`; user-facing errors are readable sentences.
 - Don't create a PR unless asked.
+- Explain changes in plain terms; device testing is the real check. Ask for "Share diagnostics"
+  output when the reader misbehaves.
