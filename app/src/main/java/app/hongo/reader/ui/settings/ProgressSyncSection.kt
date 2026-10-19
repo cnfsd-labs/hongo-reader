@@ -151,6 +151,13 @@ private fun SignInDialog(onDismiss: () -> Unit) {
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
                     enabled = !checking,
                 )
+                if (server.trim().startsWith("http://", ignoreCase = true) && password.isNotEmpty()) {
+                    Text(
+                        stringResource(R.string.catalog_insecure_warning),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
                 error?.let {
                     Text(stringResource(it), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                 }

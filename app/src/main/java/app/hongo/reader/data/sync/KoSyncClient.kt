@@ -90,7 +90,8 @@ class KoSyncClient(
     /**
      * Signs in with what the reader typed and returns the account that worked:
      * - KOReader's login (the MD5 key) first, then the password with HTTP Basic, which
-     *   Calibre-Web Automated asks for.
+     *   Calibre-Web Automated asks for. The password itself only goes to an address ending in
+     *   `/kosync` (CWA's), never to KOReader's servers when the key was merely wrong.
      * - An address without a sync server is tried again with `/kosync` (Calibre-Web Automated's
      *   own address, as its KOReader page shows it).
      */
@@ -105,7 +106,7 @@ class KoSyncClient(
                 authorize(account)
                 return account
             } catch (e: KoSyncException) {
-                if (e.reason == KoSyncException.Reason.UNAUTHORIZED) {
+                if (e.reason == KoSyncException.Reason.UNAUTHORIZED && address.trimEnd('/').endsWith(CWA_PATH)) {
                     val basic = account.copy(password = password)
                     authorize(basic)
                     return basic

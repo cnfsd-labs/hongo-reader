@@ -44,6 +44,12 @@ class KoSyncClientTest {
     }
 
     @Test
+    fun aWrongPasswordNeverGoesToAKOReaderServerInPlainText() = runTest {
+        assertFails(KoSyncException.Reason.UNAUTHORIZED) { client.signIn(server.url, "reader", "wrong") }
+        assertEquals(listOf<String?>(null), server.requests.map { it.headers["authorization"] })
+    }
+
+    @Test
     fun signsInToCalibreWebAutomated_fromItsOwnAddress() = runTest {
         val cwa = FakeKoSyncServer(cwa = true)
         try {

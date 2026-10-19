@@ -1,6 +1,6 @@
 # Privacy policy for HonGO!
 
-*Last updated: 2026-10-19.*
+*Last updated: 2026-10-20.*
 
 HonGO! is a free reader for Japanese books, published by CNFSD Labs. It has no account, no ads,
 no analytics and no tracking. CNFSD Labs does not receive any data from the app.
@@ -29,10 +29,13 @@ HonGO! only connects to the internet for these things, and only to these places:
 - **Reading progress sync, only if you sign in** (Settings → Reading progress sync) to a
   KOReader sync server of your choice: for EPUB books, HonGO! sends that server an identifier
   computed from the book file (not its title or text), your reading position and percentage,
-  and the name of your phone model, and reads back the position saved by your other devices.
+  the name of your phone model and a random id HonGO! made for this phone (so the server can
+  tell your devices apart), and reads back the position saved by your other devices. You can
+  also turn this on from a book server's settings, with that server's address and login.
   For KOReader's sync servers HonGO! keeps only an MD5 hash of your password, encrypted on
   your phone, as KOReader does. Calibre-Web Automated checks your Calibre-Web password
   itself: for it, the password is stored encrypted on your phone and sent only to that server.
+  Signing out deletes the stored login.
   The server's operator's privacy policy applies.
 - **Google Cloud text-to-speech, only if you turn it on** and enter your own Google Cloud API
   key: to make audio for Anki cards, HonGO! sends the word or example sentence and your key to
@@ -45,6 +48,8 @@ The book reader itself never loads anything from the internet.
 
 - **AnkiDroid:** if you add words to Anki, HonGO! hands them to the AnkiDroid app on your phone,
   after you allow it. Nothing leaves your phone for this.
+- **Files for Anki on a computer:** saving your words as an Anki package or text file writes it
+  where you choose in Android's save dialog. HonGO! sends it nowhere.
 - **Share diagnostics:** only when you tap it in Settings, HonGO! prepares a short technical
   report (app and Android version, the reader's log, layout details of the last opened book,
   which can include short excerpts of its text) and opens Android's share menu. You choose who
