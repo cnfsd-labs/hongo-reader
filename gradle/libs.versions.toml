@@ -13,7 +13,7 @@ work = "2.10.0"
 kotlinxSerialization = "1.9.0"
 kotlinxCoroutines = "1.10.2"
 junit = "4.13.2"
-robolectric = "4.16.1"
+robolectric = "4.17"
 androidxTestCore = "1.6.1"
 
 [libraries]
