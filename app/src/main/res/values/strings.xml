@@ -241,6 +241,7 @@
     <string name="import_preparing">Preparing dictionary import…</string>
     <string name="import_queued">Waiting to import a dictionary…</string>
     <string name="import_running">Importing %1$s…</string>
+    <string name="import_keep_open">Keep HonGO! open until this is done: some phones pause apps in the background, and the import then waits until you come back.</string>
     <string name="import_failed_invalid">Not a Yomitan dictionary: %1$s</string>
     <string name="import_failed_already_installed">“%1$s” is already installed.</string>
     <string name="import_failed_no_terms">“%1$s” has no terms, kanji, frequencies or pitch accents.</string>
@@ -384,7 +385,7 @@
     <string name="onboarding_pack_english">Jitendex, with kanji, word frequency and pitch accent. About %1$d MB; Wi-Fi recommended.</string>
     <string name="onboarding_pack_japanese">Japanese Wiktionary, then Jitendex in English for words it lacks, with kanji, word frequency and pitch accent. About %1$d MB; Wi-Fi recommended.</string>
     <string name="onboarding_download">Download</string>
-    <string name="onboarding_downloading">Getting dictionary %1$d of %2$d. This carries on in the background; you can start reading.</string>
+    <string name="onboarding_downloading">Getting dictionary %1$d of %2$d. You can start reading meanwhile; keep HonGO! open until this is done, as some phones pause apps in the background.</string>
     <string name="onboarding_ready">Dictionaries ready</string>
     <string name="onboarding_failed">The download failed. Check your connection and try again.</string>
     <string name="onboarding_retry">Try again</string>

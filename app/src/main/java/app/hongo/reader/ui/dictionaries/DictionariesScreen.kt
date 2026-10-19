@@ -131,6 +131,18 @@ private fun DictionariesContent(
                 items(uiState.imports, key = { "import-${it.id}" }) { status ->
                     ImportStatusCard(status, onDismissFailures)
                 }
+                if (uiState.imports.any { it !is ImportStatus.Failed }) {
+                    // Some phones (OnePlus, OPPO) freeze apps in the background despite the
+                    // import's foreground service; the import then waits until the app is back.
+                    item(key = "import-hint") {
+                        Text(
+                            stringResource(R.string.import_keep_open),
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
                 if (uiState.catalog.any { it.state != CatalogItem.State.INSTALLED }) {
                     item(key = "catalog-title") { SectionTitle(stringResource(R.string.catalog_title)) }
                     items(
