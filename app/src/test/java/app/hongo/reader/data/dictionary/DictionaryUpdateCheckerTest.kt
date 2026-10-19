@@ -108,7 +108,9 @@ class DictionaryUpdateCheckerTest {
         val id = install("A", "1", "https://a.example/index.json")
         remote["https://a.example/index.json"] = """{"revision":"2","downloadUrl":"https://a.example/a.zip"}"""
 
+        // The check runs in the background (Room moves it to its own thread): wait for its end.
         checker.start(all = true)
+        checker.checking.first { !it }
         assertEquals(listOf(id), checker.updates.first().map { it.dictionaryId })
         assertTrue(checker.checked.value)
 
@@ -125,9 +127,11 @@ class DictionaryUpdateCheckerTest {
         remote["https://new.example/index.json"] = """{"revision":"2","downloadUrl":"https://new.example/a.zip"}"""
 
         checker.start()
+        checker.checking.first { !it }
         assertEquals(listOf("Old"), checker.updates.first().map { it.name })
 
         checker.start(all = true)
+        checker.checking.first { !it }
         assertEquals(listOf("Old", "New"), checker.updates.first().map { it.name })
     }
 
