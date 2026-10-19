@@ -2,6 +2,7 @@ package app.hongo.reader.data.sync
 
 import app.hongo.reader.data.opds.HeaderServer
 import app.hongo.reader.data.opds.respond
+import java.util.Base64
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -9,8 +10,16 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 
-/** A KOReader sync server (koreader-sync-server's API) on localhost, for tests. */
-internal class FakeKoSyncServer(private val user: String = "reader", private val key: String = KoSyncAccount.userKey("secret")) {
+/**
+ * A KOReader sync server (koreader-sync-server's API) on localhost, for tests. [cwa] makes it
+ * answer like Calibre-Web Automated: under `/kosync`, with the password as HTTP Basic only.
+ */
+internal class FakeKoSyncServer(
+    private val user: String = "reader",
+    private val password: String = "secret",
+    private val cwa: Boolean = false,
+) {
+    private val key = KoSyncAccount.userKey(password)
     val users = ConcurrentHashMap(mapOf(user to key))
 
     /** Saved progress by document: the request body plus a timestamp. */
@@ -22,10 +31,17 @@ internal class FakeKoSyncServer(private val user: String = "reader", private val
     val requests get() = http.requests
 
     init {
-        http = HeaderServer { path, out ->
+        http = HeaderServer { fullPath, out ->
             val request = http.requests.last()
-            val authorized = request.headers["x-auth-user"]?.let { users[it] }?.let { it == request.headers["x-auth-key"] } == true
+            val path = if (cwa) fullPath.removePrefix("/kosync") else fullPath
+            val basic = "Basic " + Base64.getEncoder().encodeToString("$user:$password".toByteArray())
+            val authorized = if (cwa) {
+                request.headers["authorization"] == basic
+            } else {
+                request.headers["x-auth-user"]?.let { users[it] }?.let { it == request.headers["x-auth-key"] } == true
+            }
             when {
+                cwa && !fullPath.startsWith("/kosync/") -> out.respond("308 Permanent Redirect", "")
                 request.headers["accept"] != "application/vnd.koreader.v1+json" -> out.respond("412 Precondition Failed", "{}")
                 request.method == "POST" && path == "/users/create" -> {
                     val body = Json.parseToJsonElement(request.body) as JsonObject

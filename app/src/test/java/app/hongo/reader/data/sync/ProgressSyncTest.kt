@@ -159,6 +159,18 @@ class ProgressSyncTest {
         server.progress[document]!!
     }
 
+    @Test
+    fun aPasswordLoginIsKeptAndForgotten() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val preferences = context.getSharedPreferences("sync-password-test", Context.MODE_PRIVATE)
+        val cwa = KoSyncAccount("http://nas:8083/kosync", "reader", KoSyncAccount.userKey("secret"), password = "secret")
+        KoSyncSettings(preferences, PlainCipher).signIn(cwa)
+        assertEquals(cwa, KoSyncSettings(preferences, PlainCipher).account.value)
+
+        KoSyncSettings(preferences, PlainCipher).signOut()
+        assertEquals(emptyMap<String, Any?>(), preferences.all.filterKeys { it != "kosync_device_id" })
+    }
+
     private object PlainCipher : CredentialCipher {
         override fun encrypt(plain: String) = plain
 

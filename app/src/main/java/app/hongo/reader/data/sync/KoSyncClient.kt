@@ -5,6 +5,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 import java.security.MessageDigest
+import java.util.Base64
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -17,8 +18,15 @@ import kotlinx.serialization.json.put
  * A KOReader progress sync account: the server (KOReader's own sync server, a self-hosted
  * koreader-sync-server, or Calibre-Web Automated's `/kosync`) and the login. [userKey] is the
  * MD5 of the password, which is what KOReader sends and stores instead of the password.
+ * [password] is kept only for servers that check the password itself with HTTP Basic
+ * (Calibre-Web Automated, whose accounts are its web accounts).
  */
-data class KoSyncAccount(val server: String, val username: String, val userKey: String) {
+data class KoSyncAccount(
+    val server: String,
+    val username: String,
+    val userKey: String,
+    val password: String? = null,
+) {
     override fun toString() = "KoSyncAccount(server=$server, username=$username)"
 
     companion object {
@@ -77,6 +85,36 @@ class KoSyncClient(
             403 -> throw KoSyncException(KoSyncException.Reason.REGISTRATION_CLOSED, "Registration closed")
             else -> throw unexpected(status)
         }
+    }
+
+    /**
+     * Signs in with what the reader typed and returns the account that worked:
+     * - KOReader's login (the MD5 key) first, then the password with HTTP Basic, which
+     *   Calibre-Web Automated asks for.
+     * - An address without a sync server is tried again with `/kosync` (Calibre-Web Automated's
+     *   own address, as its KOReader page shows it).
+     */
+    suspend fun signIn(server: String, username: String, password: String): KoSyncAccount {
+        val keyed = KoSyncAccount(server.trim(), username.trim(), KoSyncAccount.userKey(password))
+        val base = keyed.server.trimEnd('/')
+        val addresses = if (base.endsWith(CWA_PATH)) listOf(keyed.server) else listOf(keyed.server, base + CWA_PATH)
+        var failure: KoSyncException? = null
+        for (address in addresses) {
+            val account = keyed.copy(server = address)
+            try {
+                authorize(account)
+                return account
+            } catch (e: KoSyncException) {
+                if (e.reason == KoSyncException.Reason.UNAUTHORIZED) {
+                    val basic = account.copy(password = password)
+                    authorize(basic)
+                    return basic
+                }
+                if (e.reason != KoSyncException.Reason.NETWORK) throw e
+                if (failure == null) failure = e
+            }
+        }
+        throw failure!!
     }
 
     /** Checks the login. */
@@ -147,7 +185,10 @@ class KoSyncClient(
             connection.instanceFollowRedirects = false
             connection.requestMethod = method
             connection.setRequestProperty("Accept", ACCEPT)
-            if (auth) {
+            if (auth && account.password != null) {
+                val token = "${account.username}:${account.password}".toByteArray(Charsets.UTF_8)
+                connection.setRequestProperty("Authorization", "Basic " + Base64.getEncoder().encodeToString(token))
+            } else if (auth) {
                 connection.setRequestProperty("x-auth-user", account.username)
                 connection.setRequestProperty("x-auth-key", account.userKey)
             }
@@ -198,6 +239,7 @@ class KoSyncClient(
     companion object {
         private const val ACCEPT = "application/vnd.koreader.v1+json"
         private const val MAX_ANSWER_BYTES = 64 * 1024
+        private const val CWA_PATH = "/kosync"
         private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
         /** The server address as typed (with or without a trailing slash, https:// added if missing) plus [path]. */

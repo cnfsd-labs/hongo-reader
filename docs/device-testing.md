@@ -44,7 +44,9 @@ add a card to AnkiDroid; force-stop and reopen (books, dictionaries, position ke
 
 ## Reading progress sync (KOReader)
 
-With KOReader on an e-reader (or Calibre-Web Automated) signed in to the same sync server:
+With KOReader on an e-reader (or Calibre-Web Automated, whose own KOReader plugin "CWA Progress
+Sync" the e-reader needs; in HonGO! its plain address and Calibre-Web login are enough) signed in
+to the same sync server:
 put the same EPUB file on both. In HonGO!: Settings → Reading progress sync, sign in, read a few
 pages, go back to the library. In KOReader, open the book: it offers HonGO!'s position (top of
 the page HonGO! showed). Read on in KOReader, then open the book in HonGO!: it says "Continued

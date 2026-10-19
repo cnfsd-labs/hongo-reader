@@ -36,6 +36,33 @@ class KoSyncClientTest {
     }
 
     @Test
+    fun signsInToKOReaderServersWithTheKeyOnly() = runTest {
+        val signedIn = client.signIn(" ${server.url} ", " reader ", "secret")
+        assertEquals(account, signedIn)
+        assertNull(signedIn.password)
+        assertNull(server.requests.single().headers["authorization"])
+    }
+
+    @Test
+    fun signsInToCalibreWebAutomated_fromItsOwnAddress() = runTest {
+        val cwa = FakeKoSyncServer(cwa = true)
+        try {
+            // The address as CWA's KOReader page shows it, without /kosync.
+            val signedIn = client.signIn(cwa.url + "/", "reader", "secret")
+            assertEquals(cwa.url + "/kosync", signedIn.server)
+            assertEquals("secret", signedIn.password)
+
+            client.update(signedIn, "abc", "/body/DocFragment[2]/body/p/text().3", 0.5, "HonGO! (Test)", "DEV1")
+            assertEquals("/body/DocFragment[2]/body/p/text().3", client.progress(signedIn, "abc")!!.progress)
+            assertNull(cwa.requests.last().headers["x-auth-key"])
+
+            assertFails(KoSyncException.Reason.UNAUTHORIZED) { client.signIn(cwa.url, "reader", "wrong") }
+        } finally {
+            cwa.stop()
+        }
+    }
+
+    @Test
     fun registers_andSaysWhenTheNameIsTaken() = runTest {
         val newcomer = account.copy(username = "new")
         client.register(newcomer)

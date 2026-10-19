@@ -83,6 +83,8 @@ repository is public: never copy those notes, personal details or discussions in
   XPointers and ttu's character count (`EpubPositions`, ttu's counting rules); the server's
   position is written into ttu's bookmark before the book opens. Account in `device` prefs.
 - Library: HonGO! owns the book files (app storage, named by SHA-256); ttu's IndexedDB is a
+  Calibre-Web Automated wants its web password as HTTP Basic (no MD5 key): `KoSyncClient.signIn`
+  falls back to Basic and to `<address>/kosync`, and only then keeps the password (encrypted).
   rebuildable cache. Books reach ttu through ttu's own import input (`library-bridge.js`), not a
   ttu patch and not a native EPUB renderer.
 

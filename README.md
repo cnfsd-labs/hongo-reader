@@ -142,9 +142,12 @@ app start downloads new Japanese books from the catalogue's newest-books feed
 Optional, off until the reader signs in (Settings → Reading progress sync): HonGO! speaks
 KOReader's sync protocol (`data/sync/`), so reading positions in EPUBs move between HonGO!,
 KOReader on an e-reader and other phones, through KOReader's own server, a self-hosted
-koreader-sync-server or Calibre-Web Automated's `/kosync`. `KoSyncClient` is the HTTP API (the
-password is only kept as its MD5 key, encrypted with the Keystore key, in the never backed up
-`device` preferences). A book is identified as KOReader does it (`PartialMd5`: 1 KB samples of
+koreader-sync-server or Calibre-Web Automated's `/kosync`. `KoSyncClient` is the HTTP API.
+KOReader's servers get the MD5 key of the password (`x-auth-key`); Calibre-Web Automated checks
+its own web accounts and wants the password itself as HTTP Basic, so `signIn` tries the key
+first, then Basic, and also the address with `/kosync` added (CWA's KOReader page shows only its
+base address). The key, and the password only when Basic was needed, are encrypted with the
+Keystore key in the never backed up `device` preferences. A book is identified as KOReader does it (`PartialMd5`: 1 KB samples of
 the file), so both devices need the same file.
 
 Positions are exact, not percentages: KOReader saves an XPointer into its DOM

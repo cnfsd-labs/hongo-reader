@@ -30,8 +30,10 @@ HonGO! only connects to the internet for these things, and only to these places:
   KOReader sync server of your choice: for EPUB books, HonGO! sends that server an identifier
   computed from the book file (not its title or text), your reading position and percentage,
   and the name of your phone model, and reads back the position saved by your other devices.
-  Your password is not stored or sent; HonGO! keeps only its MD5 hash, encrypted on your
-  phone, as KOReader does. The server's operator's privacy policy applies.
+  For KOReader's sync servers HonGO! keeps only an MD5 hash of your password, encrypted on
+  your phone, as KOReader does. Calibre-Web Automated checks your Calibre-Web password
+  itself: for it, the password is stored encrypted on your phone and sent only to that server.
+  The server's operator's privacy policy applies.
 - **Google Cloud text-to-speech, only if you turn it on** and enter your own Google Cloud API
   key: to make audio for Anki cards, HonGO! sends the word or example sentence and your key to
   Google (texttospeech.googleapis.com). Google's privacy policy applies. The default voice is

@@ -426,7 +426,7 @@
     <string name="sync_off">Off. Continue books where you left off in KOReader (on an e-reader, say) or on another phone.</string>
     <string name="sync_signed_in">%1$s on %2$s</string>
     <string name="sync_signed_in_details">Signed in as %1$s on %2$s. Your reading position in EPUBs is saved there and taken from there when you open a book. Books match when every device has the same file.</string>
-    <string name="sync_message">Uses a KOReader sync server: KOReader\'s own (sync.koreader.rocks), your own, or Calibre-Web Automated (its address followed by /kosync). Sign in with the same account in KOReader.</string>
+    <string name="sync_message">Uses a KOReader sync server: KOReader\'s own (sync.koreader.rocks), your own, or Calibre-Web Automated (its address and your Calibre-Web account). Sign in with the same account in KOReader.</string>
     <string name="sync_server">Server</string>
     <string name="sync_server_hint">https://sync.koreader.rocks</string>
     <string name="sync_username">User name</string>

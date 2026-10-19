@@ -88,13 +88,18 @@ private fun SignInDialog(onDismiss: () -> Unit) {
 
     fun submit(register: Boolean) {
         if (server.isBlank() || username.isBlank() || password.isEmpty() || checking) return
-        val account = KoSyncAccount(server.trim(), username.trim(), KoSyncAccount.userKey(password))
         checking = true
         error = null
         scope.launch {
             try {
-                if (register) container.koSyncClient.register(account)
-                container.koSyncClient.authorize(account)
+                val account = if (register) {
+                    KoSyncAccount(server.trim(), username.trim(), KoSyncAccount.userKey(password)).also {
+                        container.koSyncClient.register(it)
+                        container.koSyncClient.authorize(it)
+                    }
+                } else {
+                    container.koSyncClient.signIn(server, username, password)
+                }
                 container.koSyncSettings.signIn(account)
                 onDismiss()
             } catch (e: KoSyncException) {
