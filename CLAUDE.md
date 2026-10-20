@@ -10,8 +10,9 @@ Published by CNFSD Labs under GPL-3.0-or-later. `README.md` is the overview,
 tap words. Anything configurable has defaults and stays optional.
 
 **Maintainer's notes:** current state, open tasks, devices and publishing are in the private
-repository `cnfsd-labs/hongo-notes` (`CLAUDE.md`). Read it first when you have access
-(`gh api repos/cnfsd-labs/hongo-notes/contents/CLAUDE.md --jq .content | base64 -d`). This
+repository `cnfsd-labs/notes`: `CLAUDE.md` (shared by all projects), then `hongo/CLAUDE.md`.
+Read both first when you have access
+(`gh api repos/cnfsd-labs/notes/contents/<path> --jq .content | base64 -d`). This
 repository is public: never copy those notes, personal details or discussions into it.
 
 ## Decisions (don't relitigate without new facts)
