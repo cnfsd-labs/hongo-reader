@@ -66,7 +66,7 @@ sealed interface DownloadState {
     data class Failed(val reason: DownloadFailure) : DownloadState
 }
 
-enum class DownloadFailure { NETWORK, UNAUTHORIZED, SERVER, UNREADABLE, READER }
+enum class DownloadFailure { NETWORK, UNAUTHORIZED, SERVER, UNREADABLE, READER, HOTSPOT }
 
 /** The catalogue dialog: adding a catalogue ([id] null) or changing one. */
 data class CatalogEditor(
@@ -308,6 +308,7 @@ class OpdsViewModel(
                 val failure = when (e.reason) {
                     OpdsException.Reason.UNAUTHORIZED -> DownloadFailure.UNAUTHORIZED
                     OpdsException.Reason.NETWORK, OpdsException.Reason.CERTIFICATE -> DownloadFailure.NETWORK
+                    OpdsException.Reason.HOTSPOT -> DownloadFailure.HOTSPOT
                     else -> DownloadFailure.SERVER
                 }
                 setDownload(entry.id, DownloadState.Failed(failure))

@@ -32,4 +32,18 @@ class LoginGateTest {
         network = "home Wi-Fi"
         assertTrue(gate.maySend("http://nas:8083/opds"))
     }
+
+    @Test
+    fun onAHotspotNoLoginGoesOverHttp() {
+        var hotspot = false
+        val gate = LoginGate(hotspot = { hotspot })
+        gate.asked("http://nas:8083/opds")
+        assertFalse(gate.blocked("http://nas:8083/opds"))
+
+        hotspot = true
+        assertTrue(gate.blocked("http://nas:8083/opds"))
+        assertFalse(gate.maySend("http://nas:8083/opds"))
+        assertFalse(gate.blocked("https://books.example.com/opds"))
+        assertTrue(gate.maySend("https://books.example.com/opds"))
+    }
 }

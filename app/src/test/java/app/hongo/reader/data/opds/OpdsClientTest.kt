@@ -78,6 +78,15 @@ class OpdsClientTest {
     }
 
     @Test
+    fun onAHotspotTheLoginIsNotSentOverHttp_evenWhenAsked() = runTest {
+        val client = OpdsClient(connectTimeoutMs = 2_000, readTimeoutMs = 2_000, logins = LoginGate(hotspot = { true }))
+        val asking = server { _, out -> out.respond("401 Unauthorized", "", "WWW-Authenticate: Basic realm=\"x\"") }
+        val opds = OpdsServer("http://127.0.0.1:${asking.port}/opds", "reader", "秘密")
+        assertFails(OpdsException.Reason.HOTSPOT) { client.feed(opds, opds.url) }
+        assertEquals(listOf(null), asking.authorizations)
+    }
+
+    @Test
     fun errorsSayWhatWentWrong() = runTest {
         val catalogue = server { path, out ->
             when (path) {

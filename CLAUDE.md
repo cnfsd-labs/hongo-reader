@@ -83,7 +83,9 @@ repository is public: never copy those notes, personal details or discussions in
   security-crypto, which is deprecated). Cleartext and user CAs allowed for home servers, with a
   warning in the login dialogs. Over plain http a login (OPDS and sync) only goes after the
   server answered 401, remembered per server and per Android network (`data/net/LoginGate`), so
-  a device with the home server's address on another Wi-Fi never gets it unasked. Catalogues are opened from "Add book", not a separate tab.
+  a device with the home server's address on another Wi-Fi never gets it unasked. On a network
+  Android flagged with a captive portal (`NetworkWatch`, remembered until the phone leaves it) no
+  http login goes at all. Catalogues are opened from "Add book", not a separate tab.
 - Progress sync: KOReader's sync protocol (`data/sync/`), optional, EPUB only, document id =
   KOReader's partial MD5 of the file. Positions are translated exactly between KOReader's
   XPointers and ttu's character count (`EpubPositions`, ttu's counting rules); the server's
@@ -119,7 +121,8 @@ app/src/main/java/app/hongo/reader/
                              OpdsAutoImport (new Japanese books on app start)
   data/settings/             AppearanceSettings (accent colour), OnboardingSettings (shared
                              preferences), ReaderSettings (model over ttu's localStorage keys)
-  data/net/                  LoginGate (logins over plain http wait for the server to ask)
+  data/net/                  LoginGate (logins over plain http wait for the server to ask),
+                             NetworkWatch (current network, captive-portal hotspots)
   data/sync/                 KOReader progress sync: KoSyncClient, KoSyncSettings, PartialMd5,
                              EpubPositions (XPointer <-> ttu characters), Xhtml, ProgressSync,
                              CatalogSync (sync with a book server's login)

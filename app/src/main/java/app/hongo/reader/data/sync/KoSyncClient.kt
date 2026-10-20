@@ -59,6 +59,9 @@ class KoSyncException(val reason: Reason, message: String, cause: Throwable? = n
         NETWORK,
 
         SERVER,
+
+        /** The server asked for the login over http on a hotspot with a login page: not sent. */
+        HOTSPOT,
     }
 }
 
@@ -164,7 +167,10 @@ class KoSyncClient(
             send(account, url, method, body, login = false)
         } catch (e: KoSyncException) {
             if (e.reason != KoSyncException.Reason.UNAUTHORIZED) throw e
-            // Over http the login waited for the server to ask: send it now.
+            // Over http the login waited for the server to ask: send it now (not on a hotspot).
+            if (logins.blocked(url.toString())) {
+                throw KoSyncException(KoSyncException.Reason.HOTSPOT, "No login over http on a hotspot")
+            }
             logins.asked(url.toString())
             send(account, url, method, body, login = true)
         }

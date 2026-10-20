@@ -98,6 +98,7 @@ private fun SignInDialog(onDismiss: () -> Unit) {
                     KoSyncException.Reason.UNAUTHORIZED -> R.string.sync_error_unauthorized
                     KoSyncException.Reason.NETWORK -> R.string.sync_error_network
                     KoSyncException.Reason.SERVER -> R.string.sync_error_server
+                    KoSyncException.Reason.HOTSPOT -> R.string.sync_error_hotspot
                 }
             } finally {
                 checking = false

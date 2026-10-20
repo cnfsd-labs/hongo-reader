@@ -1,5 +1,6 @@
 package app.hongo.reader.data.sync
 
+import app.hongo.reader.data.net.LoginGate
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -76,6 +77,13 @@ class KoSyncClientTest {
         client.progress(account, "abc")
         val sent = server.requests.map { it.headers["x-auth-key"] }
         assertEquals(listOf(null, account.userKey, account.userKey), sent)
+    }
+
+    @Test
+    fun onAHotspotTheLoginIsNotSentOverHttp() = runTest {
+        val hotspot = KoSyncClient(connectTimeoutMs = 2_000, readTimeoutMs = 2_000, logins = LoginGate(hotspot = { true }))
+        assertFails(KoSyncException.Reason.HOTSPOT) { hotspot.signIn(server.url, "reader", "secret") }
+        assertTrue(server.requests.all { it.headers["x-auth-key"] == null && it.headers["authorization"] == null })
     }
 
     @Test

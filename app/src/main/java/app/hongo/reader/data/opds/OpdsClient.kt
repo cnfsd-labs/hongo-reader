@@ -44,6 +44,9 @@ class OpdsException(val reason: Reason, message: String, cause: Throwable? = nul
         /** TLS failed, usually a self-signed certificate. */
         CERTIFICATE,
 
+        /** The server asked for the login over http on a hotspot with a login page: not sent. */
+        HOTSPOT,
+
         TOO_LARGE,
     }
 }
@@ -180,7 +183,10 @@ class OpdsClient(
                         if (authorization(server, current) == null) throw unauthorized
                         val challenge = DigestChallenge.from(connection.headerFields["WWW-Authenticate"].orEmpty())
                         if (login == null) {
-                            // Over http the login waited for this: send it now.
+                            // Over http the login waited for this: send it now (not on a hotspot).
+                            if (logins.blocked(current)) {
+                                throw OpdsException(OpdsException.Reason.HOTSPOT, "No login over http on a hotspot")
+                            }
                             if (loginAsked) throw unauthorized
                             logins.asked(current)
                             loginAsked = true

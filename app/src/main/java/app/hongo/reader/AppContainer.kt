@@ -1,7 +1,6 @@
 package app.hongo.reader
 
 import android.content.Context
-import android.net.ConnectivityManager
 import android.os.Build
 import android.util.Log
 import androidx.room.withTransaction
@@ -23,6 +22,7 @@ import app.hongo.reader.data.library.BookImporter
 import app.hongo.reader.data.opds.KeystoreCredentialCipher
 import app.hongo.reader.data.opds.OpdsAutoImport
 import app.hongo.reader.data.net.LoginGate
+import app.hongo.reader.data.net.NetworkWatch
 import app.hongo.reader.data.opds.OpdsClient
 import app.hongo.reader.data.opds.OpdsRepository
 import app.hongo.reader.data.settings.AppearanceSettings
@@ -115,10 +115,13 @@ class AppContainer(context: Context) {
 
     val koSyncSettings: KoSyncSettings by lazy { KoSyncSettings(devicePreferences, credentialCipher) }
 
-    /** Over plain http, logins wait for the server to ask, per network (see [LoginGate]). */
+    /**
+     * Over plain http, logins wait for the server to ask, per network, and never go on a
+     * hotspot with a login page (see [LoginGate]).
+     */
     private val loginGate: LoginGate by lazy {
-        val connectivity = appContext.getSystemService(ConnectivityManager::class.java)
-        LoginGate(network = { runCatching { connectivity?.activeNetwork }.getOrNull() })
+        val networks = NetworkWatch(appContext)
+        LoginGate(network = networks::current, hotspot = networks::isHotspot)
     }
 
     val koSyncClient: KoSyncClient by lazy { KoSyncClient(logins = loginGate) }
