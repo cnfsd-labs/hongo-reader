@@ -140,7 +140,7 @@ private fun SignInDialog(onDismiss: () -> Unit) {
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
                     enabled = !checking,
                 )
-                if (server.trim().startsWith("http://", ignoreCase = true) && password.isNotEmpty()) {
+                if (server.trim().startsWith("http://", ignoreCase = true) && (username.isNotBlank() || password.isNotEmpty())) {
                     Text(
                         stringResource(R.string.catalog_insecure_warning),
                         style = MaterialTheme.typography.bodySmall,

@@ -4,6 +4,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
 
@@ -40,13 +41,14 @@ class KoSyncClientTest {
         val signedIn = client.signIn(" ${server.url} ", " reader ", "secret")
         assertEquals(account, signedIn)
         assertNull(signedIn.password)
-        assertNull(server.requests.single().headers["authorization"])
+        assertTrue(server.requests.all { it.headers["authorization"] == null })
     }
 
     @Test
     fun aWrongPasswordNeverGoesToAKOReaderServerInPlainText() = runTest {
         assertFails(KoSyncException.Reason.UNAUTHORIZED) { client.signIn(server.url, "reader", "wrong") }
-        assertEquals(listOf<String?>(null), server.requests.map { it.headers["authorization"] })
+        assertTrue(server.requests.isNotEmpty())
+        assertTrue(server.requests.all { it.headers["authorization"] == null })
     }
 
     @Test
@@ -66,6 +68,14 @@ class KoSyncClientTest {
         } finally {
             cwa.stop()
         }
+    }
+
+    @Test
+    fun overHttpTheLoginWaitsForTheServerToAsk() = runTest {
+        client.authorize(account)
+        client.progress(account, "abc")
+        val sent = server.requests.map { it.headers["x-auth-key"] }
+        assertEquals(listOf(null, account.userKey, account.userKey), sent)
     }
 
     @Test

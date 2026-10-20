@@ -1,6 +1,7 @@
 package app.hongo.reader
 
 import android.content.Context
+import android.net.ConnectivityManager
 import android.os.Build
 import android.util.Log
 import androidx.room.withTransaction
@@ -21,6 +22,7 @@ import app.hongo.reader.data.library.BookDao
 import app.hongo.reader.data.library.BookImporter
 import app.hongo.reader.data.opds.KeystoreCredentialCipher
 import app.hongo.reader.data.opds.OpdsAutoImport
+import app.hongo.reader.data.net.LoginGate
 import app.hongo.reader.data.opds.OpdsClient
 import app.hongo.reader.data.opds.OpdsRepository
 import app.hongo.reader.data.settings.AppearanceSettings
@@ -113,7 +115,13 @@ class AppContainer(context: Context) {
 
     val koSyncSettings: KoSyncSettings by lazy { KoSyncSettings(devicePreferences, credentialCipher) }
 
-    val koSyncClient: KoSyncClient by lazy { KoSyncClient() }
+    /** Over plain http, logins wait for the server to ask, per network (see [LoginGate]). */
+    private val loginGate: LoginGate by lazy {
+        val connectivity = appContext.getSystemService(ConnectivityManager::class.java)
+        LoginGate(network = { runCatching { connectivity?.activeNetwork }.getOrNull() })
+    }
+
+    val koSyncClient: KoSyncClient by lazy { KoSyncClient(logins = loginGate) }
 
     val progressSync: ProgressSync by lazy {
         ProgressSync(
@@ -154,7 +162,7 @@ class AppContainer(context: Context) {
         )
     }
 
-    val opdsClient = OpdsClient()
+    val opdsClient by lazy { OpdsClient(logins = loginGate) }
 
     val opdsRepository: OpdsRepository by lazy {
         OpdsRepository(database.opdsCatalogDao(), credentialCipher, opdsClient)

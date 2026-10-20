@@ -1,5 +1,6 @@
 package app.hongo.reader.data.opds
 
+import app.hongo.reader.data.net.LoginGate
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
@@ -50,10 +51,12 @@ class OpdsException(val reason: Reason, message: String, cause: Throwable? = nul
 /**
  * HTTP for OPDS catalogues: feeds, cover thumbnails and book downloads. Logins go as Basic auth
  * until a server asks for Digest (Calibre's content server); its challenge is then remembered.
+ * Over plain http the login waits until the server asks for it ([LoginGate]).
  */
 class OpdsClient(
     private val connectTimeoutMs: Int = 15_000,
     private val readTimeoutMs: Int = 30_000,
+    private val logins: LoginGate = LoginGate(),
 ) {
     /** The latest Digest challenge per origin, so only the first request is answered twice. */
     private val digests = ConcurrentHashMap<String, DigestChallenge>()
@@ -130,11 +133,13 @@ class OpdsClient(
         var current = url
         var redirects = 0
         var digestTries = 0
+        var loginAsked = false
         while (redirects <= MAX_REDIRECTS) {
             // Only web addresses: another scheme (ftp:, file:) gives no HTTP connection.
             if (!isWeb(current)) {
                 throw OpdsException(OpdsException.Reason.NOT_A_CATALOGUE, "Not a web address: $current")
             }
+            val login = login(server, current)
             val connection = try {
                 (URL(current).openConnection() as HttpURLConnection).apply {
                     connectTimeout = connectTimeoutMs
@@ -142,7 +147,7 @@ class OpdsClient(
                     instanceFollowRedirects = false
                     setRequestProperty("User-Agent", USER_AGENT)
                     setRequestProperty("Accept", ACCEPT)
-                    login(server, current)?.let { setRequestProperty("Authorization", it) }
+                    login?.let { setRequestProperty("Authorization", it) }
                 }
             } catch (e: IOException) {
                 throw networkError(e)
@@ -171,16 +176,23 @@ class OpdsClient(
                         digestTries = 0
                     }
                     401 -> {
-                        // A server that wants Digest: answer its challenge (again once if the
-                        // nonce went stale), then the login was wrong.
-                        val challenge = authorization(server, current)?.let {
-                            DigestChallenge.from(connection.headerFields["WWW-Authenticate"].orEmpty())
+                        val unauthorized = OpdsException(OpdsException.Reason.UNAUTHORIZED, "The server answered 401")
+                        if (authorization(server, current) == null) throw unauthorized
+                        val challenge = DigestChallenge.from(connection.headerFields["WWW-Authenticate"].orEmpty())
+                        if (login == null) {
+                            // Over http the login waited for this: send it now.
+                            if (loginAsked) throw unauthorized
+                            logins.asked(current)
+                            loginAsked = true
+                        } else if (challenge == null || digestTries >= (if (challenge.stale) 2 else 1)) {
+                            // A server that wants Digest: answer its challenge (again once if the
+                            // nonce went stale), then the login was wrong.
+                            throw unauthorized
                         }
-                        if (challenge == null || digestTries >= (if (challenge.stale) 2 else 1)) {
-                            throw OpdsException(OpdsException.Reason.UNAUTHORIZED, "The server answered 401")
+                        if (challenge != null) {
+                            digests[origin(current)!!] = challenge
+                            digestTries++
                         }
-                        digests[origin(current)!!] = challenge
-                        digestTries++
                     }
                     403 -> throw OpdsException(OpdsException.Reason.UNAUTHORIZED, "The server answered $status")
                     404, 410 -> throw OpdsException(OpdsException.Reason.NOT_A_CATALOGUE, "The server answered $status")
@@ -193,9 +205,13 @@ class OpdsClient(
         throw OpdsException(OpdsException.Reason.SERVER, "Too many redirects")
     }
 
-    /** The Authorization header for [url]: Digest once the origin asked for it, else Basic. */
+    /**
+     * The Authorization header for [url]: Digest once the origin asked for it, else Basic; none
+     * over http until the server has asked.
+     */
     private fun login(server: OpdsServer, url: String): String? {
         val basic = authorization(server, url) ?: return null
+        if (!logins.maySend(url)) return null
         val digest = digests[origin(url)] ?: return basic
         val uri = URI(url)
         val target = (uri.rawPath?.ifEmpty { null } ?: "/") + (uri.rawQuery?.let { "?$it" } ?: "")

@@ -26,6 +26,11 @@ HonGO! only connects to the internet for these things, and only to these places:
 - **Book servers you add yourself** (OPDS catalogues such as Calibre-Web). HonGO! connects only
   to the addresses you enter. If you give a user name and password, the password is stored
   encrypted on your phone and sent only to that server.
+  At an unencrypted address (`http://`) anyone on the same network can read a password that
+  is sent, and on another Wi-Fi the address can belong to someone else's device. There HonGO!
+  sends the login only after the server has asked for one, and asks again on every new
+  network; a device that asks on purpose still gets it, so use `https://` or a VPN away from
+  home. The same applies to reading progress sync.
 - **Reading progress sync, only if you sign in** (Settings → Reading progress sync) to a
   KOReader sync server of your choice: for EPUB books, HonGO! sends that server an identifier
   computed from the book file (not its title or text), your reading position and percentage,

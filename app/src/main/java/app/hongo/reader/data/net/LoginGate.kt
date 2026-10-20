@@ -1,0 +1,45 @@
+package app.hongo.reader.data.net
+
+import java.net.URI
+import java.net.URISyntaxException
+import java.util.concurrent.ConcurrentHashMap
+
+/**
+ * When a login may go to a server over plain http, where anyone on the network can read it.
+ *
+ * A book server or sync server at home is often `http://192.168.1.10:8083`. On someone else's
+ * Wi-Fi that address can be another device, which would receive the password with the first
+ * request. So over http the first request to a server goes without the login, and the login only
+ * follows once the server has asked for it (401). That is remembered per server and per network
+ * ([network]: Android's current network, which is a new one after joining another Wi-Fi), so a
+ * server that asked at home asks again elsewhere. A server that deliberately asks for a login
+ * still gets it: only https (or a VPN) protects it from the network, which the dialog says.
+ *
+ * Over https a login always goes with the first request: the certificate proves the server.
+ */
+class LoginGate(private val network: () -> Any? = { null }) {
+    private val asked = ConcurrentHashMap.newKeySet<Pair<String, Any?>>()
+
+    /** Whether a login may go with a request to [url] now. */
+    fun maySend(url: String): Boolean {
+        val origin = origin(url) ?: return false
+        return !origin.startsWith("http://") || (origin to network()) in asked
+    }
+
+    /** The server of [url] answered 401: it asked for the login on this network. */
+    fun asked(url: String) {
+        origin(url)?.let { asked += it to network() }
+    }
+
+    private fun origin(url: String): String? {
+        val uri = try {
+            URI(url.trim())
+        } catch (_: URISyntaxException) {
+            return null
+        }
+        val scheme = uri.scheme?.lowercase() ?: return null
+        val host = uri.host?.lowercase() ?: return null
+        val port = if (uri.port != -1) uri.port else if (scheme == "https") 443 else 80
+        return "$scheme://$host:$port"
+    }
+}

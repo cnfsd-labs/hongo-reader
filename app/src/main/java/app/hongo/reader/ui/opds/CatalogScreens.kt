@@ -414,7 +414,7 @@ fun CatalogDialog(
                     enabled = !editor.checking,
                 )
                 if (address.trim().startsWith("http://", ignoreCase = true) &&
-                    (password.isNotEmpty() || editor.hasPassword)
+                    (username.isNotBlank() || password.isNotEmpty() || editor.hasPassword)
                 ) {
                     Text(
                         stringResource(R.string.catalog_insecure_warning),

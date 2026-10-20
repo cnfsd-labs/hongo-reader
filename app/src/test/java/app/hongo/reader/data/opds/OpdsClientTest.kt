@@ -1,5 +1,6 @@
 package app.hongo.reader.data.opds
 
+import app.hongo.reader.data.net.LoginGate
 import java.io.File
 import java.io.OutputStream
 import java.net.ServerSocket
@@ -28,19 +29,52 @@ class OpdsClientTest {
     @Test
     fun sendsTheLoginToTheCatalogue_butNotToOtherServers() = runTest {
         val other = server { _, out -> out.respond("200 OK", FEED) }
-        val catalogue = server { path, out ->
-            when (path) {
-                "/opds" -> out.respond("200 OK", FEED)
+        lateinit var catalogue: HeaderServer
+        catalogue = server { path, out ->
+            when {
+                catalogue.authorizations.last() == null ->
+                    out.respond("401 Unauthorized", "", "WWW-Authenticate: Basic realm=\"x\"")
+                path == "/opds" -> out.respond("200 OK", FEED)
                 else -> out.respond("302 Found", "", "Location: http://127.0.0.1:${other.port}/elsewhere")
             }
         }
         val opds = OpdsServer("http://127.0.0.1:${catalogue.port}/opds", "reader", "秘密")
 
         assertEquals("Test", client.feed(opds, opds.url).title)
-        assertEquals("Basic cmVhZGVyOuenmOWvhg==", catalogue.authorizations.single())
+        // Over http the login only went once the server asked for it.
+        assertEquals(listOf(null, "Basic cmVhZGVyOuenmOWvhg=="), catalogue.authorizations)
 
         client.feed(opds, "http://127.0.0.1:${catalogue.port}/redirect")
         assertEquals(listOf(null), other.authorizations)
+    }
+
+    @Test
+    fun overHttpTheLoginWaitsForTheServerToAsk_onEveryNetwork() = runTest {
+        var network = "home"
+        val client = OpdsClient(connectTimeoutMs = 2_000, readTimeoutMs = 2_000, logins = LoginGate(network = { network }))
+        // A device that happens to have the address on another Wi-Fi and never asks for a login.
+        val stranger = server { _, out -> out.respond("200 OK", FEED) }
+        val opds = OpdsServer("http://127.0.0.1:${stranger.port}/opds", "reader", "秘密")
+        client.feed(opds, opds.url)
+        client.feed(opds, opds.url)
+        assertEquals(listOf(null, null), stranger.authorizations)
+
+        lateinit var home: HeaderServer
+        home = server { _, out ->
+            if (home.authorizations.last() == null) {
+                out.respond("401 Unauthorized", "", "WWW-Authenticate: Basic realm=\"x\"")
+            } else {
+                out.respond("200 OK", FEED)
+            }
+        }
+        val nas = opds.copy(url = "http://127.0.0.1:${home.port}/opds")
+        client.feed(nas, nas.url)
+        client.feed(nas, nas.url)
+        assertEquals(listOf(null, "Basic", "Basic"), home.authorizations.map { it?.substringBefore(' ') })
+
+        network = "café"
+        client.feed(nas, nas.url)
+        assertEquals(null, home.authorizations[3])
     }
 
     @Test
@@ -134,10 +168,10 @@ class OpdsClientTest {
         assertEquals("Test", client.feed(opds, opds.url + "/new?page=2").title)
 
         val sent = calibre.authorizations.map { it?.substringBefore(' ') }
-        assertEquals(listOf("Basic", "Digest", "Digest"), sent)
+        assertEquals(listOf(null, "Digest", "Digest"), sent)
         assertTrue(calibre.authorizations.last()!!.contains("uri=\"/opds/new?page=2\""))
         assertTrue(calibre.authorizations.last()!!.contains("nc=00000002"))
-        assertTrue(calibre.authorizations.none { it!!.contains("秘密") })
+        assertTrue(calibre.authorizations.none { it?.contains("秘密") == true })
     }
 
     @Test

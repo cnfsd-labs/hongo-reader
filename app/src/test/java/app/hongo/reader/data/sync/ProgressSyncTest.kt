@@ -121,8 +121,8 @@ class ProgressSyncTest {
         assertEquals(12.0 / 31, saved["percentage"]!!.jsonPrimitive.double, 1e-9)
         assertEquals(settings.deviceId, saved["device_id"]!!.jsonPrimitive.content)
         assertEquals("HonGO! (Test)", saved["device"]!!.jsonPrimitive.content)
-        // The two page turns went out together.
-        assertEquals(1, server.requests.count { it.method == "PUT" })
+        // The two page turns went out together (over http the first try goes without the login).
+        assertEquals(1, server.requests.count { it.method == "PUT" && it.headers["x-auth-key"] != null })
     }
 
     @Test

@@ -1,5 +1,6 @@
 package app.hongo.reader.data.sync
 
+import app.hongo.reader.data.net.LoginGate
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
@@ -64,11 +65,13 @@ class KoSyncException(val reason: Reason, message: String, cause: Throwable? = n
 /**
  * The KOReader sync API (`plugins/kosync.koplugin/api.json` in KOReader). Accounts are made in
  * KOReader or on the server, never here: Play wants a way to delete an account an app created,
- * and the protocol has none.
+ * and the protocol has none. Over plain http the login waits until the server asks for it
+ * ([LoginGate]).
  */
 class KoSyncClient(
     private val connectTimeoutMs: Int = 10_000,
     private val readTimeoutMs: Int = 15_000,
+    private val logins: LoginGate = LoginGate(),
 ) {
     /**
      * Signs in with what the reader typed and returns the account that worked:
@@ -156,6 +159,18 @@ class KoSyncClient(
         if (url.protocol != "http" && url.protocol != "https") {
             throw KoSyncException(KoSyncException.Reason.NETWORK, "Not a web address")
         }
+        if (logins.maySend(url.toString())) return@withContext send(account, url, method, body, login = true)
+        try {
+            send(account, url, method, body, login = false)
+        } catch (e: KoSyncException) {
+            if (e.reason != KoSyncException.Reason.UNAUTHORIZED) throw e
+            // Over http the login waited for the server to ask: send it now.
+            logins.asked(url.toString())
+            send(account, url, method, body, login = true)
+        }
+    }
+
+    private fun send(account: KoSyncAccount, url: URL, method: String, body: String?, login: Boolean): Pair<Int, String> {
         val connection = try {
             url.openConnection() as HttpURLConnection
         } catch (e: IOException) {
@@ -168,10 +183,10 @@ class KoSyncClient(
             connection.instanceFollowRedirects = false
             connection.requestMethod = method
             connection.setRequestProperty("Accept", ACCEPT)
-            if (account.password != null) {
+            if (login && account.password != null) {
                 val token = "${account.username}:${account.password}".toByteArray(Charsets.UTF_8)
                 connection.setRequestProperty("Authorization", "Basic " + Base64.getEncoder().encodeToString(token))
-            } else {
+            } else if (login) {
                 connection.setRequestProperty("x-auth-user", account.username)
                 connection.setRequestProperty("x-auth-key", account.userKey)
             }
@@ -195,7 +210,7 @@ class KoSyncClient(
                 }
                 out.toString(Charsets.UTF_8.name())
             }.orEmpty()
-            status to text
+            return status to text
         } catch (e: KoSyncException) {
             throw e
         } catch (e: IOException) {

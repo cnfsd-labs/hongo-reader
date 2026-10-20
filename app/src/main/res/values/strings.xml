@@ -75,7 +75,7 @@
     <string name="catalog_username">User name (optional)</string>
     <string name="catalog_password">Password</string>
     <string name="catalog_password_kept">Unchanged</string>
-    <string name="catalog_insecure_warning">This address is not encrypted (http): your password can be read on the network. Use it only at home, or use https.</string>
+    <string name="catalog_insecure_warning">Not encrypted (http): anyone on the same Wi-Fi can read your password when it is sent, also when HonGO! connects by itself (automatic import, progress sync). On another Wi-Fi this address can be someone else\'s device. HonGO! sends the password only when the server asks for it, but a device that asks on purpose gets it. Away from home, use https or a VPN.</string>
     <string name="catalog_delete">Remove this server</string>
     <string name="catalog_delete_title">Remove this book server?</string>
     <string name="catalog_delete_message">Books you downloaded from it stay in your library.</string>

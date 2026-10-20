@@ -6,6 +6,10 @@
          blocks network loads and is served entirely from the APK. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Which network the phone is on (no Wi-Fi names, no location): over plain http a login
+         waits until the server asks for it, again on each new network. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
     <!-- Dictionary imports run as a data-sync foreground service so they finish when the user
          leaves the app. Needs a foreground service declaration in the Play Console. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
