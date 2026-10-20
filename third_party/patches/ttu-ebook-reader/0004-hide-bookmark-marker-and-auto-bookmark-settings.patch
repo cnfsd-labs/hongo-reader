@@ -1,7 +1,7 @@
-From: HonGO! <noreply@hongo.invalid>
+From: Honmani <noreply@honmani.invalid>
 Subject: [PATCH] Hide the bookmark marker and the auto bookmark settings
 
-HonGO! saves the reading position on every page turn (autoBookmarkTime 0,
+Honmani saves the reading position on every page turn (autoBookmarkTime 0,
 set by ttu-defaults.js). The marker on the bookmarked page is then on every
 page, and the settings could only undo that (the time field resets to 3 s).
 

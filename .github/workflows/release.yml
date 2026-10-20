@@ -7,9 +7,9 @@ name: Release bundle
 # the version code, so every bundle can be uploaded.
 #
 # Repository secrets (Settings → Secrets and variables → Actions):
-#   HONGO_UPLOAD_KEYSTORE_BASE64    the upload keystore (PKCS12), base64-encoded
-#   HONGO_UPLOAD_KEYSTORE_PASSWORD  its password (store and key)
-#   HONGO_UPLOAD_KEY_ALIAS          the key's alias
+#   HONMANI_UPLOAD_KEYSTORE_BASE64    the upload keystore (PKCS12), base64-encoded
+#   HONMANI_UPLOAD_KEYSTORE_PASSWORD  its password (store and key)
+#   HONMANI_UPLOAD_KEY_ALIAS          the key's alias
 
 on:
   push:
@@ -48,7 +48,7 @@ jobs:
 
       - name: Upload key
         env:
-          KEYSTORE_BASE64: ${{ secrets.HONGO_UPLOAD_KEYSTORE_BASE64 }}
+          KEYSTORE_BASE64: ${{ secrets.HONMANI_UPLOAD_KEYSTORE_BASE64 }}
         run: |
           if [ -z "$KEYSTORE_BASE64" ]; then
             echo "::error::The upload key secrets are missing (see the top of release.yml)."
@@ -58,10 +58,10 @@ jobs:
 
       - name: Signed app bundle
         env:
-          HONGO_UPLOAD_KEYSTORE: ${{ runner.temp }}/upload.p12
-          HONGO_UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.HONGO_UPLOAD_KEYSTORE_PASSWORD }}
-          HONGO_UPLOAD_KEY_ALIAS: ${{ secrets.HONGO_UPLOAD_KEY_ALIAS }}
-          HONGO_VERSION_CODE: ${{ github.run_number }}
+          HONMANI_UPLOAD_KEYSTORE: ${{ runner.temp }}/upload.p12
+          HONMANI_UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.HONMANI_UPLOAD_KEYSTORE_PASSWORD }}
+          HONMANI_UPLOAD_KEY_ALIAS: ${{ secrets.HONMANI_UPLOAD_KEY_ALIAS }}
+          HONMANI_VERSION_CODE: ${{ github.run_number }}
         run: ./gradlew --stacktrace bundleRelease
 
       - name: Bundle checks (signed, bundled reader, licences, no source maps)
@@ -80,5 +80,5 @@ jobs:
       - name: Upload bundle
         uses: actions/upload-artifact@v7
         with:
-          name: hongo-play-bundle-${{ github.run_number }}
+          name: honmani-play-bundle-${{ github.run_number }}
           path: app/build/outputs/bundle/release/app-release.aab

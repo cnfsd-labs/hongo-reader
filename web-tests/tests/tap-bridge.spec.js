@@ -2,14 +2,14 @@
 const path = require('node:path');
 const { test, expect } = require('@playwright/test');
 
-const BRIDGE = path.join(__dirname, '../../app/src/main/assets/hongo/tap-bridge.js');
+const BRIDGE = path.join(__dirname, '../../app/src/main/assets/honmani/tap-bridge.js');
 const FIXTURE = 'file://' + path.join(__dirname, '../fixtures/book.html');
 
 test.beforeEach(async ({ page }) => {
   // Stand-in for the object WebViewCompat.addWebMessageListener injects.
   await page.addInitScript(() => {
     window.__messages = [];
-    window.hongo = { postMessage: (message) => window.__messages.push(JSON.parse(message)), onmessage: null };
+    window.honmani = { postMessage: (message) => window.__messages.push(JSON.parse(message)), onmessage: null };
   });
   // Same timing as WebViewCompat.addDocumentStartJavaScript.
   await page.addInitScript({ path: BRIDGE });
@@ -172,12 +172,12 @@ test('a tap on book content that is not text asks the app to close the panel', a
 
 /** Sends a reply as the app would, through the handler the bridge installed. */
 async function reply(page, message) {
-  await page.evaluate((message) => window.hongo.onmessage({ data: JSON.stringify(message) }), message);
+  await page.evaluate((message) => window.honmani.onmessage({ data: JSON.stringify(message) }), message);
 }
 
 const highlighted = (page) =>
   page.evaluate(() => {
-    const highlight = CSS.highlights.get('hongo-lookup');
+    const highlight = CSS.highlights.get('honmani-lookup');
     return highlight ? Array.from(highlight).map((range) => range.toString()) : null;
   });
 
@@ -187,8 +187,8 @@ test('the app can highlight the matched text, skipping furigana, and clear it', 
 
   // 猫 is ruby base text; ねこ is skipped and the mark continues into the next text node.
   expect(await highlighted(page)).toEqual(['猫', 'であ']);
-  const style = await page.evaluate(() => document.getElementById('hongo-style')?.textContent);
-  expect(style).toContain('::highlight(hongo-lookup)');
+  const style = await page.evaluate(() => document.getElementById('honmani-style')?.textContent);
+  expect(style).toContain('::highlight(honmani-lookup)');
 
   await reply(page, { type: 'clear' });
   expect(await highlighted(page)).toBeNull();
@@ -197,7 +197,7 @@ test('the app can highlight the matched text, skipping furigana, and clear it', 
 test('the highlight takes the app\'s accent colour', async ({ page }) => {
   await tapChar(page, '#v2', 'ど');
   await reply(page, { type: 'highlight', length: 2, color: '#8A5CF5' });
-  const style = () => page.evaluate(() => document.getElementById('hongo-style')?.textContent);
+  const style = () => page.evaluate(() => document.getElementById('honmani-style')?.textContent);
   expect(await style()).toContain('rgba(138, 92, 245, 0.4)');
 
   // Anything but #rrggbb falls back to the default mark.
@@ -221,7 +221,7 @@ test('a new tap replaces the highlight; a blank tap clears it', async ({ page })
 
 test('malformed replies are ignored', async ({ page }) => {
   await tapChar(page, '#v2', 'ど');
-  await page.evaluate(() => window.hongo.onmessage({ data: 'not json' }));
+  await page.evaluate(() => window.honmani.onmessage({ data: 'not json' }));
   await reply(page, { type: 'highlight', length: 'all' });
 
   expect(await highlighted(page)).toBeNull();
@@ -230,7 +230,7 @@ test('malformed replies are ignored', async ({ page }) => {
 /** Rects of the fallback mark's boxes, or null without the overlay. */
 const overlayBoxes = (page) =>
   page.evaluate(() => {
-    const overlay = document.getElementById('hongo-highlight-overlay');
+    const overlay = document.getElementById('honmani-highlight-overlay');
     return overlay
       ? Array.from(overlay.children).map((box) => {
           const rect = box.getBoundingClientRect();
@@ -256,7 +256,7 @@ test('without the Custom Highlight API the mark is drawn as boxes over the text'
   expect(cat.y).toBeGreaterThan(box.top);
   expect(cat.y).toBeLessThan(box.top + box.height);
   const background = await page.evaluate(
-    () => document.getElementById('hongo-highlight-overlay').firstElementChild.style.backgroundColor,
+    () => document.getElementById('honmani-highlight-overlay').firstElementChild.style.backgroundColor,
   );
   expect(background).toBe('rgba(138, 92, 245, 0.4)');
 

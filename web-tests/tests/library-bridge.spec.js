@@ -1,7 +1,7 @@
 // @ts-check
 /**
- * The library bridge against the real ッツ Ebook Reader build: HonGO!'s native library hands
- * book files to ttu (served at /hongo-books/ like the app's BookPathHandler), opens them by id,
+ * The library bridge against the real ッツ Ebook Reader build: Honmani's native library hands
+ * book files to ttu (served at /honmani-books/ like the app's BookPathHandler), opens them by id,
  * reads reading progress and removes books.
  *
  * Needs the ttu build produced by `./gradlew :app:buildTtu` (or set TTU_DIR).
@@ -12,7 +12,7 @@ const { test, expect } = require('@playwright/test');
 const { startTtuServer } = require('../support/ttu-server');
 const { buildEpub } = require('../support/epub');
 
-const ASSETS = path.join(__dirname, '../../app/src/main/assets/hongo');
+const ASSETS = path.join(__dirname, '../../app/src/main/assets/honmani');
 const TTU_DIR = process.env.TTU_DIR ?? path.join(__dirname, '../../app/build/generated/ttu/ttu');
 const hasBuild = fs.existsSync(path.join(TTU_DIR, 'index.html'));
 
@@ -53,11 +53,11 @@ const BOOKS = {
 async function setUp(page) {
   await page.addInitScript(() => {
     window.__messages = [];
-    window.hongo = { postMessage: (message) => window.__messages.push(JSON.parse(message)) };
+    window.honmani = { postMessage: (message) => window.__messages.push(JSON.parse(message)) };
   });
   await page.addInitScript({ path: path.join(ASSETS, 'ttu-defaults.js') });
   await page.addInitScript({ path: path.join(ASSETS, 'library-bridge.js') });
-  await page.route('**/hongo-books/*', (route) => {
+  await page.route('**/honmani-books/*', (route) => {
     const name = new URL(route.request().url()).pathname.split('/').pop();
     const body = BOOKS[name];
     if (body) route.fulfill({ status: 200, body, contentType: 'application/octet-stream' });
@@ -70,7 +70,7 @@ let requestCount = 0;
 /** Calls a bridge command and waits for its answer. */
 async function call(page, command, args = {}) {
   const requestId = ++requestCount;
-  await page.evaluate(([command, args]) => window.hongoLibrary[command](args), [command, { requestId, ...args }]);
+  await page.evaluate(([command, args]) => window.honmaniLibrary[command](args), [command, { requestId, ...args }]);
   const handle = await page.waitForFunction(
     (requestId) => window.__messages.find((m) => m.requestId === requestId),
     requestId,
@@ -80,12 +80,12 @@ async function call(page, command, args = {}) {
 }
 
 async function ensure(page, fileName, ttuId = null, ttuTitle = null) {
-  return call(page, 'ensure', { ttuId, ttuTitle, url: `/hongo-books/${fileName}`, fileName });
+  return call(page, 'ensure', { ttuId, ttuTitle, url: `/honmani-books/${fileName}`, fileName });
 }
 
 async function progress(page) {
   const count = await page.evaluate(() => window.__messages.length);
-  await page.evaluate(() => window.hongoLibrary.progress());
+  await page.evaluate(() => window.honmaniLibrary.progress());
   const handle = await page.waitForFunction(
     (count) => window.__messages.slice(count).find((m) => m.type === 'library.progress'),
     count,
@@ -103,7 +103,7 @@ test('a new book is imported through ttu and opens by id', async ({ page }) => {
 
   // Opened inside the running page: a full load kept ttu's book list on screen meanwhile.
   await page.evaluate(() => { window.__samePage = true; });
-  await page.evaluate((ttuId) => window.hongoLibrary.open({ ttuId }), reply.id);
+  await page.evaluate((ttuId) => window.honmaniLibrary.open({ ttuId }), reply.id);
   await page.waitForURL(new RegExp(`/b\\?id=${reply.id}$`));
   await expect(page.locator('.book-content')).toContainText('名前はまだ無い');
   expect(await page.evaluate(() => window.__samePage)).toBe(true);
@@ -185,13 +185,13 @@ test('other ttu pages open inside the running page, without a page load', async 
   await page.goto(`${server.url}/manage`);
   await page.evaluate(() => (window.__samePage = true));
 
-  await page.evaluate(() => window.hongoLibrary.navigate({ path: '/settings' }));
+  await page.evaluate(() => window.honmaniLibrary.navigate({ path: '/settings' }));
   await page.waitForURL(/\/settings$/);
   await expect(page.locator('h2', { hasText: 'Theme' })).toBeVisible();
   expect(await page.evaluate(() => window.__samePage)).toBe(true);
 
   // Only paths on the reader's origin.
-  await page.evaluate(() => window.hongoLibrary.navigate({ path: '//example.com/x' }));
+  await page.evaluate(() => window.honmaniLibrary.navigate({ path: '//example.com/x' }));
   await page.waitForTimeout(300);
   expect(new URL(page.url()).pathname).toBe('/settings');
 });
@@ -201,8 +201,8 @@ test('opening the settings reports them drawn once per visit, after the book lis
   await setUp(page);
   await page.addInitScript({ path: path.join(ASSETS, 'book-shown.js') });
   await page.addInitScript(() => {
-    const post = window.hongo.postMessage;
-    window.hongo.postMessage = (message) => {
+    const post = window.honmani.postMessage;
+    window.honmani.postMessage = (message) => {
       const parsed = JSON.parse(message);
       if (parsed.type === 'pageShown') {
         parsed.settings = !!Array.from(document.querySelectorAll('h2')).find((h) => h.textContent.includes('Theme'));
@@ -216,7 +216,7 @@ test('opening the settings reports them drawn once per visit, after the book lis
   await page.waitForTimeout(300);
   expect(await shown()).toEqual([]);
 
-  await page.evaluate(() => window.hongoLibrary.navigate({ path: '/settings' }));
+  await page.evaluate(() => window.honmaniLibrary.navigate({ path: '/settings' }));
   const message = { type: 'pageShown', path: '/settings', settings: true, bookList: false };
   await expect.poll(shown).toEqual([message]);
   await page.waitForTimeout(300);
@@ -224,7 +224,7 @@ test('opening the settings reports them drawn once per visit, after the book lis
 
   await page.goBack();
   await page.waitForURL(/\/manage$/);
-  await page.evaluate(() => window.hongoLibrary.navigate({ path: '/settings' }));
+  await page.evaluate(() => window.honmaniLibrary.navigate({ path: '/settings' }));
   await expect.poll(shown).toEqual([message, message]);
 });
 
@@ -292,7 +292,7 @@ test('a book reopened far into a chapter is reported shown right away', async ({
   await page.addInitScript({ path: path.join(ASSETS, 'book-shown.js') });
   await page.goto(`${server.url}/manage`);
   const book = await ensure(page, 'ruby.epub');
-  await page.evaluate((id) => window.hongoLibrary.open({ ttuId: id }), book.id);
+  await page.evaluate((id) => window.honmaniLibrary.open({ ttuId: id }), book.id);
   await page.waitForURL(/\/b\?id=/);
   await expect(page.locator('div.fixed.inset-0.text-7xl')).toHaveCount(0, { timeout: 5_000 });
   for (let i = 0; i < 25; i++) {
@@ -305,7 +305,7 @@ test('a book reopened far into a chapter is reported shown right away', async ({
 
   await page.evaluate(() => (window.__messages.length = 0));
   const start = Date.now();
-  await page.evaluate((id) => window.hongoLibrary.open({ ttuId: id }), book.id);
+  await page.evaluate((id) => window.honmaniLibrary.open({ ttuId: id }), book.id);
   await expect.poll(() => page.evaluate(() => window.__messages.filter((m) => m.type === 'bookShown').length), { timeout: 3_000 }).toBe(1);
   expect(Date.now() - start).toBeLessThan(2_500);
 });

@@ -1,4 +1,4 @@
-From: HonGO! <noreply@hongo.invalid>
+From: Honmani <noreply@honmani.invalid>
 Subject: [PATCH] Give the vertical reader an explicit height
 
 In vertical mode the book content is an orthogonal flow (vertical-rl in

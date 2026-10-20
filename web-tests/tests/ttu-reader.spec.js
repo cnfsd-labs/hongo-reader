@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * End-to-end: the real ッツ Ebook Reader build, served like the app serves it, with HonGO!'s
+ * End-to-end: the real ッツ Ebook Reader build, served like the app serves it, with Honmani's
  * document-start scripts injected. Imports an EPUB through ttu's own file input, opens it and
  * taps a word.
  *
@@ -12,7 +12,7 @@ const { test, expect } = require('@playwright/test');
 const { startTtuServer } = require('../support/ttu-server');
 const { buildEpub } = require('../support/epub');
 
-const ASSETS = path.join(__dirname, '../../app/src/main/assets/hongo');
+const ASSETS = path.join(__dirname, '../../app/src/main/assets/honmani');
 const TTU_DIR = process.env.TTU_DIR ?? path.join(__dirname, '../../app/build/generated/ttu/ttu');
 const hasBuild = fs.existsSync(path.join(TTU_DIR, 'index.html'));
 
@@ -32,7 +32,7 @@ async function setUp(page, settings = {}) {
   await page.addInitScript((settings) => {
     for (const [key, value] of Object.entries(settings)) localStorage.setItem(key, value);
     window.__messages = [];
-    window.hongo = { postMessage: (message) => window.__messages.push(JSON.parse(message)), onmessage: null };
+    window.honmani = { postMessage: (message) => window.__messages.push(JSON.parse(message)), onmessage: null };
   }, settings);
   await page.addInitScript({ path: path.join(ASSETS, 'ttu-defaults.js') });
   await page.addInitScript({ path: path.join(ASSETS, 'tap-bridge.js') });
@@ -99,14 +99,14 @@ test('defaults to larger text and an instant auto bookmark, and keeps what the u
 });
 
 for (const [stored, expected] of [['1', '0'], ['5', '5']]) {
-  test(`a stored bookmark delay of ${stored} s becomes ${expected} s (1 s was HonGO!'s earlier default)`, async ({ page }) => {
+  test(`a stored bookmark delay of ${stored} s becomes ${expected} s (1 s was Honmani's earlier default)`, async ({ page }) => {
     await setUp(page, { autoBookmarkTime: stored });
     await page.goto(`${server.url}/settings`);
     expect(await page.evaluate(() => localStorage.getItem('autoBookmarkTime'))).toBe(expected);
   });
 }
 
-// HonGO!'s own reader settings screen reads and writes ttu's settings (reader-settings.js).
+// Honmani's own reader settings screen reads and writes ttu's settings (reader-settings.js).
 test('the app reads and writes the reader settings, and "Like the app" follows the system', async ({ browser }) => {
   const context = await browser.newContext({ colorScheme: 'dark' });
   const page = await context.newPage();
@@ -114,7 +114,7 @@ test('the app reads and writes the reader settings, and "Like the app" follows t
   await page.addInitScript({ path: path.join(ASSETS, 'reader-settings.js') });
   await page.goto(`${server.url}/manage`);
   const read = async () => {
-    await page.evaluate(() => window.hongoReaderSettings.read({ requestId: 1 }));
+    await page.evaluate(() => window.honmaniReaderSettings.read({ requestId: 1 }));
     return page.evaluate(() => window.__messages.filter((m) => m.type === 'library.settings').at(-1));
   };
   const first = await read();
@@ -122,11 +122,11 @@ test('the app reads and writes the reader settings, and "Like the app" follows t
   expect(first.settings).toMatchObject({ theme: 'auto', fontSize: '28', fontFamilyGroupOne: 'serif', writingMode: null });
 
   await page.evaluate(() =>
-    window.hongoReaderSettings.write({ settings: { theme: 'ecru-theme', fontSize: '34', writingMode: 'horizontal-tb', unknownKey: 'x' } }),
+    window.honmaniReaderSettings.write({ settings: { theme: 'ecru-theme', fontSize: '34', writingMode: 'horizontal-tb', unknownKey: 'x' } }),
   );
   await Promise.all([
     page.waitForEvent('load'),
-    page.evaluate(() => setTimeout(() => window.hongoReaderSettings.reload(), 0)),
+    page.evaluate(() => setTimeout(() => window.honmaniReaderSettings.reload(), 0)),
   ]);
   expect((await read()).settings).toMatchObject({ theme: 'ecru-theme', fontSize: '34', writingMode: 'horizontal-tb' });
   expect(await page.evaluate(() => localStorage.getItem('unknownKey'))).toBeNull();
@@ -135,8 +135,8 @@ test('the app reads and writes the reader settings, and "Like the app" follows t
   await expect(page.locator('section:has(h2:has-text("Font Size")) input')).toHaveValue('34');
 
   // Back to following the system: dark here, so the black theme, until the user picks one.
-  await page.evaluate(() => window.hongoReaderSettings.write({ settings: { theme: 'auto' } }));
-  expect(await page.evaluate(() => [localStorage.getItem('theme'), localStorage.getItem('hongoAutoTheme')])).toEqual(['black-theme', 'black-theme']);
+  await page.evaluate(() => window.honmaniReaderSettings.write({ settings: { theme: 'auto' } }));
+  expect(await page.evaluate(() => [localStorage.getItem('theme'), localStorage.getItem('honmaniAutoTheme')])).toEqual(['black-theme', 'black-theme']);
   expect((await read()).settings.theme).toBe('auto');
   await context.close();
 });
@@ -201,11 +201,11 @@ test('the settings have no auto bookmark entries, and are dark with a dark reade
 
   // Picking a light theme makes the page light at once; leaving the settings drops the class.
   await page.locator('button[title="light-theme"]').click();
-  await expect.poll(() => page.evaluate(() => document.documentElement.classList.contains('hongo-dark-settings'))).toBe(false);
+  await expect.poll(() => page.evaluate(() => document.documentElement.classList.contains('honmani-dark-settings'))).toBe(false);
   await page.locator('button[title="black-theme"]').click();
-  await expect.poll(() => page.evaluate(() => document.documentElement.classList.contains('hongo-dark-settings'))).toBe(true);
+  await expect.poll(() => page.evaluate(() => document.documentElement.classList.contains('honmani-dark-settings'))).toBe(true);
   await page.evaluate(() => history.pushState({}, '', '/manage'));
-  expect(await page.evaluate(() => document.documentElement.classList.contains('hongo-dark-settings'))).toBe(false);
+  expect(await page.evaluate(() => document.documentElement.classList.contains('honmani-dark-settings'))).toBe(false);
   await context.close();
 });
 
@@ -217,10 +217,10 @@ test('selected options in the settings take the app\'s accent colour, also after
       const button = document.querySelector('button.bg-gray-700:not([style*="color"])');
       return [getComputedStyle(button).backgroundColor, getComputedStyle(button).color];
     });
-  await page.evaluate(() => hongoSetAccent('#6750A4', '#FFFFFF'));
+  await page.evaluate(() => honmaniSetAccent('#6750A4', '#FFFFFF'));
   expect(await selected()).toEqual(['rgb(103, 80, 164)', 'rgb(255, 255, 255)']);
   // Anything but a colour is ignored.
-  await page.evaluate(() => hongoSetAccent('red; x', '#000000'));
+  await page.evaluate(() => honmaniSetAccent('red; x', '#000000'));
   expect(await selected()).toEqual(['rgb(103, 80, 164)', 'rgb(255, 255, 255)']);
 
   await page.reload();
@@ -357,9 +357,9 @@ for (const viewMode of ['paginated', 'continuous']) {
 
       // The app replies with the match length; the bridge marks it without touching ttu's DOM.
       const html = await page.evaluate(() => document.querySelector('.book-content').innerHTML);
-      await page.evaluate(() => window.hongo.onmessage({ data: JSON.stringify({ type: 'highlight', length: 4 }) }));
+      await page.evaluate(() => window.honmani.onmessage({ data: JSON.stringify({ type: 'highlight', length: 4 }) }));
       const marked = await page.evaluate(() =>
-        Array.from(CSS.highlights.get('hongo-lookup') ?? []).map((range) => range.toString()).join(''),
+        Array.from(CSS.highlights.get('honmani-lookup') ?? []).map((range) => range.toString()).join(''),
       );
       expect(marked).toBe('猫である');
       expect(await page.evaluate(() => document.querySelector('.book-content').innerHTML)).toBe(html);
@@ -371,7 +371,7 @@ for (const viewMode of ['paginated', 'continuous']) {
 test('diagnostics log the reading position before and after a resize', async ({ page }) => {
   const logs = [];
   page.on('console', (message) => {
-    if (message.text().startsWith('hongo position')) logs.push(message.text());
+    if (message.text().startsWith('honmani position')) logs.push(message.text());
   });
   await page.setViewportSize({ width: 360, height: 736 });
   await setUp(page, { ...userFont, viewMode: 'paginated' });
@@ -384,8 +384,8 @@ test('diagnostics log the reading position before and after a resize', async ({ 
   await page.setViewportSize({ width: 736, height: 360 });
 
   await expect.poll(() => logs, { timeout: 5_000 }).toHaveLength(2);
-  expect(logs[0]).toMatch(/^hongo position before resize "第\d+段落/);
-  expect(logs[1]).toMatch(/^hongo position after resize "/);
+  expect(logs[0]).toMatch(/^honmani position before resize "第\d+段落/);
+  expect(logs[1]).toMatch(/^honmani position after resize "/);
 });
 
 // The app covers the reader while a book opens; book-shown.js says when it may uncover it.
@@ -394,8 +394,8 @@ test('opening a book reports it shown once its text is on screen, after the spin
   await page.addInitScript({ path: path.join(ASSETS, 'book-shown.js') });
   await page.addInitScript(() => {
     // Records, at the moment of the message, whether ttu's spinner was still up.
-    const post = window.hongo.postMessage;
-    window.hongo.postMessage = (message) => {
+    const post = window.honmani.postMessage;
+    window.honmani.postMessage = (message) => {
       const parsed = JSON.parse(message);
       if (parsed.type === 'bookShown') parsed.spinner = !!document.querySelector('div.fixed.inset-0.text-7xl');
       post(JSON.stringify(parsed));
@@ -426,7 +426,7 @@ test('opening a book reports it shown once its text is on screen, after the spin
 test('a book that opens a while after the tap in the library is still reported shown', async ({ page }) => {
   await page.addInitScript(() => {
     window.__messages = [];
-    window.hongo = { postMessage: (message) => window.__messages.push(JSON.parse(message)), onmessage: null };
+    window.honmani = { postMessage: (message) => window.__messages.push(JSON.parse(message)), onmessage: null };
     window.__routerPushState = history.pushState.bind(history);
   });
   await page.addInitScript({ path: path.join(ASSETS, 'book-shown.js') });
@@ -500,7 +500,7 @@ test('the end drawn on screen on the first page of a long book is not reported',
   await page.addInitScript({ path: path.join(ASSETS, 'book-end.js') });
   const logs = [];
   page.on('console', (message) => {
-    if (message.text().startsWith('hongo book end')) logs.push(message.text());
+    if (message.text().startsWith('honmani book end')) logs.push(message.text());
   });
   const paragraphs = Array.from({ length: 200 }, (_, i) => `第${i + 1}段落。吾輩は猫である。名前はまだ無い。どこで生れたかとんと見当がつかぬ。何でも薄暗い所で泣いていた。`);
   paragraphs.push('おわり');
@@ -516,7 +516,7 @@ test('the end drawn on screen on the first page of a long book is not reported',
   await page.keyboard.press('ArrowRight');
   await page.keyboard.press('ArrowLeft');
   await expect.poll(() => logs.length, { timeout: 5_000 }).toBeGreaterThan(0);
-  expect(logs[0]).toMatch(/^hongo book end on screen but \d+ of \d+ characters left$/);
+  expect(logs[0]).toMatch(/^honmani book end on screen but \d+ of \d+ characters left$/);
   expect(await page.evaluate(() => window.__messages.filter((message) => message.type === 'library.finished'))).toEqual([]);
 });
 

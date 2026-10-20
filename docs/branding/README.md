@@ -1,6 +1,6 @@
 # Branding
 
-The icon is 本 ("book", the "Hon" in HonGO!) in Shippori Mincho ExtraBold (SIL Open Font
+The name is 本まに, a pun on the Kansai ほんまに ("really?!") with 本 ("book"). The icon is 本 in Shippori Mincho ExtraBold (SIL Open Font
 License 1.1, © The Shippori Mincho Project Authors) on a deep purple gradient.
 
 - `app-icon-artwork.png` (1024×1024) and `play-icon-512.png` (Google Play's 512×512 icon): full

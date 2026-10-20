@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">HonGO!</string>
+    <string name="app_name">Honmani?!</string>
 
     <string name="action_back">Back</string>
     <string name="action_delete">Delete</string>
@@ -25,15 +25,15 @@
     <string name="settings_diagnostics_details">Sends the reader\'s log, for reporting a problem</string>
     <string name="settings_version">Version %1$s</string>
     <string name="settings_about_details">Version %1$s · licences and source code</string>
-    <string name="about_title">About HonGO!</string>
+    <string name="about_title">About Honmani</string>
     <string name="about_copyright">© 2026 CNFSD Labs</string>
-    <string name="about_free_software">HonGO! is free software: you can share and change it under the terms of the GNU General Public License, version 3 or (at your option) any later version. It comes with ABSOLUTELY NO WARRANTY.</string>
+    <string name="about_free_software">Honmani is free software: you can share and change it under the terms of the GNU General Public License, version 3 or (at your option) any later version. It comes with ABSOLUTELY NO WARRANTY.</string>
     <string name="about_licence">GNU General Public License v3</string>
-    <string name="about_licence_details">The licence of HonGO!</string>
+    <string name="about_licence_details">The licence of Honmani</string>
     <string name="about_source">Source code</string>
     <string name="about_built_with">Built with</string>
     <string name="about_ttu">ッツ Ebook Reader</string>
-    <string name="about_ttu_details">The reader inside HonGO! · BSD 3-Clause licence · © ッツ Reader Authors</string>
+    <string name="about_ttu_details">The reader inside Honmani · BSD 3-Clause licence · © ッツ Reader Authors</string>
     <string name="about_ttu_libraries">Libraries in the reader</string>
     <string name="about_ttu_libraries_details">Svelte, RxJS, zip.js and others · MIT, Apache 2.0, BSD and ISC licences</string>
     <string name="about_android_libraries">Android libraries</string>
@@ -51,7 +51,7 @@
     <string name="library_adding">Adding %1$s…</string>
     <string name="library_progress">%1$d%%</string>
     <string name="library_already_added">“%1$s” is already in your library.</string>
-    <string name="library_unsupported">%1$s is not a book HonGO! can open. Add an EPUB or a TXT file.</string>
+    <string name="library_unsupported">%1$s is not a book Honmani can open. Add an EPUB or a TXT file.</string>
     <string name="library_unreadable">%1$s could not be read as a book.</string>
     <string name="library_reader_failed">The reader could not open “%1$s”.</string>
     <string name="action_remove_book">Remove from library</string>
@@ -62,7 +62,7 @@
     <string name="library_reset_failed">The progress of “%1$s” could not be reset. Try again in a moment.</string>
     <string name="action_remove">Remove</string>
     <string name="remove_book_title">Remove “%1$s”?</string>
-    <string name="remove_book_message">The book and your reading position are deleted from HonGO!. The file you added it from stays on your phone.</string>
+    <string name="remove_book_message">The book and your reading position are deleted from Honmani. The file you added it from stays on your phone.</string>
 
     <string name="add_book_files">Files on this phone</string>
     <string name="add_book_files_details">EPUB or text files (Aozora Bunko)</string>
@@ -75,7 +75,7 @@
     <string name="catalog_username">User name (optional)</string>
     <string name="catalog_password">Password</string>
     <string name="catalog_password_kept">Unchanged</string>
-    <string name="catalog_insecure_warning">Not encrypted (http): anyone on the same Wi-Fi can read your password when it is sent, also when HonGO! connects by itself (automatic import, progress sync). On another Wi-Fi this address can be someone else\'s device. HonGO! sends the password only when the server asks for it, and never on a hotspot with a login page, but a device that asks on purpose gets it. Away from home, use https or a VPN.</string>
+    <string name="catalog_insecure_warning">Not encrypted (http): anyone on the same Wi-Fi can read your password when it is sent, also when Honmani connects by itself (automatic import, progress sync). On another Wi-Fi this address can be someone else\'s device. Honmani sends the password only when the server asks for it, and never on a hotspot with a login page, but a device that asks on purpose gets it. Away from home, use https or a VPN.</string>
     <string name="catalog_delete">Remove this server</string>
     <string name="catalog_delete_title">Remove this book server?</string>
     <string name="catalog_delete_message">Books you downloaded from it stay in your library.</string>
@@ -89,8 +89,8 @@
     <string name="catalog_error_server">The server had a problem. Try again in a moment.</string>
     <string name="catalog_error_network">The server could not be reached. Check the address and your connection.</string>
     <string name="catalog_error_certificate">The server\'s certificate is not trusted. If it uses your own certificate authority, install it in Android\'s security settings.</string>
-    <string name="catalog_error_hotspot">This Wi-Fi is a hotspot with a login page, and this address is not encrypted (http), so HonGO! does not send your password here. Use https, a VPN or another network.</string>
-    <string name="catalog_error_too_large">The server sent more than HonGO! can handle.</string>
+    <string name="catalog_error_hotspot">This Wi-Fi is a hotspot with a login page, and this address is not encrypted (http), so Honmani does not send your password here. Use https, a VPN or another network.</string>
+    <string name="catalog_error_too_large">The server sent more than Honmani can handle.</string>
     <string name="catalog_download_failed_network">Download failed. Tap to try again.</string>
     <string name="catalog_download_failed_server">The server could not send the book. Tap to try again.</string>
     <string name="catalog_download_failed_unreadable">The file could not be read as a book.</string>
@@ -171,18 +171,18 @@
         <item quantity="other">%1$d words saved as an Anki package. In Anki on a computer: File → Import.</item>
     </plurals>
     <string name="anki_export_failed">The file could not be saved.</string>
-    <string name="anki_package_file_name">HonGO words.apkg</string>
+    <string name="anki_package_file_name">Honmani words.apkg</string>
     <string name="action_export_anki_package">Save as Anki package (with audio)</string>
     <string name="anki_package_progress">Saving for Anki: %1$d of %2$d…</string>
-    <string name="anki_export_file_name">HonGO words.txt</string>
+    <string name="anki_export_file_name">Honmani words.txt</string>
     <string name="action_export_anki_file">Save as text file for Anki</string>
     <string name="words_menu">More options</string>
     <string name="anki_deck">Deck</string>
     <string name="anki_deck_details">New cards go to this AnkiDroid deck.</string>
-    <string name="anki_deck_hongo">%1$s (HonGO!\'s own)</string>
+    <string name="anki_deck_honmani">%1$s (Honmani\'s own)</string>
     <string name="anki_already">%1$s is already in Anki</string>
     <string name="anki_not_installed">Adding cards needs AnkiDroid. Install it from Google Play, open it once, then try again.</string>
-    <string name="anki_no_permission">HonGO! needs permission to add cards to AnkiDroid.</string>
+    <string name="anki_no_permission">Honmani needs permission to add cards to AnkiDroid.</string>
     <string name="anki_refused">AnkiDroid didn\'t take the card. Open AnkiDroid once (so it has a collection), then try again.</string>
     <string name="anki_failed">Adding to Anki failed: %1$s</string>
     <string name="anki_added_without_audio">%1$s added to Anki, without audio: %2$s</string>
@@ -195,7 +195,7 @@
     <string name="voice_problem_network">no connection to Google</string>
 
     <string name="settings_anki">Anki</string>
-    <string name="settings_anki_details">Cards go to AnkiDroid, deck “HonGO!”: the word and your book\'s sentence on the front; reading, meaning and audio on the back.</string>
+    <string name="settings_anki_details">Cards go to AnkiDroid, deck “Honmani”: the word and your book\'s sentence on the front; reading, meaning and audio on the back.</string>
     <string name="settings_card_audio">Card audio</string>
     <string name="card_audio_off">No audio</string>
     <string name="card_audio_off_details">Cards without sound</string>
@@ -254,7 +254,7 @@
     <string name="import_preparing">Preparing dictionary import…</string>
     <string name="import_queued">Waiting to import a dictionary…</string>
     <string name="import_running">Importing %1$s…</string>
-    <string name="import_keep_open">Keep HonGO! open until this is done: some phones pause apps in the background, and the import then waits until you come back.</string>
+    <string name="import_keep_open">Keep Honmani open until this is done: some phones pause apps in the background, and the import then waits until you come back.</string>
     <string name="import_failed_invalid">Not a Yomitan dictionary: %1$s</string>
     <string name="import_failed_already_installed">“%1$s” is already installed.</string>
     <string name="import_failed_no_terms">“%1$s” has no terms, kanji, frequencies or pitch accents.</string>
@@ -388,7 +388,7 @@
     <string name="stats_book_first_day">First read</string>
     <string name="stats_book_finished">Finished</string>
     <!-- First-start screen -->
-    <string name="onboarding_title">Welcome to HonGO!</string>
+    <string name="onboarding_title">Welcome to Honmani</string>
     <string name="onboarding_message">Read Japanese books and tap any word to look it up.</string>
     <string name="onboarding_step">%1$d · %2$s</string>
     <string name="onboarding_dictionaries_title">Get dictionaries</string>
@@ -398,7 +398,7 @@
     <string name="onboarding_pack_english">Jitendex, with kanji, word frequency and pitch accent. About %1$d MB; Wi-Fi recommended.</string>
     <string name="onboarding_pack_japanese">Japanese Wiktionary, then Jitendex in English for words it lacks, with kanji, word frequency and pitch accent. About %1$d MB; Wi-Fi recommended.</string>
     <string name="onboarding_download">Download</string>
-    <string name="onboarding_downloading">Getting dictionary %1$d of %2$d. You can start reading meanwhile; keep HonGO! open until this is done, as some phones pause apps in the background.</string>
+    <string name="onboarding_downloading">Getting dictionary %1$d of %2$d. You can start reading meanwhile; keep Honmani open until this is done, as some phones pause apps in the background.</string>
     <string name="onboarding_ready">Dictionaries ready</string>
     <string name="onboarding_failed">The download failed. Check your connection and try again.</string>
     <string name="onboarding_retry">Try again</string>
@@ -407,7 +407,7 @@
     <string name="onboarding_sample">Read the sample book</string>
     <string name="onboarding_add_book">Add my own book</string>
     <string name="onboarding_skip">Skip for now</string>
-    <!-- Reader settings (HonGO!'s own screen) -->
+    <!-- Reader settings (Honmani's own screen) -->
     <string name="reader_settings_title">Reader settings</string>
     <string name="reader_settings_unavailable">The reader isn\'t ready yet. Try again in a moment.</string>
     <string name="reader_settings_preview">吾輩は猫である。名前はまだ無い。どこで生れたかとんと見当がつかぬ。</string>
@@ -449,6 +449,6 @@
     <string name="sync_continued">Continued at %1$d%% from %2$s</string>
     <string name="sync_error_unauthorized">The server did not accept the user name or password.</string>
     <string name="sync_error_network">No sync server answered at this address. Check the address and your connection.</string>
-    <string name="sync_error_hotspot">This Wi-Fi is a hotspot with a login page, and this address is not encrypted (http), so HonGO! does not send your password here. Use https, a VPN or another network.</string>
+    <string name="sync_error_hotspot">This Wi-Fi is a hotspot with a login page, and this address is not encrypted (http), so Honmani does not send your password here. Use https, a VPN or another network.</string>
     <string name="sync_error_server">The server had a problem. Try again in a moment.</string>
 </resources>

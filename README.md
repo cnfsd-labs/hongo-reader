@@ -1,7 +1,8 @@
-# HonGO!
+# Honmani
 
-A Japanese ebook reader for Android with a pop-up dictionary. Open a book, tap any word and see
-what it means, even when it's conjugated: 食べさせられなかった leads straight to 食べる.
+Honmani?! (本まに, from the Kansai ほんまに, "really?!") is a Japanese ebook reader for Android
+with a pop-up dictionary. Open a book, tap any word and see what it means, even when it's
+conjugated: 食べさせられなかった leads straight to 食べる.
 
 - Dictionaries with one tap on the first start (English or Japanese definitions), or any
   Yomitan dictionary
@@ -17,7 +18,7 @@ what it means, even when it's conjugated: 食べさせられなかった leads s
 ## Status
 
 In testing before its first release on Google Play (Android 8.0 and later). Test builds come
-from CI: the `hongo-test-apks` artifact of a green run of the Android workflow (see
+from CI: the `honmani-test-apks` artifact of a green run of the Android workflow (see
 [`docs/device-testing.md`](docs/device-testing.md)).
 
 ## Building
@@ -45,15 +46,15 @@ libraries, a complete bundled reader, and no Play-restricted permissions.
 - **Reader.** [ッツ Ebook Reader](https://github.com/ttu-ttu/ebook-reader) (ttu) is a pinned
   submodule, built with the small patches in `third_party/patches/` (each explained in its
   README) and served offline in a WebView on `https://appassets.androidplatform.net`. Scripts
-  in `app/src/main/assets/hongo/` are injected at document start: they report taps, page turns
+  in `app/src/main/assets/honmani/` are injected at document start: they report taps, page turns
   and positions to the app, hand books to ttu, and read and write ttu's settings.
 - **App.** Kotlin, Jetpack Compose (Material 3), Room, manual dependency injection
   (`AppContainer`). One screen: the library, words, dictionaries and settings tabs are drawn over
   the reader, which stays loaded underneath.
-- **Library.** HonGO! keeps the book files (named by their SHA-256) and feeds them to ttu, whose
+- **Library.** Honmani keeps the book files (named by their SHA-256) and feeds them to ttu, whose
   own storage is only a cache. Text files are converted to UTF-8; Aozora Bunko texts become EPUBs
   with furigana, headings and their notation (`data/library/`).
-- **Lookup.** HonGO!'s own deinflection rules (`lookup/Deinflector`, with a test corpus in
+- **Lookup.** Honmani's own deinflection rules (`lookup/Deinflector`, with a test corpus in
   `app/src/test/resources/`) and a lookup over Yomitan dictionaries imported into Room
   (`data/dictionary/`, definitions stored compressed). The panel draws Yomitan's structured
   content natively.
@@ -67,9 +68,9 @@ libraries, a complete bundled reader, and no Play-restricted permissions.
 
 ## Licence
 
-HonGO! is free software under the [GNU General Public License v3.0](LICENSE) or (at your option)
+Honmani is free software under the [GNU General Public License v3.0](LICENSE) or (at your option)
 any later version. It comes with no warranty.
 
 It includes [ッツ Ebook Reader](https://github.com/ttu-ttu/ebook-reader) (BSD 3-Clause) and the
-libraries listed in the app under Settings → About HonGO!. Dictionaries and fonts are downloaded
+libraries listed in the app under Settings → About Honmani. Dictionaries and fonts are downloaded
 from their publishers and keep their own licences.

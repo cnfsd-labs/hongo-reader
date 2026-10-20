@@ -2,7 +2,7 @@
 const path = require('node:path');
 const { test, expect } = require('@playwright/test');
 
-const SETTINGS = path.join(__dirname, '../../app/src/main/assets/hongo/reader-settings.js');
+const SETTINGS = path.join(__dirname, '../../app/src/main/assets/honmani/reader-settings.js');
 const FIXTURE = 'file://' + path.join(__dirname, '../fixtures/book.html');
 
 test.beforeEach(async ({ page }) => {
@@ -15,36 +15,36 @@ const userFonts = (page) => page.evaluate(() => JSON.parse(window.localStorage.g
 
 test('downloaded fonts are listed as ttu user fonts served by the app', async ({ page }) => {
   await page.evaluate(() =>
-    window.hongoReaderSettings.fonts({ fonts: [{ name: 'Klee One', fileName: 'KleeOne-Regular.ttf' }] }),
+    window.honmaniReaderSettings.fonts({ fonts: [{ name: 'Klee One', fileName: 'KleeOne-Regular.ttf' }] }),
   );
 
   expect(await userFonts(page)).toEqual([
-    { name: 'Klee One', path: '/hongo-fonts/KleeOne-Regular.ttf', fileName: 'KleeOne-Regular.ttf' },
+    { name: 'Klee One', path: '/honmani-fonts/KleeOne-Regular.ttf', fileName: 'KleeOne-Regular.ttf' },
   ]);
 });
 
-test("fonts the reader added in ttu are kept; HonGO!'s list is replaced", async ({ page }) => {
+test("fonts the reader added in ttu are kept; Honmani's list is replaced", async ({ page }) => {
   await page.evaluate(() => {
     window.localStorage.setItem(
       'userfonts',
       JSON.stringify([
         { name: 'My Font', path: '/userfonts/my.woff2', fileName: 'my.woff2' },
-        { name: 'Klee One', path: '/hongo-fonts/KleeOne-Regular.ttf', fileName: 'KleeOne-Regular.ttf' },
+        { name: 'Klee One', path: '/honmani-fonts/KleeOne-Regular.ttf', fileName: 'KleeOne-Regular.ttf' },
       ]),
     );
-    window.hongoReaderSettings.fonts({ fonts: [{ name: 'BIZ UDMincho', fileName: 'BIZUDMincho-Regular.ttf' }] });
+    window.honmaniReaderSettings.fonts({ fonts: [{ name: 'BIZ UDMincho', fileName: 'BIZUDMincho-Regular.ttf' }] });
   });
 
   expect(await userFonts(page)).toEqual([
     { name: 'My Font', path: '/userfonts/my.woff2', fileName: 'my.woff2' },
-    { name: 'BIZ UDMincho', path: '/hongo-fonts/BIZUDMincho-Regular.ttf', fileName: 'BIZUDMincho-Regular.ttf' },
+    { name: 'BIZ UDMincho', path: '/honmani-fonts/BIZUDMincho-Regular.ttf', fileName: 'BIZUDMincho-Regular.ttf' },
   ]);
 });
 
 test('file names that are not plain font files are refused; a broken list is replaced', async ({ page }) => {
   await page.evaluate(() => {
     window.localStorage.setItem('userfonts', '{not json');
-    window.hongoReaderSettings.fonts({
+    window.honmaniReaderSettings.fonts({
       fonts: [
         { name: 'Bad', fileName: '../books/x.ttf' },
         { name: 'Script', fileName: "a.ttf');}body{display:none" },
@@ -74,11 +74,11 @@ async function declareUserFonts(page) {
 const faceStatuses = (page) =>
   page.evaluate(() => Array.from(document.fonts).map((face) => `${face.family.replace(/"/g, '')}: ${face.status}`));
 
-test("ttu's face of the chosen HonGO! font starts loading once declared, so ttu needn't wait for its timeout", async ({
+test("ttu's face of the chosen Honmani font starts loading once declared, so ttu needn't wait for its timeout", async ({
   page,
 }) => {
   await page.evaluate(() => {
-    window.hongoReaderSettings.fonts({ fonts: [{ name: 'Klee One', fileName: 'KleeOne-Regular.ttf' }] });
+    window.honmaniReaderSettings.fonts({ fonts: [{ name: 'Klee One', fileName: 'KleeOne-Regular.ttf' }] });
     window.localStorage.setItem('fontFamilyGroupOne', 'Klee One');
   });
   await page.reload();
@@ -91,7 +91,7 @@ test("ttu's face of the chosen HonGO! font starts loading once declared, so ttu 
     }).toEqual([expect.stringMatching(/^Klee One: (loading|loaded|error)$/)]);
 });
 
-test('fonts not downloaded by HonGO! are left to ttu', async ({ page }) => {
+test('fonts not downloaded by Honmani are left to ttu', async ({ page }) => {
   await page.evaluate(() => {
     window.localStorage.setItem('userfonts', JSON.stringify([{ name: 'Mine', path: '/userfonts/m.ttf', fileName: 'm.ttf' }]));
     window.localStorage.setItem('fontFamilyGroupOne', 'Mine');

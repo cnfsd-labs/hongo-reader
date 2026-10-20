@@ -2,7 +2,7 @@
 # Release gate for an APK:
 #   1. Native libraries are compatible with 16 KB memory pages (zip alignment + ELF LOAD
 #      segment alignment for 64-bit ABIs), as Google Play requires for targetSdk 35+.
-#   2. No permissions that Google Play restricts or that HonGO! must never need.
+#   2. No permissions that Google Play restricts or that Honmani must never need.
 set -euo pipefail
 
 apk="${1:?usage: check-apk.sh <path-to-apk>}"
@@ -55,10 +55,10 @@ for pattern in '^assets/ttu/_app/immutable/.*\.js$' '^assets/ttu/_app/immutable/
         failed=1
     fi
 done
-for script in 'assets/hongo/tap-bridge.js' 'assets/hongo/ttu-defaults.js' 'assets/hongo/keep-position.js' \
-  'assets/hongo/library-bridge.js' 'assets/hongo/help-text.js' \
-  'assets/hongo/book-end.js' \
-  'assets/hongo/book-shown.js'; do
+for script in 'assets/honmani/tap-bridge.js' 'assets/honmani/ttu-defaults.js' 'assets/honmani/keep-position.js' \
+  'assets/honmani/library-bridge.js' 'assets/honmani/help-text.js' \
+  'assets/honmani/book-end.js' \
+  'assets/honmani/book-shown.js'; do
     if ! grep -qxF "$script" <<<"$entries"; then
         echo "FAIL: $script is missing"
         failed=1

@@ -1,4 +1,4 @@
-From: HonGO! <noreply@hongo.invalid>
+From: Honmani <noreply@honmani.invalid>
 Subject: [PATCH] Split long text nodes so positions move within long paragraphs
 
 ttu works out the character count and bookmarks per text node. In books

@@ -12,28 +12,28 @@ plugins {
 }
 
 android {
-    namespace = "app.hongo.reader"
+    namespace = "app.honmani.reader"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "app.hongo.reader"
+        applicationId = "app.honmani.reader"
         minSdk = 26
         targetSdk = 36
         // Play needs a higher version code for every upload: the release workflow's run number
         // (.github/workflows/release.yml); 1 for every other build.
-        versionCode = System.getenv("HONGO_VERSION_CODE")?.toInt() ?: 1
+        versionCode = System.getenv("HONMANI_VERSION_CODE")?.toInt() ?: 1
         versionName = "0.1.0"
     }
 
     signingConfigs {
         // The Play upload key, only in the release workflow (from repository secrets). Every
         // other release build stays unsigned; Play re-signs uploads with the app signing key.
-        System.getenv("HONGO_UPLOAD_KEYSTORE")?.let { keystore ->
+        System.getenv("HONMANI_UPLOAD_KEYSTORE")?.let { keystore ->
             create("upload") {
                 storeFile = file(keystore)
-                storePassword = System.getenv("HONGO_UPLOAD_KEYSTORE_PASSWORD")
-                keyAlias = System.getenv("HONGO_UPLOAD_KEY_ALIAS")
-                keyPassword = System.getenv("HONGO_UPLOAD_KEYSTORE_PASSWORD")
+                storePassword = System.getenv("HONMANI_UPLOAD_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("HONMANI_UPLOAD_KEY_ALIAS")
+                keyPassword = System.getenv("HONMANI_UPLOAD_KEYSTORE_PASSWORD")
             }
         }
     }
@@ -51,7 +51,7 @@ android {
         }
         debug {
             applicationIdSuffix = ".debug"
-            manifestPlaceholders["appLabel"] = "HonGO! debug"
+            manifestPlaceholders["appLabel"] = "Honmani debug"
         }
         // Release code (R8, not debuggable) signed with the debug key, so test builds from CI
         // install directly and show real-world performance.
@@ -59,7 +59,7 @@ android {
             initWith(getByName("release"))
             signingConfig = signingConfigs.getByName("debug")
             applicationIdSuffix = ".internal"
-            manifestPlaceholders["appLabel"] = "HonGO! internal"
+            manifestPlaceholders["appLabel"] = "Honmani internal"
             matchingFallbacks += listOf("release")
         }
     }

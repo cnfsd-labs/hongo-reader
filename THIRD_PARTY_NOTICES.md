@@ -1,6 +1,6 @@
 # Third-party notices
 
-HonGO! uses the following third-party software. Shipped notices must be kept in sync with
+Honmani uses the following third-party software. Shipped notices must be kept in sync with
 this file and shown in the app's About screen once it exists.
 
 ## App
@@ -33,7 +33,7 @@ not part of the bundle.
 
 ## Dictionaries
 
-HonGO! ships no dictionary data. Users import their own or download them from their publishers'
+Honmani ships no dictionary data. Users import their own or download them from their publishers'
 own release links from within the app: Jitendex (https://jitendex.org, CC BY-SA 4.0) and JMdict
 for Yomitan (https://github.com/yomidevs/jmdict-yomitan; JMdict is EDRDG-licensed, CC BY-SA 4.0). Each dictionary's attribution from its
 `index.json` is stored and should be shown with its entries.

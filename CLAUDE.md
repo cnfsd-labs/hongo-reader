@@ -1,8 +1,8 @@
-# HonGO! – notes for Claude
+# Honmani – notes for Claude
 
 Android reader for Japanese books with a tap-to-look-up pop-up dictionary, saved words, Anki
 cards, reading statistics, OPDS book servers and KOReader progress sync. ッツ Ebook Reader (ttu)
-renders the books in a WebView; everything around it is HonGO!'s own Kotlin + Compose code.
+renders the books in a WebView; everything around it is Honmani's own Kotlin + Compose code.
 Published by CNFSD Labs under GPL-3.0-or-later. `README.md` is the overview,
 `docs/device-testing.md` the phone checklist.
 
@@ -10,49 +10,49 @@ Published by CNFSD Labs under GPL-3.0-or-later. `README.md` is the overview,
 tap words. Anything configurable has defaults and stays optional.
 
 **Maintainer's notes:** current state, open tasks, devices and publishing are in the private
-repository `cnfsd-labs/notes`: `CLAUDE.md` (shared by all projects), then `hongo/CLAUDE.md`.
+repository `cnfsd-labs/notes`: `CLAUDE.md` (shared by all projects), then `honmani/CLAUDE.md`.
 Read both first when you have access
 (`gh api repos/cnfsd-labs/notes/contents/<path> --jq .content | base64 -d`). This
 repository is public: never copy those notes, personal details or discussions into it.
 
 ## Decisions (don't relitigate without new facts)
 
-- **Licences.** HonGO! is GPL-3.0-or-later, "© 2026 CNFSD Labs"; no personal names in the app,
+- **Licences.** Honmani is GPL-3.0-or-later, "© 2026 CNFSD Labs"; no personal names in the app,
   docs or commits (author "CNFSD Labs"). Code or data may be copied from GPL-3.0+, LGPL-3.0,
   Apache-2.0, MPL-2.0, MIT, BSD, ISC, 0BSD or CC0 projects; not GPL-2.0-only, "non-commercial" or
   unlicensed. AGPL-3.0 (e.g. Readest): ask the maintainer first. When copying: keep the notice in
   the file, name the source (repository, path, commit), add it to the credits in `AboutScreen`
   (and its licence text if new), mention it in the commit message.
 - **ttu** is a pinned submodule built by `:app:buildTtu` with `third_party/patches/` applied.
-  Keep patches minimal; prefer scripts injected from `app/src/main/assets/hongo/`. Patches 0001
+  Keep patches minimal; prefer scripts injected from `app/src/main/assets/honmani/`. Patches 0001
   and 0003 are proposed upstream (ttu-ttu/ebook-reader#549, #548): drop them once merged.
 - **Reader origin** `https://appassets.androidplatform.net` (`WebViewAssetLoader`) must never
   change: ttu's library lives in its IndexedDB. The WebView blocks network loads.
 - **Network use** (dictionaries, fonts, book servers, progress sync, Google voices) is listed in
   `docs/privacy-policy.md`, which must change with any new network use.
-- **Library:** HonGO! owns the book files (app storage, named by SHA-256); ttu's IndexedDB is a
+- **Library:** Honmani owns the book files (app storage, named by SHA-256); ttu's IndexedDB is a
   rebuildable cache fed through ttu's own import input (`library-bridge.js`).
 - **Database:** one Room database, **schema frozen** (version 1 in `app/schemas`). A change needs
-  a new version, a migration in `HongoDatabase.MIGRATIONS`, a test in `DatabaseMigrationTest` and
+  a new version, a migration in `HonmaniDatabase.MIGRATIONS`, a test in `DatabaseMigrationTest` and
   the exported JSON committed. No destructive fallback. Manual DI in `AppContainer`, no Hilt.
 - **Backup** keeps only the `settings` preferences. Everything tied to this phone (first start,
   encrypted keys, AnkiDroid ids, sync account) is in `device` preferences, never backed up
   (`BackupRulesTest`).
-- **Application ID** `app.hongo.reader` is permanent. Play bundles come from the "Release
+- **Application ID** `app.honmani.reader` is permanent. Play bundles come from the "Release
   bundle" workflow (tag `release/*`; run number = version code); other builds stay unsigned or
   debug-signed.
 - **Versions:** AGP 9.4 with built-in Kotlin (no `org.jetbrains.kotlin.android`), Gradle 9.8,
   Kotlin 2.4.21, KSP 2.3, compileSdk 37, targetSdk 36 (raise deliberately). Kotlin and KSP move
   together.
-- **Reader settings:** ttu's localStorage is the only store, so HonGO!'s screen and ttu's own
+- **Reader settings:** ttu's localStorage is the only store, so Honmani's screen and ttu's own
   settings page never disagree. The theme follows the system until the reader picks one
-  (`hongoAutoTheme`).
-- **Lookup** is tap-based, scan length 20, longest match first; deinflection rules are HonGO!'s
+  (`honmaniAutoTheme`).
+- **Lookup** is tap-based, scan length 20, longest match first; deinflection rules are Honmani's
   own (`lookup/Deinflector`). Glossaries are always stored deflated (`GlossaryPacker`).
 - **Saved words** are recorded on every lookup, ranked by a decayed score (half-life 14 days),
   never deleted for age. "Learned", not "Known". Anki cards are suggested, never pushed.
 - **Anki:** own client for AnkiDroid's content provider (not the LGPL library); note type and
-  deck "HonGO!"; `.apkg` (schema 11, fixed note type id, guid from the word) or a text file for
+  deck "Honmani"; `.apkg` (schema 11, fixed note type id, guid from the word) or a text file for
   Anki on a computer. The Google Cloud key is Keystore-encrypted and only sent in
   `X-Goog-Api-Key`.
 - **Credentials and servers:** OPDS 1.x only, own parser and `HttpURLConnection` client.
@@ -62,7 +62,7 @@ repository is public: never copy those notes, personal details or discussions in
   per Android network, and never on a captive-portal hotspot (`data/net/`).
 - **Progress sync:** KOReader's protocol, EPUB only, document id = KOReader's partial MD5,
   exact positions (`EpubPositions` follows ttu's character counting). Calibre-Web Automated wants
-  its web password as HTTP Basic at `<address>/kosync`. No account creation in HonGO! (Play would
+  its web password as HTTP Basic at `<address>/kosync`. No account creation in Honmani (Play would
   require account deletion; the protocol has none).
 
 ## Build, test, CI
@@ -74,7 +74,7 @@ repository is public: never copy those notes, personal details or discussions in
   (needs `:app:buildTtu` output, or `TTU_DIR=...`).
 - CI (`.github/workflows/android.yml`) runs all of this on every push and cancels the running
   build: don't push while someone waits for an APK.
-- **Test APKs:** artifact `hongo-test-apks` of a green run → `app-internal.apk`. Every run signs
+- **Test APKs:** artifact `honmani-test-apks` of a green run → `app-internal.apk`. Every run signs
   with a new key, so the old build must be uninstalled first (deletes dictionaries). Give the
   direct link `…/actions/runs/<run>/artifacts/<id>`. Local builds use the local debug key.
 - Cloud sandbox (Claude Code on the web): Google Maven is blocked, so CI is the only Android
@@ -120,7 +120,7 @@ repository is public: never copy those notes, personal details or discussions in
 - Android 13+ shows no notifications without `POST_NOTIFICATIONS`, even a foreground service's;
   an Android 12 phone proves nothing. Ask when the work starts (`rememberWithNotifications`).
 - ttu reserves some font families (`reservedFontNames`) without their files: downloaded fonts use
-  their own family ("HonGO Klee One"), or books wait for ttu's 30 s font timeout.
+  their own family ("Honmani Klee One"), or books wait for ttu's 30 s font timeout.
 
 ## Conventions
 

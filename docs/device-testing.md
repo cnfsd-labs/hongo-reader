@@ -4,10 +4,10 @@
 
 1. Open the latest green run of the **Android** workflow on GitHub (repository → Actions →
    Android → newest run with a green check).
-2. Under **Artifacts**, download **hongo-test-apks**. It is a zip with two APKs:
-   - `app-internal.apk` ("HonGO! internal"): release code, use this for the checks below and
+2. Under **Artifacts**, download **honmani-test-apks**. It is a zip with two APKs:
+   - `app-internal.apk` ("Honmani internal"): release code, use this for the checks below and
      for timing.
-   - `app-debug.apk` ("HonGO! debug"): debuggable; the reader WebView can be inspected from
+   - `app-debug.apk` ("Honmani debug"): debuggable; the reader WebView can be inspected from
      `chrome://inspect` on a computer.
 3. Copy the APK to the phone and open it; allow installing from that app when Android asks.
 
@@ -15,7 +15,7 @@ Each CI run signs with a different throwaway key: uninstall the previous build b
 installing a newer one (this also clears its data, including imported dictionaries).
 
 Useful for timing: with the phone connected over USB,
-`adb logcat -s HonGO.lookup` prints how long each lookup takes.
+`adb logcat -s Honmani.lookup` prints how long each lookup takes.
 
 **If something in the reader looks wrong** (e.g. a blank page): open the book, wait 5 seconds,
 go back to the library, then Settings → **Share diagnostics** and send the text (to
@@ -47,18 +47,18 @@ position kept).
 ## Reading progress sync (KOReader)
 
 With KOReader on an e-reader (or Calibre-Web Automated, whose own KOReader plugin "CWA Progress
-Sync" the e-reader needs; in HonGO! its plain address and Calibre-Web login are enough) signed in
+Sync" the e-reader needs; in Honmani its plain address and Calibre-Web login are enough) signed in
 to the same sync server:
-put the same EPUB file on both. In HonGO!: Settings → Reading progress sync, sign in, read a few
-pages, go back to the library. In KOReader, open the book: it offers HonGO!'s position (top of
-the page HonGO! showed). Read on in KOReader, then open the book in HonGO!: it says "Continued
+put the same EPUB file on both. In Honmani: Settings → Reading progress sync, sign in, read a few
+pages, go back to the library. In KOReader, open the book: it offers Honmani's position (top of
+the page Honmani showed). Read on in KOReader, then open the book in Honmani: it says "Continued
 at …% from …" and shows the page KOReader was on. Books converted from Aozora text files only
 match if both devices have the same EPUB.
 
 ## Known limitations (no need to report)
 
 - Diagnostics show "Failed to register a ServiceWorker": ttu tries to install its offline cache,
-  which HonGO! doesn't need (the reader is in the app). Harmless.
+  which Honmani doesn't need (the reader is in the app). Harmless.
 - ttu's Google Drive / OneDrive sync and backup downloads do not work.
 - Dictionary images (pictures in some entries) are not shown.
 - Choosing one of ttu's web fonts in its settings brings back a 10-second wait when opening

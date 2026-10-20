@@ -1,7 +1,7 @@
 {
-  "name": "hongo-web-tests",
+  "name": "honmani-web-tests",
   "private": true,
-  "description": "Browser tests for HonGO!'s WebView JavaScript (tap bridge) against the real ッツ Ebook Reader build.",
+  "description": "Browser tests for Honmani's WebView JavaScript (tap bridge) against the real ッツ Ebook Reader build.",
   "scripts": {
     "test": "playwright test"
   },

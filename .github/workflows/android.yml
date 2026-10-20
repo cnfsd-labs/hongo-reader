@@ -44,7 +44,7 @@ jobs:
           if [ -n "$(git status --porcelain -- app/schemas)" ]; then
             git status --short -- app/schemas
             git diff -- app/schemas | head -50
-            echo "::error::The database schema changed. Raise the version in HongoDatabase, add a migration and its test (DatabaseMigrationTest), and commit the exported schema in app/schemas."
+            echo "::error::The database schema changed. Raise the version in HonmaniDatabase, add a migration and its test (DatabaseMigrationTest), and commit the exported schema in app/schemas."
             exit 1
           fi
 
@@ -83,7 +83,7 @@ jobs:
       - name: Upload test APKs
         uses: actions/upload-artifact@v7
         with:
-          name: hongo-test-apks
+          name: honmani-test-apks
           path: |
             app/build/outputs/apk/internal/app-internal.apk
             app/build/outputs/apk/debug/app-debug.apk

@@ -1,9 +1,9 @@
-From: HonGO! <noreply@hongo.invalid>
+From: Honmani <noreply@honmani.invalid>
 Subject: [PATCH] Detect Kiwi Browser without ua-parser-js
 
 ua-parser-js 2.x is AGPL-3.0-or-later. ttu only uses it to decide whether
 zip.js may use web workers, which a user-agent check covers. Dropping it
-keeps the bundle HonGO! ships under permissive licenses.
+keeps the bundle Honmani ships under permissive licenses.
 
 diff --git a/apps/web/src/lib/functions/file-loaders/utils/init-zip-settings.ts b/apps/web/src/lib/functions/file-loaders/utils/init-zip-settings.ts
 index d9121a9..8bad923 100644

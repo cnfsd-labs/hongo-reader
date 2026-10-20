@@ -1,4 +1,4 @@
-From: HonGO! <noreply@hongo.invalid>
+From: Honmani <noreply@honmani.invalid>
 Subject: [PATCH] Read Shift_JIS text files and Aozora Bunko markup
 
 Plain-text books were read with FileReader.readAsText, which assumes
