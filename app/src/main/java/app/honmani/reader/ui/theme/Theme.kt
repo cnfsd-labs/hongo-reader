@@ -14,14 +14,16 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import app.honmani.reader.data.settings.Accent
+import app.honmani.reader.data.settings.customAccentColor
 
 @Composable
 fun HonmaniTheme(
     accent: Accent = Accent.DEFAULT,
+    customHue: Float = 0f,
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit,
 ) {
-    val color = accent.color
+    val color = if (accent == Accent.CUSTOM) customAccentColor(customHue) else accent.color
     val colorScheme = when {
         color != null -> accentColorScheme(Color(color), darkTheme)
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
@@ -57,19 +59,21 @@ fun accentColorScheme(accent: Color, darkTheme: Boolean): ColorScheme {
     } else {
         // A little darker on light backgrounds, for contrast with white text and the background.
         val primary = lerp(accent, Color.Black, 0.15f)
+        // Light accents (amber, a custom yellow) keep dark text.
+        val onPrimary = if (primary.luminance() > 0.4f) Color.Black else Color.White
         val container = lerp(accent, Color.White, 0.8f)
         val onContainer = lerp(accent, Color.Black, 0.6f)
         lightColorScheme(
             primary = primary,
-            onPrimary = Color.White,
+            onPrimary = onPrimary,
             primaryContainer = container,
             onPrimaryContainer = onContainer,
             secondary = primary,
-            onSecondary = Color.White,
+            onSecondary = onPrimary,
             secondaryContainer = container,
             onSecondaryContainer = onContainer,
             tertiary = primary,
-            onTertiary = Color.White,
+            onTertiary = onPrimary,
         )
     }
 }

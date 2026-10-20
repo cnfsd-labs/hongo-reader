@@ -30,4 +30,11 @@ class AppearanceSettingsTest {
 
         assertEquals(Accent.DEFAULT, AppearanceSettings(preferences()).accent.value)
     }
+
+    @Test
+    fun keepsTheCustomHue() {
+        AppearanceSettings(preferences()).setCustomHue(42f)
+
+        assertEquals(42f, AppearanceSettings(preferences()).customHue.value, 0f)
+    }
 }

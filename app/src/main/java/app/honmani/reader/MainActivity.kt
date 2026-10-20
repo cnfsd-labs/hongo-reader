@@ -23,7 +23,8 @@ class MainActivity : ComponentActivity() {
         }
         setContent {
             val accent by appearance.accent.collectAsStateWithLifecycle()
-            HonmaniTheme(accent = accent) {
+            val customHue by appearance.customHue.collectAsStateWithLifecycle()
+            HonmaniTheme(accent = accent, customHue = customHue) {
                 HonmaniApp()
             }
         }

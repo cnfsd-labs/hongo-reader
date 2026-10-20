@@ -6,8 +6,11 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -20,6 +23,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.dynamicDarkColorScheme
@@ -34,11 +39,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
@@ -48,6 +55,7 @@ import app.honmani.reader.HonmaniApplication
 import app.honmani.reader.R
 import app.honmani.reader.data.opds.OpdsCatalog
 import app.honmani.reader.data.settings.Accent
+import app.honmani.reader.data.settings.customAccentColor
 import app.honmani.reader.ui.HonmaniTopAppBar
 import app.honmani.reader.ui.theme.HonmaniTheme
 import kotlinx.coroutines.launch
@@ -66,6 +74,7 @@ fun SettingsScreen(
     val container = remember { (context.applicationContext as HonmaniApplication).container }
     val appearance = container.appearanceSettings
     val accent by appearance.accent.collectAsStateWithLifecycle()
+    val customHue by appearance.customHue.collectAsStateWithLifecycle()
     val catalogs by container.opdsRepository.catalogs.collectAsStateWithLifecycle(emptyList())
     val scope = rememberCoroutineScope()
     val version = remember {
@@ -82,6 +91,8 @@ fun SettingsScreen(
         version = version,
         accent = accent,
         onAccentChange = appearance::setAccent,
+        customHue = customHue,
+        onCustomHueChange = appearance::setCustomHue,
         catalogs = catalogs,
         onAutoImportChange = { catalog, enabled ->
             scope.launch {
@@ -103,6 +114,8 @@ private fun SettingsContent(
     version: String,
     accent: Accent,
     onAccentChange: (Accent) -> Unit,
+    customHue: Float,
+    onCustomHueChange: (Float) -> Unit,
     catalogs: List<OpdsCatalog>,
     onAutoImportChange: (OpdsCatalog, Boolean) -> Unit,
     bottomBar: @Composable () -> Unit,
@@ -124,7 +137,7 @@ private fun SettingsContent(
             item {
                 ListItem(
                     headlineContent = { Text(stringResource(R.string.settings_accent)) },
-                    supportingContent = { AccentPicker(accent, onAccentChange) },
+                    supportingContent = { AccentPicker(accent, onAccentChange, customHue, onCustomHueChange) },
                 )
             }
             if (catalogs.isNotEmpty()) {
@@ -179,38 +192,95 @@ private fun SettingsContent(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun AccentPicker(selected: Accent, onSelect: (Accent) -> Unit) {
+private fun AccentPicker(
+    selected: Accent,
+    onSelect: (Accent) -> Unit,
+    customHue: Float,
+    onCustomHueChange: (Float) -> Unit,
+) {
     val context = LocalContext.current
     val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-        modifier = Modifier.padding(top = 12.dp),
-    ) {
-        for (accent in Accent.entries) {
-            val swatch = accent.color?.let { Color(it) }
-                ?: if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    if (dark) dynamicDarkColorScheme(context).primary else dynamicLightColorScheme(context).primary
-                } else {
-                    continue
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(top = 12.dp)) {
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            maxItemsInEachRow = SWATCHES_PER_ROW,
+        ) {
+            for (accent in Accent.entries) {
+                val swatch = when {
+                    accent == Accent.CUSTOM -> Color(customAccentColor(customHue))
+                    accent.color != null -> Color(accent.color)
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
+                        if (dark) dynamicDarkColorScheme(context).primary else dynamicLightColorScheme(context).primary
+                    else -> continue
                 }
-            AccentSwatch(
-                color = swatch,
-                label = stringResource(accent.label()),
-                isSelected = accent == selected,
-                onClick = { onSelect(accent) },
-            )
+                AccentSwatch(
+                    color = swatch,
+                    label = stringResource(accent.label()),
+                    isSelected = accent == selected,
+                    onClick = { onSelect(accent) },
+                    rainbowRing = accent == Accent.CUSTOM,
+                )
+            }
         }
+        if (selected == Accent.CUSTOM) HueSlider(customHue, onCustomHueChange)
     }
 }
 
+/** A slider over a rainbow for the custom accent's hue. */
 @Composable
-private fun AccentSwatch(color: Color, label: String, isSelected: Boolean, onClick: () -> Unit) {
+private fun HueSlider(hue: Float, onHueChange: (Float) -> Unit) {
+    val label = stringResource(R.string.accent_custom_hue)
+    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth().height(40.dp)) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp)
+                .height(12.dp)
+                .clip(CircleShape)
+                .background(Brush.horizontalGradient(rainbow(steps = 12))),
+        )
+        Slider(
+            value = hue,
+            onValueChange = onHueChange,
+            valueRange = 0f..360f,
+            colors = SliderDefaults.colors(
+                thumbColor = Color(customAccentColor(hue)),
+                activeTrackColor = Color.Transparent,
+                inactiveTrackColor = Color.Transparent,
+            ),
+            modifier = Modifier.fillMaxWidth().semantics { contentDescription = label },
+        )
+    }
+}
+
+/** The custom accent's colours around the hue circle, [steps] of them plus the first again. */
+private fun rainbow(steps: Int): List<Color> = (0..steps).map { Color(customAccentColor(it * 360f / steps)) }
+
+@Composable
+private fun AccentSwatch(
+    color: Color,
+    label: String,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    rainbowRing: Boolean = false,
+) {
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .size(40.dp)
             .clip(CircleShape)
+            // The custom swatch: its colour inside a rainbow ring, so it reads as "any colour".
+            .then(
+                if (rainbowRing) {
+                    Modifier
+                        .background(Brush.sweepGradient(rainbow(steps = 12)))
+                        .padding(5.dp)
+                        .clip(CircleShape)
+                } else {
+                    Modifier
+                },
+            )
             .background(color)
             .border(
                 width = 2.dp,
@@ -237,7 +307,12 @@ private fun Accent.label(): Int = when (this) {
     Accent.GREEN -> R.string.accent_green
     Accent.ORANGE -> R.string.accent_orange
     Accent.PINK -> R.string.accent_pink
+    Accent.RED -> R.string.accent_red
+    Accent.AMBER -> R.string.accent_amber
+    Accent.INDIGO -> R.string.accent_indigo
+    Accent.SLATE -> R.string.accent_slate
     Accent.SYSTEM -> R.string.accent_system
+    Accent.CUSTOM -> R.string.accent_custom
 }
 
 @Preview
@@ -248,6 +323,8 @@ private fun SettingsPreview() {
             version = "0.1",
             accent = Accent.PURPLE,
             onAccentChange = {},
+            customHue = 300f,
+            onCustomHueChange = {},
             catalogs = listOf(OpdsCatalog(1, "Calibre-Web", "https://books.example/opds", "me", true)),
             onAutoImportChange = { _, _ -> },
             bottomBar = {},
@@ -257,3 +334,5 @@ private fun SettingsPreview() {
         )
     }
 }
+
+private const val SWATCHES_PER_ROW = 6

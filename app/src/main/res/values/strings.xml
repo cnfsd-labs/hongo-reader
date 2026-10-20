@@ -19,6 +19,12 @@
     <string name="accent_green">Green</string>
     <string name="accent_orange">Orange</string>
     <string name="accent_pink">Pink</string>
+    <string name="accent_red">Red</string>
+    <string name="accent_amber">Amber</string>
+    <string name="accent_indigo">Indigo</string>
+    <string name="accent_slate">Slate</string>
+    <string name="accent_custom">Custom colour</string>
+    <string name="accent_custom_hue">Colour of the custom accent</string>
     <string name="accent_system">Wallpaper colours</string>
     <string name="settings_reader">Reader settings</string>
     <string name="settings_reader_details">Font, size, colours, vertical or horizontal text, page turning</string>
