@@ -591,3 +591,43 @@ test.describe('rotation keeps the reading position', () => {
     });
   }
 });
+
+test('Aozora books keep their indentation, bottom alignment and upright digits in ttu', async ({ page }) => {
+  // Markup and stylesheet as AozoraEpub writes them.
+  const css = 'span.upright { -webkit-text-combine: horizontal; text-combine-upright: all; }\np { margin: 0; }\n';
+  const book = buildEpub({
+    title: '字下げ',
+    raw: true,
+    css,
+    paragraphs: [
+      '<p style="padding-inline-start: 2em">二字下げ</p>',
+      '<p style="padding-inline-start: 3em; text-indent: -2em">ぶら下げ</p>',
+      '<p style="text-align: end; padding-inline-end: 2em">明治<span class="upright">25</span>年</p>',
+      '<p>普通</p>',
+    ],
+  });
+  await setUp(page);
+  await importAndOpen(page, { name: 'indent.epub', mimeType: 'application/epub+zip', buffer: book }, '字下げ');
+
+  const layout = await page.evaluate(() =>
+    [...document.querySelectorAll('.book-content p')].map((p) => {
+      const range = document.createRange();
+      range.setStart(p.firstChild, 0);
+      range.setEnd(p.firstChild, 1);
+      return { top: range.getBoundingClientRect().top, em: parseFloat(getComputedStyle(p).fontSize), bottom: p.getBoundingClientRect().bottom };
+    }),
+  );
+  const [two, hanging, raised, plain] = layout;
+  expect(two.top - plain.top).toBeCloseTo(2 * plain.em, 0);
+  expect(hanging.top - plain.top).toBeCloseTo(plain.em, 0);
+  const upright = await page.locator('span.upright').evaluate((span) => getComputedStyle(span).textCombineUpright);
+  expect(upright).toBe('all');
+  // The raised line ends two characters above the bottom of the line.
+  const yearBottom = await page.locator('span.upright').evaluate((span) => {
+    const range = document.createRange();
+    range.setStartAfter(span);
+    range.setEnd(span.parentElement.lastChild, 1);
+    return range.getBoundingClientRect().bottom;
+  });
+  expect(raised.bottom - yearBottom).toBeCloseTo(2 * raised.em, 0);
+});
