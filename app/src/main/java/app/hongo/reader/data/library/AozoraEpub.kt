@@ -80,7 +80,8 @@ object AozoraEpub {
         for (block in chapter.blocks) {
             when (block) {
                 AozoraBlock.Blank -> append("<p><br/></p>")
-                is AozoraBlock.Paragraph -> append("<p>").appendInlines(block.inlines).append("</p>")
+                is AozoraBlock.Paragraph -> append("<p").appendLayout(block.layout).append(">")
+                    .appendInlines(block.inlines).append("</p>")
                 is AozoraBlock.Heading -> {
                     val tag = "h${block.level + 1}"
                     append("<$tag>").appendInlines(block.inlines).append("</$tag>")
@@ -97,11 +98,35 @@ object AozoraEpub {
                 is AozoraInline.Text -> append(escape(inline.text))
                 is AozoraInline.Ruby -> append("<ruby>").append(escape(inline.base))
                     .append("<rt>").append(escape(inline.reading)).append("</rt></ruby>")
-                is AozoraInline.Emphasis -> append("<em class=\"sesame\">").append(escape(inline.text)).append("</em>")
+                is AozoraInline.Styled -> {
+                    val tag = if (inline.style.isEmphasis) "em" else "span"
+                    append("<$tag class=\"${inline.style.cssClass}\">").appendInlines(inline.inlines).append("</$tag>")
+                }
             }
         }
         return this
     }
+
+    /** The paragraph's indentation and alignment as a style attribute, in characters (em). */
+    private fun StringBuilder.appendLayout(layout: AozoraLayout): StringBuilder {
+        val style = buildList {
+            val hanging = layout.hanging
+            if (hanging != null) {
+                if (hanging > 0) add("padding-inline-start: ${hanging}em")
+                if (layout.indent != hanging) add("text-indent: ${layout.indent - hanging}em")
+            } else if (layout.indent > 0) {
+                add("padding-inline-start: ${layout.indent}em")
+            }
+            if (layout.bottom) add("text-align: end")
+            if (layout.bottomGap > 0) add("padding-inline-end: ${layout.bottomGap}em")
+        }
+        if (style.isNotEmpty()) append(" style=\"").append(style.joinToString("; ")).append('"')
+        return this
+    }
+
+    private val AozoraStyle.isEmphasis get() = this != AozoraStyle.BOLD && this != AozoraStyle.ITALIC && this != AozoraStyle.UPRIGHT
+
+    private val AozoraStyle.cssClass get() = name.lowercase().replace('_', '-')
 
     private fun escape(text: String) = text
         .replace("&", "&amp;")
@@ -118,6 +143,33 @@ object AozoraEpub {
         "<rootfiles><rootfile full-path=\"OEBPS/content.opf\" media-type=\"application/oebps-package+xml\"/>" +
         "</rootfiles></container>"
 
-    private const val STYLE = "em.sesame { font-style: normal; " +
-        "-webkit-text-emphasis-style: sesame; text-emphasis-style: sesame; }\n"
+    /** Marks beside the text in vertical writing (over it in horizontal), as Aozora Bunko shows them. */
+    private val STYLE = buildString {
+        append("em { font-style: normal; }\n")
+        for ((style, mark) in listOf(
+            AozoraStyle.SESAME to "filled sesame",
+            AozoraStyle.OPEN_SESAME to "open sesame",
+            AozoraStyle.CIRCLE to "filled circle",
+            AozoraStyle.OPEN_CIRCLE to "open circle",
+            AozoraStyle.TRIANGLE to "filled triangle",
+            AozoraStyle.OPEN_TRIANGLE to "open triangle",
+            AozoraStyle.DOUBLE_CIRCLE to "open double-circle",
+            AozoraStyle.BULLSEYE to "filled double-circle",
+            AozoraStyle.CROSS to "\"\u00D7\"",
+        )) {
+            append("em.${style.cssClass} { -webkit-text-emphasis-style: $mark; text-emphasis-style: $mark; }\n")
+        }
+        for ((style, line) in listOf(
+            AozoraStyle.LINE to "solid",
+            AozoraStyle.DOUBLE_LINE to "double",
+            AozoraStyle.DOTTED_LINE to "dotted",
+            AozoraStyle.DASHED_LINE to "dashed",
+            AozoraStyle.WAVY_LINE to "wavy",
+        )) {
+            append("em.${style.cssClass} { text-decoration: underline $line; text-underline-position: right; }\n")
+        }
+        append("span.bold { font-weight: bold; }\n")
+        append("span.italic { font-style: italic; }\n")
+        append("span.upright { -webkit-text-combine: horizontal; text-combine-upright: all; }\n")
+    }
 }

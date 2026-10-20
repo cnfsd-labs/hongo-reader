@@ -3,8 +3,8 @@ package app.hongo.reader.data.library
 import app.hongo.reader.data.library.AozoraBlock.Blank
 import app.hongo.reader.data.library.AozoraBlock.Heading
 import app.hongo.reader.data.library.AozoraBlock.Paragraph
-import app.hongo.reader.data.library.AozoraInline.Emphasis
 import app.hongo.reader.data.library.AozoraInline.Ruby
+import app.hongo.reader.data.library.AozoraInline.Styled
 import app.hongo.reader.data.library.AozoraInline.Text
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -105,15 +105,84 @@ class AozoraTextTest {
     @Test
     fun emphasisDotsMarkTheTextBeforeTheNote() {
         assertEquals(
-            Paragraph(listOf(Text("その"), Emphasis("へっつい"), Text("の中"))),
+            Paragraph(listOf(Text("その"), Styled(AozoraStyle.SESAME, listOf(Text("へっつい"))), Text("の中"))),
             paragraphs(aozora("そのへっつい［＃「へっつい」に傍点］の中")).first(),
         )
     }
 
     @Test
-    fun dropsEditorNotesAndLinesOfOnlyNotes() {
-        val blocks = paragraphs(aozora("［＃ここから２字下げ］\n本文［＃「本文」は底本では「本分」］。\n［＃ここで字下げ終わり］"))
-        assertEquals(Paragraph(listOf(Text("本文。"))), blocks.first())
+    fun otherMarksLinesAndStyles_afterTheText() {
+        assertEquals(
+            Paragraph(
+                listOf(
+                    Styled(AozoraStyle.OPEN_CIRCLE, listOf(Text("白丸"))),
+                    Styled(AozoraStyle.WAVY_LINE, listOf(Text("波線"))),
+                    Text("の"),
+                    Styled(AozoraStyle.BOLD, listOf(Text("太字"))),
+                    Text("、"),
+                    Styled(AozoraStyle.UPRIGHT, listOf(Text("25"))),
+                    Text("日"),
+                ),
+            ),
+            paragraphs(aozora("白丸［＃「白丸」に白丸傍点］波線［＃「波線」に波線］の太字［＃「太字」は太字］、25［＃「25」は縦中横］日")).first(),
+        )
+    }
+
+    @Test
+    fun aMarkedWordMayHaveFurigana() {
+        assertEquals(
+            Paragraph(listOf(Text("この"), Styled(AozoraStyle.SESAME, listOf(Ruby("吾輩", "わがはい"), Text("こそ"))), Text("は"))),
+            paragraphs(aozora("この吾輩《わがはい》こそ［＃「吾輩こそ」に傍点］は")).first(),
+        )
+        // A note whose text is not just before it changes nothing.
+        assertEquals(Paragraph(listOf(Text("猫である"))), paragraphs(aozora("猫である［＃「犬」に傍点］")).first())
+    }
+
+    @Test
+    fun rangesOfStyles() {
+        assertEquals(
+            Paragraph(
+                listOf(
+                    Text("前"),
+                    Styled(AozoraStyle.SESAME, listOf(Text("強く"), Styled(AozoraStyle.BOLD, listOf(Text("太く"))))),
+                    Text("後"),
+                    Styled(AozoraStyle.ITALIC, listOf(Text("行末まで"))),
+                ),
+            ),
+            paragraphs(aozora("前［＃傍点］強く［＃太字］太く［＃太字終わり］［＃傍点終わり］後［＃斜体］行末まで")).first(),
+        )
+    }
+
+    @Test
+    fun indentationAndBottomAlignment() {
+        val blocks = paragraphs(
+            aozora(
+                listOf(
+                    "［＃３字下げ］三字",
+                    "［＃地付き］地付き",
+                    "［＃地から２字上げ］字上げ",
+                    "［＃ここから２字下げ］",
+                    "範囲［＃「範囲」は底本では「範位」］。",
+                    "［＃ここで字下げ終わり］",
+                    "［＃ここから１字下げ、折り返して３字下げ］",
+                    "折り返し",
+                    "［＃ここで字下げ終わり］",
+                    "普通",
+                ).joinToString("\n"),
+            ),
+        )
+        assertEquals(
+            listOf(
+                Paragraph(listOf(Text("三字")), AozoraLayout(indent = 3)),
+                Paragraph(listOf(Text("地付き")), AozoraLayout(bottom = true)),
+                Paragraph(listOf(Text("字上げ")), AozoraLayout(bottom = true, bottomGap = 2)),
+                Paragraph(listOf(Text("範囲。")), AozoraLayout(indent = 2)),
+                Paragraph(listOf(Text("折り返し")), AozoraLayout(indent = 1, hanging = 3)),
+                Paragraph(listOf(Text("普通"))),
+            ),
+            // Then the colophon.
+            blocks.take(6),
+        )
     }
 
     @Test

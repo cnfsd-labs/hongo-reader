@@ -24,7 +24,12 @@ class AozoraEpubTest {
                         listOf(AozoraInline.Ruby("吾輩", "わがはい"), AozoraInline.Text("は<猫>である。")),
                     ),
                     AozoraBlock.Blank,
-                    AozoraBlock.Paragraph(listOf(AozoraInline.Emphasis("へっつい"))),
+                    AozoraBlock.Paragraph(listOf(AozoraInline.Styled(AozoraStyle.SESAME, listOf(AozoraInline.Text("へっつい"))))),
+                    AozoraBlock.Paragraph(
+                        listOf(AozoraInline.Text("明治"), AozoraInline.Styled(AozoraStyle.UPRIGHT, listOf(AozoraInline.Text("30")))),
+                        AozoraLayout(bottom = true, bottomGap = 2),
+                    ),
+                    AozoraBlock.Paragraph(listOf(AozoraInline.Text("歌")), AozoraLayout(indent = 1, hanging = 3)),
                 ),
             ),
             AozoraChapter("二", listOf(AozoraBlock.Paragraph(listOf(AozoraInline.Text("二章。"))))),
@@ -49,6 +54,11 @@ class AozoraEpubTest {
             assertTrue(chapter, "<h3>一</h3>" in chapter)
             assertTrue(chapter, "<p><ruby>吾輩<rt>わがはい</rt></ruby>は&lt;猫&gt;である。</p>" in chapter)
             assertTrue(chapter, "<em class=\"sesame\">へっつい</em>" in chapter)
+            assertTrue(chapter, "<p style=\"text-align: end; padding-inline-end: 2em\">明治<span class=\"upright\">30</span></p>" in chapter)
+            assertTrue(chapter, "<p style=\"padding-inline-start: 3em; text-indent: -2em\">歌</p>" in chapter)
+            val style = text("OEBPS/style.css")
+            assertTrue(style, "em.open-circle { -webkit-text-emphasis-style: open circle;" in style)
+            assertTrue(style, "span.upright {" in style)
             assertTrue(text("OEBPS/chapter-2.xhtml"), "二章。" in text("OEBPS/chapter-2.xhtml"))
             val nav = text("OEBPS/nav.xhtml")
             assertTrue(nav, ">一</a>" in nav && ">二</a>" in nav)
