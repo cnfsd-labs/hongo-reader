@@ -36,6 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -133,13 +134,19 @@ private fun OnboardingContent(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Spacer(Modifier.height(16.dp))
-            // The launcher icon's artwork, in a launcher-like rounded square.
+            // The launcher icon's artwork, in a launcher-like rounded square. The art is an
+            // adaptive-icon layer (108 dp) of which launchers show the middle 72 dp, so it is
+            // scaled by 108 / 72 to look the same size as on the home screen.
             Image(
                 painter = painterResource(R.drawable.ic_launcher_art),
                 contentDescription = null,
                 modifier = Modifier
                     .size(104.dp)
-                    .clip(RoundedCornerShape(28.dp)),
+                    .clip(RoundedCornerShape(28.dp))
+                    .graphicsLayer {
+                        scaleX = ADAPTIVE_ICON_ZOOM
+                        scaleY = ADAPTIVE_ICON_ZOOM
+                    },
             )
             Text(stringResource(R.string.onboarding_title), style = MaterialTheme.typography.headlineMedium)
             Text(
@@ -259,3 +266,6 @@ private fun OnboardingPreview() {
         )
     }
 }
+
+/** An adaptive-icon layer is 108 dp; launchers show its middle 72 dp. */
+private const val ADAPTIVE_ICON_ZOOM = 108f / 72f
