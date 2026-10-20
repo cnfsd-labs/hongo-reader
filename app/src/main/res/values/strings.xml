@@ -392,11 +392,10 @@
     <string name="onboarding_message">Read Japanese books and tap any word to look it up.</string>
     <string name="onboarding_step">%1$d · %2$s</string>
     <string name="onboarding_dictionaries_title">Get dictionaries</string>
-    <string name="onboarding_definitions_in">Definitions in</string>
     <string name="onboarding_english">English</string>
     <string name="onboarding_japanese">Japanese</string>
-    <string name="onboarding_pack_english">Jitendex, with kanji, word frequency and pitch accent. About %1$d MB; Wi-Fi recommended.</string>
-    <string name="onboarding_pack_japanese">Japanese Wiktionary, then Jitendex in English for words it lacks, with kanji, word frequency and pitch accent. About %1$d MB; Wi-Fi recommended.</string>
+    <string name="onboarding_pack_english">English definitions from Jitendex, with kanji, word frequency and pitch accent. About %1$d MB; Wi-Fi recommended.</string>
+    <string name="onboarding_pack_japanese">Japanese definitions from Japanese Wiktionary, then Jitendex in English for words it lacks, with kanji, word frequency and pitch accent. About %1$d MB; Wi-Fi recommended.</string>
     <string name="onboarding_download">Download</string>
     <string name="onboarding_downloading">Getting dictionary %1$d of %2$d. You can start reading meanwhile; keep Honmani open until this is done, as some phones pause apps in the background.</string>
     <string name="onboarding_ready">Dictionaries ready</string>
@@ -407,6 +406,10 @@
     <string name="onboarding_sample">Read the sample book</string>
     <string name="onboarding_add_book">Add my own book</string>
     <string name="onboarding_skip">Skip for now</string>
+    <string name="onboarding_skip_dictionaries">Skip</string>
+    <string name="onboarding_next">Next</string>
+    <string name="onboarding_no_dictionaries">No dictionaries yet: tapping a word needs one.</string>
+    <string name="onboarding_get_dictionaries">Get dictionaries</string>
     <!-- Reader settings (Honmani's own screen) -->
     <string name="reader_settings_title">Reader settings</string>
     <string name="reader_settings_unavailable">The reader isn\'t ready yet. Try again in a moment.</string>
