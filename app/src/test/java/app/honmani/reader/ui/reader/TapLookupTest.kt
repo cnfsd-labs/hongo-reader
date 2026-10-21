@@ -92,6 +92,16 @@ class TapLookupTest {
             BridgeMessage.Position(3, 1_200, 0.25f),
             BridgeMessage.parse("""{"type":"reader.position","id":3,"characters":1200,"progress":0.25}"""),
         )
+        assertEquals(
+            BridgeMessage.Background(0xFF000000.toInt()),
+            BridgeMessage.parse("""{"type":"reader.background","color":"#000000"}"""),
+        )
+        assertEquals(
+            BridgeMessage.Background(0xFFF7F6EB.toInt()),
+            BridgeMessage.parse("""{"type":"reader.background","color":"#f7f6eb"}"""),
+        )
+        assertNull(BridgeMessage.parse("""{"type":"reader.background","color":"red"}"""))
+        assertNull(BridgeMessage.parse("""{"type":"reader.background","color":"#-12345"}"""))
         // A progress out of range is left out, the position still counts.
         assertEquals(
             BridgeMessage.Position(3, 1_200),

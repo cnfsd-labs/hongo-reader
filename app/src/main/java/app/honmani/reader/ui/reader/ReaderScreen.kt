@@ -1,7 +1,11 @@
 package app.honmani.reader.ui.reader
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.WindowInsets
@@ -22,9 +26,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.core.view.WindowCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -128,8 +136,13 @@ private fun ReaderWithTabs(viewModel: ReaderViewModel) {
         viewModel.ankiResults.collect { (expression, result) -> showAnkiResult(context, expression, result) }
     }
 
+    // The book's background, also behind the status and navigation bars while a book is shown.
+    var bookBackground by remember { mutableStateOf<Color?>(null) }
+    val frame = bookBackground.takeIf { !atLibrary && !readerSettings }
+    BarIcons(background = frame)
+
     Box(modifier = Modifier.fillMaxSize()) {
-        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        BoxWithConstraints(modifier = Modifier.fillMaxSize().then(frame?.let { Modifier.background(it) } ?: Modifier)) {
             ReaderWebView(
                 onLookup = viewModel::onTap,
                 onDismiss = viewModel::dismiss,
@@ -158,6 +171,7 @@ private fun ReaderWithTabs(viewModel: ReaderViewModel) {
                     atLibrary = it
                     if (it) viewModel.dismiss()
                 },
+                onBackground = { bookBackground = Color(it) },
                 modifier = Modifier
                     .fillMaxSize()
                     .windowInsetsPadding(WindowInsets.safeDrawing),
@@ -248,6 +262,35 @@ private fun ReaderWithTabs(viewModel: ReaderViewModel) {
             ReaderSettingsScreen(onClose = { readerSettings = false })
         }
     }
+}
+
+/**
+ * Status and navigation bar icons dark on a light [background] and light on a dark one, while
+ * there is one (a book on screen); otherwise as the app's theme set them.
+ */
+@Composable
+private fun BarIcons(background: Color?) {
+    val view = LocalView.current
+    DisposableEffect(view, background) {
+        val window = view.context.findActivity()?.window
+        if (background == null || window == null) return@DisposableEffect onDispose {}
+        val controller = WindowCompat.getInsetsController(window, view)
+        val status = controller.isAppearanceLightStatusBars
+        val navigation = controller.isAppearanceLightNavigationBars
+        val light = background.luminance() > 0.5f
+        controller.isAppearanceLightStatusBars = light
+        controller.isAppearanceLightNavigationBars = light
+        onDispose {
+            controller.isAppearanceLightStatusBars = status
+            controller.isAppearanceLightNavigationBars = navigation
+        }
+    }
+}
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
 
 /** ttu's book list, which the tabs cover. */

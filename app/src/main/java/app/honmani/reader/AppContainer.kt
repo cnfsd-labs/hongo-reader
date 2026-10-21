@@ -284,7 +284,7 @@ class AppContainer(context: Context) {
 
     /** The parts of each book really read, for the words read. */
     private val readStretches: ReadStretchStore by lazy {
-        ReadStretchStore(File(appContext.filesDir, "read-stretches.json"))
+        ReadStretchStore(File(appContext.filesDir, "read-stretches.txt"))
     }
 
     /** The words read and how well each is known; one computation shared by its screens. */

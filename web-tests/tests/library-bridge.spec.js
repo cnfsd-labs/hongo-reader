@@ -365,3 +365,35 @@ test('the bridge never creates ttu’s database itself', async ({ page }) => {
   const names = await page.evaluate(async () => (await indexedDB.databases()).map((d) => d.name));
   expect(names).not.toContain('books');
 });
+
+test('the book page reports its background and shows the reading position as a bar', async ({ page }) => {
+  await setUp(page);
+  await page.addInitScript(() => {
+    window.localStorage.setItem('theme', 'ecru-theme');
+    window.localStorage.setItem('honmaniAccent', JSON.stringify(['#e91e63', '#ffffff']));
+  });
+  await page.addInitScript({ path: path.join(ASSETS, 'reading-activity.js') });
+  await page.addInitScript({ path: path.join(ASSETS, 'book-frame.js') });
+  await page.goto(`${server.url}/manage`);
+  const book = await ensure(page, 'long.epub');
+  await page.goto(`${server.url}/b?id=${book.id}`);
+  await expect(page.locator('div.fixed.inset-0.text-7xl')).toHaveCount(0, { timeout: 5_000 });
+
+  const backgrounds = () => page.evaluate(() => window.__messages.filter((m) => m.type === 'reader.background').map((m) => m.color));
+  await expect.poll(backgrounds).toContain('#f7f6eb');
+
+  const bar = page.locator('#honmani-progress');
+  for (let turn = 1; turn <= 3; turn++) await page.keyboard.press('ArrowDown');
+  await expect.poll(async () => (await bar.boundingBox())?.width ?? 0).toBeGreaterThan(0);
+  const box = await bar.boundingBox();
+  const viewport = page.viewportSize();
+  // At the bottom, in the accent colour, as far as the reading position.
+  expect(box.y + box.height).toBeCloseTo(viewport.height, 0);
+  expect(await bar.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe('rgb(233, 30, 99)');
+  const reported = await page.evaluate(() => window.__messages.filter((m) => m.type === 'reader.position').at(-1).progress);
+  await expect.poll(async () => (await bar.boundingBox()).width / viewport.width).toBeCloseTo(reported, 2);
+  // Vertical books fill from the right, the way their pages turn.
+  const vertical = await page.evaluate(() => getComputedStyle(document.documentElement).writingMode.startsWith('vertical-rl'));
+  if (vertical) expect(box.x + box.width).toBeCloseTo(viewport.width, 0);
+  else expect(box.x).toBeCloseTo(0, 0);
+});

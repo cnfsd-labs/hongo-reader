@@ -32,6 +32,9 @@ sealed interface BridgeMessage {
     /** The reader touched or scrolled the book (`assets/honmani/reading-activity.js`). */
     data object Activity : BridgeMessage
 
+    /** The book page's background colour, opaque ARGB (`assets/honmani/book-frame.js`). */
+    data class Background(val color: Int) : BridgeMessage
+
     companion object {
         /** Parses a bridge message, or returns null for anything unknown or malformed. */
         fun parse(message: String?): BridgeMessage? =
@@ -40,6 +43,7 @@ sealed interface BridgeMessage {
                 ?: LibraryMessage.parse(message)?.let(::Library)
                 ?: parseBookShown(message)
                 ?: parsePosition(message)
+                ?: parseBackground(message)
                 ?: Activity.takeIf { message?.replace(" ", "") == ACTIVITY_MESSAGE }
                 ?: SettingsShown.takeIf { message?.replace(" ", "") == SETTINGS_SHOWN_MESSAGE }
                 ?: OpenSettings.takeIf { message?.replace(" ", "") == OPEN_SETTINGS_MESSAGE }
@@ -83,6 +87,24 @@ sealed interface BridgeMessage {
             val valid = envelope.type == "reader.position" && envelope.id > 0 && envelope.characters >= 0
             val progress = envelope.progress.takeIf { it in 0.0..1.0 }?.toFloat()
             return if (valid) Position(envelope.id, envelope.characters, progress) else null
+        }
+
+        @Serializable
+        private data class BackgroundEnvelope(val type: String = "", val color: String = "")
+
+        private fun parseBackground(message: String?): Background? {
+            if (message == null || message.length > MAX_BOOK_SHOWN_LENGTH || "reader.background" !in message) return null
+            val envelope = try {
+                bookShownJson.decodeFromString<BackgroundEnvelope>(message)
+            } catch (_: SerializationException) {
+                return null
+            } catch (_: IllegalArgumentException) {
+                return null
+            }
+            val digits = envelope.color.removePrefix("#")
+            val valid = envelope.type == "reader.background" && envelope.color.startsWith("#") && digits.length == 6 &&
+                digits.all { it in '0'..'9' || it.lowercaseChar() in 'a'..'f' }
+            return if (valid) Background(digits.toInt(16) or 0xFF000000.toInt()) else null
         }
 
         private const val MAX_BOOK_SHOWN_LENGTH = 200

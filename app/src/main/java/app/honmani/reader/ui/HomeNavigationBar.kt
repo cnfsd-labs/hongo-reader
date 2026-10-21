@@ -1,6 +1,5 @@
 package app.honmani.reader.ui
 
-import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
@@ -17,11 +16,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -33,14 +30,16 @@ import app.honmani.reader.R
  */
 enum class HomeTab(
     @StringRes val label: Int,
-    @DrawableRes val drawable: Int? = null,
     val vector: ImageVector? = null,
-    /** A kanji drawn as the icon: 本 (book) for the library, 語 (from 単語, word) for words. */
+    /**
+     * A kanji drawn as the icon: 本 (book) for the library, 語 (from 単語, word) for words, 進
+     * (from 進歩, progress) for progress.
+     */
     val glyph: String? = null,
 ) {
     LIBRARY(R.string.nav_library, glyph = "本"),
     WORDS(R.string.nav_words, glyph = "語"),
-    PROGRESS(R.string.nav_progress, drawable = R.drawable.ic_progress),
+    PROGRESS(R.string.nav_progress, glyph = "進"),
     SETTINGS(R.string.nav_settings, vector = Icons.Filled.Settings),
 }
 
@@ -53,8 +52,7 @@ private fun HomeTab.TabIcon() {
             Text(glyph, fontSize = size, lineHeight = size, fontWeight = FontWeight.Medium)
         }
     } else {
-        val painter: Painter = drawable?.let { painterResource(it) } ?: rememberVectorPainter(vector!!)
-        Icon(painter, contentDescription = null)
+        Icon(rememberVectorPainter(vector!!), contentDescription = null)
     }
 }
 

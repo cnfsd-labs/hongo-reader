@@ -7,8 +7,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
-import org.json.JSONArray
-import org.json.JSONObject
 
 /**
  * The parts of a book really read: pages on screen long enough (`ReadingTracker`), in
@@ -81,20 +79,20 @@ class ReadStretchStore(private val file: File) {
     /** Under [lock]. */
     private fun current(): Map<String, IntArray> = loaded ?: load().also { loaded = it }
 
+    /** One line per book: its content hash, then its stretches' steps, separated by spaces. */
     private fun load(): Map<String, IntArray> = runCatching {
-        val json = JSONObject(file.readText())
-        json.keys().asSequence().associateWith { hash ->
-            val values = json.getJSONArray(hash)
-            IntArray(values.length()) { values.getInt(it) }
-        }
+        file.readLines().mapNotNull { line ->
+            val parts = line.trim().split(' ').filter { it.isNotEmpty() }
+            val steps = parts.drop(1).map { it.toIntOrNull() ?: return@mapNotNull null }
+            if (parts.isEmpty() || steps.size % 2 != 0) null else parts[0] to steps.toIntArray()
+        }.toMap()
     }.getOrDefault(emptyMap())
 
     private fun save(stretches: Map<String, IntArray>) {
-        val json = JSONObject()
-        for ((hash, values) in stretches) json.put(hash, JSONArray().apply { values.forEach { put(it) } })
+        val text = stretches.entries.joinToString("") { (hash, steps) -> hash + steps.joinToString("") { " $it" } + "\n" }
         file.parentFile?.mkdirs()
         val temporary = File(file.path + ".tmp")
-        temporary.writeText(json.toString())
+        temporary.writeText(text)
         temporary.renameTo(file)
     }
 }

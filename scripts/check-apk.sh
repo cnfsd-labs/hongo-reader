@@ -58,7 +58,7 @@ done
 for script in 'assets/honmani/tap-bridge.js' 'assets/honmani/ttu-defaults.js' 'assets/honmani/keep-position.js' \
   'assets/honmani/library-bridge.js' 'assets/honmani/help-text.js' \
   'assets/honmani/book-end.js' \
-  'assets/honmani/book-shown.js'; do
+  'assets/honmani/book-shown.js' 'assets/honmani/book-frame.js'; do
     if ! grep -qxF "$script" <<<"$entries"; then
         echo "FAIL: $script is missing"
         failed=1

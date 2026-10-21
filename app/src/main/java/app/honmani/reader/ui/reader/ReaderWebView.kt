@@ -68,6 +68,7 @@ private val DOCUMENT_START_SCRIPTS = listOf(
     "honmani/book-end.js",
     "honmani/book-shown.js",
     "honmani/reading-activity.js",
+    "honmani/book-frame.js",
     "honmani/reader-settings.js",
 )
 
@@ -124,6 +125,8 @@ fun ReaderWebView(
     onPage: (ttuId: Long, characters: Long, progress: Float?) -> Unit = { _, _, _ -> },
     /** The Settings entry in the reader's top bar: Honmani's reader settings, not ttu's page. */
     onOpenSettings: () -> Unit = {},
+    /** The book page's background colour (ARGB) changed, for the bars around the reader. */
+    onBackground: (Int) -> Unit = {},
     highlightColor: Color = MaterialTheme.colorScheme.primary,
 ) {
     val currentOnLookup by rememberUpdatedState(onLookup)
@@ -133,6 +136,7 @@ fun ReaderWebView(
     val currentOnActivity by rememberUpdatedState(onActivity)
     val currentOnPage by rememberUpdatedState(onPage)
     val currentOnOpenSettings by rememberUpdatedState(onOpenSettings)
+    val currentOnBackground by rememberUpdatedState(onBackground)
     val webViewRef = remember { WebViewRef() }
     var atLibrary by remember { mutableStateOf(true) }
     val scope = rememberCoroutineScope()
@@ -203,6 +207,7 @@ fun ReaderWebView(
                             BridgeMessage.Activity -> currentOnActivity()
                             is BridgeMessage.Position -> currentOnPage(message.id, message.characters, message.progress)
                             BridgeMessage.OpenSettings -> currentOnOpenSettings()
+                            is BridgeMessage.Background -> currentOnBackground(message.color)
                         }
                     },
                     diagnostics = diagnostics,
