@@ -52,6 +52,9 @@ class BookGraderTest {
         assertEquals(1, lexiconsBuilt)
         // Too short: kept as 0, so it isn't tried on every run.
         assertEquals(0, store.grades.value.getValue("short").difficulty.score)
+        // The words are kept for the vocabulary estimate.
+        assertEquals(listOf("猫", "が", "好き", "です"), store.words("a")!!.keys)
+        assertNull(store.words("short"))
 
         val reopened = DifficultyStore(folder.root).apply { load() }
         assertEquals(store.grades.value, reopened.grades.value)

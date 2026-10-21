@@ -74,6 +74,20 @@ class DifficultyTest {
     }
 
     @Test
+    fun theBooksWordsAreKeptWithWhereTheyFirstAppear() {
+        val text = "猫が好きです。".repeat(130) + "ねこです。"
+        val words = Difficulty.measure(sequenceOf(RubyText(text)), Segmenter(lexicon))!!.words
+
+        assertEquals(listOf("猫", "が", "好き", "です", "ねこ"), words.keys)
+        assertEquals(listOf(900, 3, 200, 5, 900), words.ranks.toList())
+        assertEquals(0f, words.firstAt[0], 0.001f)
+        assertEquals(910f / text.length, words.firstAt[4], 0.001f)
+        val met = ArrayList<String>()
+        words.forEachMet(0.5f) { key, _ -> met += key }
+        assertEquals(listOf("猫", "が", "好き", "です"), met)
+    }
+
+    @Test
     fun kanjiWithFuriganaCountHalf() {
         val text = "猫が好きです。".repeat(130)
         val ruby = BitSet().apply { for (i in text.indices step 7) set(i) }

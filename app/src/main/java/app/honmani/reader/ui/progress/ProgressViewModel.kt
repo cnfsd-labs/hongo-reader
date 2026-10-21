@@ -5,7 +5,6 @@ import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.AP
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import app.honmani.reader.AppContainer
 import app.honmani.reader.HonmaniApplication
 import app.honmani.reader.data.difficulty.StoredDifficulty
 import app.honmani.reader.data.library.BookEntity
@@ -19,15 +18,16 @@ import app.honmani.reader.data.stats.ReadingLevel
 import app.honmani.reader.data.stats.ReadingStats
 import app.honmani.reader.data.stats.Skill
 import app.honmani.reader.data.stats.SkillEstimate
+import app.honmani.reader.data.stats.SkillTracker
 import app.honmani.reader.data.stats.StatsPeriod
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
@@ -63,9 +63,13 @@ class ProgressViewModel(
     private val grades: Flow<Map<String, StoredDifficulty>> = flowOf(emptyMap()),
     private val today: () -> LocalDate = LocalDate::now,
     private val zone: () -> ZoneId = ZoneId::systemDefault,
+    /** The skill; by default from speed alone (no words known). */
+    private val skill: Flow<SkillEstimate> = SkillTracker(days, books, grades, flowOf(emptySet()), { null }, today, EmptyCoroutineContext).estimate,
 ) : ViewModel() {
+    private val library = combine(books, grades, skill) { b, g, s -> Triple(b, g, s) }
+
     val uiState: StateFlow<ProgressUiState?> =
-        combine(days, combine(books, grades) { b, g -> b to g }, wordsLearned, ankiCards, store.seen) { rows, (books, grades), learned, anki, seen ->
+        combine(days, library, wordsLearned, ankiCards, store.seen) { rows, (books, grades, skill), learned, anki, seen ->
             val today = today()
             val zone = zone()
             val data = ProgressionData(
@@ -78,9 +82,9 @@ class ProgressViewModel(
             )
             val milestones = Progression.milestones(data, seen, today)
             val week = ReadingStats.period(rows, today, StatsPeriod.WEEK)
-            val scores = scores(books, grades)
-            val byId = scores.associate { (book, score) -> book.id to score }
-            val skill = Skill.estimate(rows, byId::get, today)
+            val scores = books.mapNotNull { book ->
+                grades[book.contentHash]?.difficulty?.score?.takeIf { it > 0 }?.let { book to it }
+            }
             val unfinished = scores.filter { (book, _) -> book.finishedAt == null && book.progress < 1f && !book.hidden }
             ProgressUiState(
                 level = Progression.level(rows.sumOf { it.characters }),
@@ -111,17 +115,6 @@ class ProgressViewModel(
     fun shown(milestones: List<Milestone>) = store.shown(milestones.map { it.id })
 
     companion object {
-        /** The graded books with their scores. */
-        private fun scores(books: List<BookEntity>, grades: Map<String, StoredDifficulty>): List<Pair<BookEntity, Int>> =
-            books.mapNotNull { book -> grades[book.contentHash]?.difficulty?.score?.takeIf { it > 0 }?.let { book to it } }
-
-        /** The reader's current skill, for screens that only need the number. */
-        fun skill(container: AppContainer, today: () -> LocalDate = LocalDate::now): Flow<Int?> =
-            combine(container.readingDao.observeAll(), container.bookDao.observeAll(), container.difficultyStore.grades) { rows, books, grades ->
-                val scores = scores(books, grades).associate { (book, score) -> book.id to score }
-                Skill.estimate(rows, scores::get, today()).current
-            }.distinctUntilChanged()
-
         val Factory = viewModelFactory {
             initializer {
                 val container = (this[APPLICATION_KEY] as HonmaniApplication).container
@@ -132,6 +125,7 @@ class ProgressViewModel(
                     ankiCards = container.wordRepository.ankiCards,
                     store = container.milestoneStore,
                     grades = container.difficultyStore.grades,
+                    skill = container.skillTracker.estimate,
                 )
             }
         }

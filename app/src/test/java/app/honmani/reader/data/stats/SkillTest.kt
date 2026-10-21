@@ -65,4 +65,19 @@ class SkillTest {
         val books = listOf(10L to 40, 11L to 47, 12L to 52, 13L to 58, 14L to 70)
         assertEquals(listOf(12L, 11L, 13L), Skill.fitting(books, skill = 50))
     }
+
+    @Test
+    fun vocabularyJoinsWithMoreReading() {
+        val vocabulary = VocabularySkill(70, VocabularyEstimate(words = 30_000, met = 5_000, learning = 300))
+        fun estimate(characters: Long) = SkillEstimate(50, emptyList(), 7_200, gradedCharacters = characters)
+
+        // Too little read: fluency alone.
+        assertEquals(null, Skill.combine(estimate(10_000), vocabulary).vocabulary)
+        assertEquals(50, Skill.combine(estimate(10_000), vocabulary).current)
+        // Half the full weight at 50,000 characters: 0.3 · 70 + 0.7 · 50.
+        assertEquals(56, Skill.combine(estimate(50_000), vocabulary).current)
+        // Full weight: 0.6 · 70 + 0.4 · 50.
+        assertEquals(62, Skill.combine(estimate(500_000), vocabulary).current)
+        assertEquals(50, Skill.combine(estimate(500_000), vocabulary).fluency)
+    }
 }

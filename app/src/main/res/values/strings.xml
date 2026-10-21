@@ -375,9 +375,11 @@
     <string name="skill_value">Skill %1$d</string>
     <string name="skill_based_on">Based on %1$s of reading in books with a difficulty</string>
     <string name="skill_measuring">Still measuring: %1$d of %2$d minutes read in books with a difficulty.</string>
-    <string name="skill_trend">Skill over the last %1$d weeks</string>
+    <string name="skill_parts">Vocabulary %1$d (about %2$s words) · Fluency %3$d</string>
+    <string name="skill_vocabulary_waiting">Your vocabulary joins in after %1$s characters in books with a difficulty (%2$s so far).</string>
+    <string name="skill_trend">Reading fluency over the last %1$d weeks</string>
     <string name="skill_fitting">Books that fit you</string>
-    <string name="skill_how">Skill is on the same scale as book difficulty. It comes from how fast you read books of known difficulty: a book of difficulty 50 read at 8,000 characters an hour counts as 50, twice as fast as 60. Recent weeks count more. Speed depends on your screen and settings, so compare your skill only with itself.</string>
+    <string name="skill_how">Skill is on the same scale as book difficulty and has two parts. Fluency comes from how fast you read books of known difficulty: a book of difficulty 50 read at 8,000 characters an hour counts as 50, twice as fast as 60; recent weeks count more. Speed depends on your screen and settings, so compare it only with itself. Vocabulary comes from the words you have met in those books: words you looked up and haven\'t marked as learned count as unknown, all others as known. It is an estimate, a little high when you skip lookups.</string>
     <string name="progress_empty">Nothing read yet. Your level and milestones grow as you read.</string>
     <string name="progress_level">Level %1$d</string>
     <string name="progress_to_next">%1$s to level %2$d</string>

@@ -28,6 +28,23 @@ data class BookDifficulty(
 )
 
 /**
+ * The distinct words of a book (dictionary forms, [Lexicon.UNRANKED] words included), with their
+ * frequency rank and where in the book each first appears, as a share of the text (0 to 1): the
+ * words a reader has met up to some progress, for the vocabulary estimate.
+ */
+class BookWords(val keys: List<String>, val ranks: IntArray, val firstAt: FloatArray) {
+    val size: Int get() = keys.size
+
+    /** The words met by [progress] (0 to 1). */
+    inline fun forEachMet(progress: Float, action: (key: String, rank: Int) -> Unit) {
+        for (i in keys.indices) if (firstAt[i] <= progress) action(keys[i], ranks[i])
+    }
+}
+
+/** A book's grade and its words, from one pass over its text. */
+class Measured(val difficulty: BookDifficulty, val words: BookWords)
+
+/**
  * Bands of the 1–100 scale, each about one JLPT level, at learnnatively.com's boundaries (N5 up to
  * level 12, N4 13–19, N3 20–26, N2 27–33, N1 34–40) converted with [Difficulty.score]'s scale.
  * [highest] is the band's top score.
@@ -58,9 +75,9 @@ object Difficulty {
     /**
      * Raise when the scale or the word splitting changes, so stored results are redone. 2: EPUB
      * paragraphs end sentences (dialogue without 。 had made sentences far too long). 3: the
-     * book's characters are kept.
+     * book's characters are kept. 4: the book's words are kept ([BookWords]).
      */
-    const val VERSION = 3
+    const val VERSION = 4
 
     const val COVERAGE = 0.95
 
@@ -105,9 +122,14 @@ object Difficulty {
         (1 + 99 * nativelyLevel(r95, kanjiShare, sentenceLength) / TOP_LEVEL).roundToInt().coerceIn(1, 100)
 
     /** Splits [text] with [segmenter] and grades it; null for text with too few words to tell. */
-    fun of(text: Sequence<RubyText>, segmenter: Segmenter): BookDifficulty? {
+    fun of(text: Sequence<RubyText>, segmenter: Segmenter): BookDifficulty? = measure(text, segmenter)?.difficulty
+
+    /** [of], with the book's words. */
+    fun measure(text: Sequence<RubyText>, segmenter: Segmenter): Measured? {
         val ranks = IntList()
-        val distinct = HashSet<String>()
+        // Each distinct word's rank and first offset in the whole text, in order of appearance.
+        val distinct = LinkedHashMap<String, LongArray>()
+        var offset = 0L
         var unknown = 0
         var kanjiWords = 0.0
         var characters = 0L
@@ -119,7 +141,7 @@ object Difficulty {
                     unknown++
                 } else {
                     ranks.add(token.rank)
-                    distinct.add(token.key)
+                    distinct.getOrPut(token.key) { longArrayOf(token.rank.toLong(), offset + token.start) }
                     val kanji = (token.start until token.start + token.length).filter { JapaneseText.isKanji(part[it].code) }
                     if (kanji.isNotEmpty()) kanjiWords += if (kanji.all { chapter.ruby[it] }) FURIGANA_KANJI else 1.0
                 }
@@ -135,12 +157,19 @@ object Difficulty {
                 }
             }
             if (inSentence) sentences++
+            offset += part.length
         }
         if (ranks.size < MIN_WORDS || sentences == 0L) return null
         val r95 = r95(ranks.toArray())
         val kanjiShare = kanjiWords / ranks.size
         val sentenceLength = characters.toDouble() / sentences
-        return BookDifficulty(
+        val length = offset.coerceAtLeast(1).toFloat()
+        val words = BookWords(
+            keys = distinct.keys.toList(),
+            ranks = IntArray(distinct.size).also { array -> distinct.values.forEachIndexed { i, v -> array[i] = v[0].toInt() } },
+            firstAt = FloatArray(distinct.size).also { array -> distinct.values.forEachIndexed { i, v -> array[i] = v[1] / length } },
+        )
+        val difficulty = BookDifficulty(
             version = VERSION,
             score = score(r95, kanjiShare, sentenceLength),
             r95 = r95,
@@ -151,6 +180,7 @@ object Difficulty {
             distinctWords = distinct.size,
             unknownShare = unknown.toFloat() / (unknown + ranks.size),
         )
+        return Measured(difficulty, words)
     }
 
     /** Short stories count; a page or two doesn't. */

@@ -10,8 +10,9 @@ import org.json.JSONObject
 data class StoredDifficulty(val difficulty: BookDifficulty, val signature: String)
 
 /**
- * Book grades as small JSON files named by the book's content hash, like the books themselves. A
- * cache: deleting the directory only means the books are graded again.
+ * Book grades as small JSON files named by the book's content hash, like the books themselves,
+ * and each book's words ([BookWords]) in a text file beside it, read only when needed. A cache:
+ * deleting the directory only means the books are graded again.
  */
 class DifficultyStore(private val directory: File) {
     private val _grades = MutableStateFlow<Map<String, StoredDifficulty>>(emptyMap())
@@ -36,16 +37,53 @@ class DifficultyStore(private val directory: File) {
         _grades.value += contentHash to grade
     }
 
-    /** Drops grades of books no longer in the library. */
+    /** Keeps a book's words; save them before the grade, so a graded book has its words. */
+    fun saveWords(contentHash: String, words: BookWords) {
+        directory.mkdirs()
+        val temporary = File(directory, "$contentHash$WORDS_SUFFIX.tmp")
+        temporary.bufferedWriter().use { out ->
+            for (i in 0 until words.size) {
+                out.append(words.keys[i]).append('\t').append(words.ranks[i].toString()).append('\t')
+                    .append(words.firstAt[i].toString()).append('\n')
+            }
+        }
+        temporary.renameTo(File(directory, contentHash + WORDS_SUFFIX))
+    }
+
+    /** A book's words; null if it has none (not graded, or graded before words were kept). Off the main thread. */
+    fun words(contentHash: String): BookWords? {
+        val file = File(directory, contentHash + WORDS_SUFFIX)
+        if (!file.exists()) return null
+        return runCatching {
+            val keys = ArrayList<String>()
+            val ranks = ArrayList<Int>()
+            val firstAt = ArrayList<Float>()
+            file.forEachLine { line ->
+                val fields = line.split('\t')
+                if (fields.size == 3) {
+                    keys += fields[0]
+                    ranks += fields[1].toInt()
+                    firstAt += fields[2].toFloat()
+                }
+            }
+            BookWords(keys, ranks.toIntArray(), firstAt.toFloatArray())
+        }.getOrNull()
+    }
+
+    /** Drops grades and words of books no longer in the library. */
     fun keepOnly(contentHashes: Set<String>) {
         val gone = _grades.value.keys - contentHashes
         if (gone.isEmpty()) return
-        for (hash in gone) File(directory, hash + SUFFIX).delete()
+        for (hash in gone) {
+            File(directory, hash + SUFFIX).delete()
+            File(directory, hash + WORDS_SUFFIX).delete()
+        }
         _grades.value -= gone
     }
 
     internal companion object {
         private const val SUFFIX = ".json"
+        private const val WORDS_SUFFIX = ".words"
 
         fun encode(grade: StoredDifficulty): JSONObject = with(grade.difficulty) {
             JSONObject()

@@ -1,6 +1,7 @@
 package app.honmani.reader.ui.progress
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,8 +11,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -31,11 +35,13 @@ import app.honmani.reader.data.stats.SkillPoint
 import app.honmani.reader.ui.ProgressBar
 import app.honmani.reader.ui.difficultyBand
 import app.honmani.reader.ui.stats.duration
+import app.honmani.reader.ui.stats.number
 
 /** The reader's skill on the books' difficulty scale, its course over the last weeks, and books that fit it. */
 @Composable
 internal fun SkillContent(
     modifier: Modifier = Modifier,
+    onOpenBook: (Long) -> Unit = {},
     viewModel: ProgressViewModel = viewModel(factory = ProgressViewModel.Factory),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -49,7 +55,7 @@ internal fun SkillContent(
     ) {
         SkillCard(current.skill)
         if (current.skill.trend.any { it.skill != null }) SkillTrend(current.skill.trend)
-        if (current.fitting.isNotEmpty()) FittingBooks(current.fitting)
+        if (current.fitting.isNotEmpty()) FittingBooks(current.fitting, onOpenBook)
         Text(
             text = stringResource(R.string.skill_how),
             style = MaterialTheme.typography.bodySmall,
@@ -75,6 +81,23 @@ private fun SkillCard(skill: SkillEstimate) {
                     color = MaterialTheme.colorScheme.primary,
                 )
                 Text(difficultyBand(value), style = MaterialTheme.typography.titleMedium)
+                val vocabulary = skill.vocabulary
+                if (vocabulary != null && skill.fluency != null) {
+                    Text(
+                        stringResource(R.string.skill_parts, vocabulary.score, number(vocabulary.estimate.words.toLong()), skill.fluency),
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                } else if (skill.gradedCharacters < Skill.VOCABULARY_MIN_CHARACTERS) {
+                    Text(
+                        stringResource(
+                            R.string.skill_vocabulary_waiting,
+                            number(Skill.VOCABULARY_MIN_CHARACTERS),
+                            number(skill.gradedCharacters),
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 Text(
                     stringResource(R.string.skill_based_on, duration(skill.gradedSeconds)),
                     style = MaterialTheme.typography.bodyMedium,
@@ -150,16 +173,24 @@ private fun SkillTrend(trend: List<SkillPoint>) {
 }
 
 @Composable
-private fun FittingBooks(books: List<FittingBook>) {
+private fun FittingBooks(books: List<FittingBook>, onOpen: (Long) -> Unit) {
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
-        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(modifier = Modifier.padding(vertical = 12.dp)) {
             Text(
                 stringResource(R.string.skill_fitting),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
             )
+            // Each row opens its book.
             for (book in books) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onOpen(book.id) }
+                        .padding(horizontal = 20.dp, vertical = 10.dp),
+                ) {
                     Text(
                         book.title,
                         style = MaterialTheme.typography.bodyLarge,
@@ -172,6 +203,12 @@ private fun FittingBooks(books: List<FittingBook>) {
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(start = 12.dp),
+                    )
+                    Icon(
+                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 4.dp),
                     )
                 }
             }

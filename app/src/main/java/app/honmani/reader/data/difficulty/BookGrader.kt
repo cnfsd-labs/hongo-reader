@@ -60,7 +60,9 @@ class BookGrader(
             val split = segmenter ?: Segmenter(lexicon(sources)).also { segmenter = it }
             val started = System.nanoTime()
             // Unreadable or too short: kept as score 0, so it isn't tried again on every run.
-            val difficulty = texts(book)?.let { Difficulty.of(it, split) }
+            val measured = texts(book)?.let { Difficulty.measure(it, split) }
+            measured?.let { store.saveWords(book.contentHash, it.words) }
+            val difficulty = measured?.difficulty
                 ?: BookDifficulty(Difficulty.VERSION, score = 0, r95 = 0, kanjiShare = 0f, sentenceLength = 0f, words = 0, distinctWords = 0, unknownShare = 0f)
             store.save(book.contentHash, StoredDifficulty(difficulty, signature))
             graded++

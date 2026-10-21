@@ -38,6 +38,7 @@ import app.honmani.reader.data.stats.ReadingDao
 import app.honmani.reader.data.stats.ReadingDayEntity
 import app.honmani.reader.data.stats.ReadingStore
 import app.honmani.reader.data.stats.ReadingTracker
+import app.honmani.reader.data.stats.SkillTracker
 import app.honmani.reader.data.sync.EpubPositions
 import app.honmani.reader.data.sync.KoSyncClient
 import app.honmani.reader.data.sync.KoSyncSettings
@@ -251,6 +252,17 @@ class AppContainer(context: Context) {
                 }
             },
             log = { Log.i("Honmani.difficulty", it) },
+        )
+    }
+
+    /** The reader's skill: fluency and vocabulary in graded books. */
+    val skillTracker: SkillTracker by lazy {
+        SkillTracker(
+            days = readingDao.observeAll(),
+            books = bookDao.observeAll(),
+            grades = difficultyStore.grades,
+            learning = wordRepository.learning.map { words -> words.mapTo(HashSet()) { it.expression } }.distinctUntilChanged(),
+            words = difficultyStore::words,
         )
     }
 

@@ -10,13 +10,25 @@ import kotlin.math.roundToInt
 data class SkillPoint(val weekEnd: LocalDate, val skill: Int?)
 
 data class SkillEstimate(
-    /** Today's skill; null while there is too little reading in graded books ([Skill.MIN_SECONDS]). */
+    /**
+     * Today's skill: [fluency] and the [vocabulary] part combined ([Skill.combine]); null while
+     * there is too little reading in graded books ([Skill.MIN_SECONDS]).
+     */
     val current: Int?,
-    /** One point per week, oldest first, the last ending today. */
+    /** The reading fluency (speed against difficulty), one point per week, oldest first, the last ending today. */
     val trend: List<SkillPoint>,
     /** Time read in books that have a difficulty. */
     val gradedSeconds: Long,
+    /** Characters read in books that have a difficulty. */
+    val gradedCharacters: Long = 0,
+    /** Today's skill from reading speed alone. */
+    val fluency: Int? = current,
+    /** The vocabulary part, once enough has been read ([Skill.VOCABULARY_MIN_CHARACTERS]). */
+    val vocabulary: VocabularySkill? = null,
 )
+
+/** The vocabulary estimate on the difficulty scale: [score] is the difficulty of books with an R95 of [estimate]'s words. */
+data class VocabularySkill(val score: Int, val estimate: VocabularyEstimate)
 
 /**
  * How hard a book the reader reads comfortably, from their reading speed in books of known
@@ -42,12 +54,14 @@ object Skill {
     /** [difficulty] gives a book's score (1–100), or null for books not graded. */
     fun estimate(rows: List<ReadingDayEntity>, difficulty: (bookId: Long) -> Int?, today: LocalDate, weeks: Int = 12): SkillEstimate {
         var gradedSeconds = 0L
+        var gradedCharacters = 0L
         val measurements = rows
             .mapNotNull { row ->
                 val score = difficulty(row.bookId) ?: return@mapNotNull null
                 val daysAgo = ChronoUnit.DAYS.between(LocalDate.parse(row.day), today)
                 if (daysAgo < 0) return@mapNotNull null
                 gradedSeconds += row.seconds
+                gradedCharacters += row.characters
                 Triple(row.bookId to (daysAgo / 7).toInt(), score, row)
             }
             .groupBy({ it.first }, { it.second to it.third })
@@ -76,6 +90,31 @@ object Skill {
             current = if (gradedSeconds >= MIN_SECONDS) skillAt(0) else null,
             trend = (weeks - 1 downTo 0).map { SkillPoint(today.minusDays(7L * it), skillAt(it)) },
             gradedSeconds = gradedSeconds,
+            gradedCharacters = gradedCharacters,
+        )
+    }
+
+    /** The vocabulary needs this much reading in graded books before it counts. */
+    const val VOCABULARY_MIN_CHARACTERS = 20_000L
+
+    /** From this much reading on, the vocabulary has its full weight, [VOCABULARY_WEIGHT]. */
+    const val VOCABULARY_FULL_CHARACTERS = 100_000L
+    const val VOCABULARY_WEIGHT = 0.6
+
+    /**
+     * [estimate] with the vocabulary part: the skill becomes a weighted mean of fluency and
+     * vocabulary, the vocabulary's weight growing with the characters read to
+     * [VOCABULARY_WEIGHT]. Speed data comes first; the vocabulary needs more reading to say much.
+     */
+    fun combine(estimate: SkillEstimate, vocabulary: VocabularySkill?): SkillEstimate {
+        val fluency = estimate.fluency
+        if (vocabulary == null || estimate.gradedCharacters < VOCABULARY_MIN_CHARACTERS || fluency == null) {
+            return estimate.copy(vocabulary = null)
+        }
+        val weight = VOCABULARY_WEIGHT * (estimate.gradedCharacters.toDouble() / VOCABULARY_FULL_CHARACTERS).coerceAtMost(1.0)
+        return estimate.copy(
+            current = (weight * vocabulary.score + (1 - weight) * fluency).roundToInt(),
+            vocabulary = vocabulary,
         )
     }
 

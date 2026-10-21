@@ -83,7 +83,7 @@ private enum class ProgressSection(val label: Int) {
 
 /** The Progress tab: level and milestones, skill, and the reading statistics; swipe between them. */
 @Composable
-fun ProgressTab(bottomBar: @Composable () -> Unit) {
+fun ProgressTab(bottomBar: @Composable () -> Unit, onOpenBook: (Long) -> Unit = {}) {
     val pager = rememberPagerState { ProgressSection.entries.size }
     val scope = rememberCoroutineScope()
     Scaffold(
@@ -111,7 +111,7 @@ fun ProgressTab(bottomBar: @Composable () -> Unit) {
         ) { page ->
             when (ProgressSection.entries[page]) {
                 ProgressSection.OVERVIEW -> ProgressContent()
-                ProgressSection.SKILL -> SkillContent()
+                ProgressSection.SKILL -> SkillContent(onOpenBook = onOpenBook)
                 ProgressSection.STATISTICS -> StatisticsContent()
             }
         }

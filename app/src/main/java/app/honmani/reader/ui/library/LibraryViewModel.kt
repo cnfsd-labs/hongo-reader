@@ -20,7 +20,6 @@ import app.honmani.reader.data.library.RemovedBookEntity
 import app.honmani.reader.data.opds.AutoImportStatus
 import app.honmani.reader.lookup.Romaji
 import app.honmani.reader.lookup.TextReading
-import app.honmani.reader.ui.progress.ProgressViewModel
 import app.honmani.reader.ui.reader.TtuBook
 import app.honmani.reader.ui.reader.TtuLibrary
 import app.honmani.reader.ui.reader.TtuLibraryException
@@ -35,8 +34,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -393,7 +394,7 @@ class LibraryViewModel(
                     grades = container.difficultyStore.grades,
                     sortName = container.appearanceSettings.librarySort,
                     saveSort = container.appearanceSettings::setLibrarySort,
-                    skill = ProgressViewModel.skill(container),
+                    skill = container.skillTracker.estimate.map { it.current }.distinctUntilChanged(),
                     syncPosition = { book, ttuId ->
                         val ttu = container.ttuLibrary
                         // Sync is a bonus: the book opens where it was if the reader page can't answer.

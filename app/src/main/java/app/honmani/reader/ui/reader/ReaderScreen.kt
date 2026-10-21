@@ -227,7 +227,7 @@ private fun ReaderWithTabs(viewModel: ReaderViewModel) {
                     onShowProgress = { tab = HomeTab.PROGRESS },
                 )
                 HomeTab.WORDS -> WordsScreen(bottomBar = bottomBar)
-                HomeTab.PROGRESS -> ProgressTab(bottomBar = bottomBar)
+                HomeTab.PROGRESS -> ProgressTab(bottomBar = bottomBar, onOpenBook = library::open)
                 HomeTab.SETTINGS -> SettingsScreen(
                     bottomBar = bottomBar,
                     showingDictionaries = dictionariesShown,
