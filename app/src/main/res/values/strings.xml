@@ -522,7 +522,7 @@
     <string name="onboarding_failed">The download failed. Check your connection and try again.</string>
     <string name="onboarding_retry">Try again</string>
     <string name="onboarding_book_title">Open a book</string>
-    <string name="onboarding_book_message">Try the first chapter of 吾輩は猫である (Natsume Sōseki), or add an EPUB or text file of your own.</string>
+    <string name="onboarding_book_message">Try 手袋を買いに (Niimi Nankichi), a short children\'s story, or add an EPUB or text file of your own.</string>
     <string name="onboarding_sample">Read the sample book</string>
     <string name="onboarding_add_book">Add my own book</string>
     <string name="onboarding_skip">Skip for now</string>
