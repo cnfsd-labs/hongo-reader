@@ -11,13 +11,13 @@ data class VocabularyEstimate(
      * how many of the most common words they know. Comparable with a book's R95.
      */
     val words: Int,
-    /** Distinct words met in graded books up to the reader's position, and how many of them are being learned. */
+    /** Distinct words met in the parts of graded books read, and how many of them are being learned. */
     val met: Int,
     val learning: Int,
 )
 
 /**
- * The vocabulary estimate. Every word met in a graded book (before the reader's position) counts
+ * The vocabulary estimate. Every word met in a graded book (in the pages read) counts
  * as known, unless it is in the word list and not known yet (`WordProgress`).
  * Words are grouped in frequency bands that double in size (the 500 most common, the next 500,
  * the next 1,000, …), and the estimate is the rank where the share of known words falls below

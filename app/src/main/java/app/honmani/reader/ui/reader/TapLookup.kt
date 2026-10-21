@@ -17,8 +17,11 @@ sealed interface BridgeMessage {
     /** An opened book is laid out and on screen (`assets/honmani/book-shown.js`). */
     data class BookShown(val id: Long) : BridgeMessage
 
-    /** ttu saved the reading position of a book after a page turn (`assets/honmani/reading-activity.js`). */
-    data class Position(val id: Long, val characters: Long) : BridgeMessage
+    /**
+     * ttu saved the reading position of a book after a page turn (`assets/honmani/reading-activity.js`):
+     * [characters] read up to it and, if ttu has it, where it is in the book ([progress], 0 to 1).
+     */
+    data class Position(val id: Long, val characters: Long, val progress: Float? = null) : BridgeMessage
 
     /** The reader bar's Settings entry: open Honmani's reader settings (`assets/honmani/reader-settings.js`). */
     data object OpenSettings : BridgeMessage
@@ -61,7 +64,12 @@ sealed interface BridgeMessage {
         }
 
         @Serializable
-        private data class PositionEnvelope(val type: String = "", val id: Long = 0, val characters: Long = -1)
+        private data class PositionEnvelope(
+            val type: String = "",
+            val id: Long = 0,
+            val characters: Long = -1,
+            val progress: Double = -1.0,
+        )
 
         private fun parsePosition(message: String?): Position? {
             if (message == null || message.length > MAX_BOOK_SHOWN_LENGTH || "reader.position" !in message) return null
@@ -73,7 +81,8 @@ sealed interface BridgeMessage {
                 return null
             }
             val valid = envelope.type == "reader.position" && envelope.id > 0 && envelope.characters >= 0
-            return if (valid) Position(envelope.id, envelope.characters) else null
+            val progress = envelope.progress.takeIf { it in 0.0..1.0 }?.toFloat()
+            return if (valid) Position(envelope.id, envelope.characters, progress) else null
         }
 
         private const val MAX_BOOK_SHOWN_LENGTH = 200

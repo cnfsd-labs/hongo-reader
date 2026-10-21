@@ -146,8 +146,8 @@ private fun ReaderWithTabs(viewModel: ReaderViewModel) {
                     tracker.setBook(it)
                 },
                 onActivity = tracker::onActivity,
-                onPage = { ttuId, characters ->
-                    tracker.onPage(ttuId, characters)
+                onPage = { ttuId, characters, progress ->
+                    tracker.onPage(ttuId, characters, progress)
                     container.progressSync.onPosition(ttuId, characters)
                 },
                 onOpenSettings = {

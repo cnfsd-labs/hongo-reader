@@ -88,6 +88,15 @@ class TapLookupTest {
         assertNull(BridgeMessage.parse("""{"type":"pageShown","path":"/manage"}"""))
         assertEquals(BridgeMessage.Position(3, 1_200), BridgeMessage.parse("""{"type":"reader.position","id":3,"characters":1200}"""))
         assertNull(BridgeMessage.parse("""{"type":"reader.position","id":3}"""))
+        assertEquals(
+            BridgeMessage.Position(3, 1_200, 0.25f),
+            BridgeMessage.parse("""{"type":"reader.position","id":3,"characters":1200,"progress":0.25}"""),
+        )
+        // A progress out of range is left out, the position still counts.
+        assertEquals(
+            BridgeMessage.Position(3, 1_200),
+            BridgeMessage.parse("""{"type":"reader.position","id":3,"characters":1200,"progress":7}"""),
+        )
         assertEquals(BridgeMessage.BookShown(7), BridgeMessage.parse("""{"type":"bookShown","id":7}"""))
         assertNull(BridgeMessage.parse("""{"type":"bookShown","id":0}"""))
         assertNull(BridgeMessage.parse("""{"type":"bookShown","id":"x"}"""))

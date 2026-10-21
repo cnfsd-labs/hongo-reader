@@ -38,9 +38,9 @@ class SkillTracker(
         var kanji = 0.0
         var sentence = 0.0
         for ((book, grade) in graded) {
-            val progress = if (book.finishedAt != null) 1f else book.progress.coerceIn(0f, 1f)
+            val share = knowledge.readShares[book.contentHash] ?: continue
             val difficulty = grade.difficulty
-            val weight = progress * difficulty.characters.coerceAtLeast(1).toDouble()
+            val weight = share * difficulty.characters.coerceAtLeast(1).toDouble()
             weights += weight
             kanji += difficulty.kanjiShare * weight
             sentence += difficulty.sentenceLength * weight

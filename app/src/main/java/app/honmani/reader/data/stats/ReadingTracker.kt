@@ -17,6 +17,9 @@ interface ReadingStore {
     suspend fun position(ttuId: Long): Long?
 
     suspend fun setPosition(ttuId: Long, characters: Long)
+
+    /** The part of the book from [from] to [to] (0 to 1) was read, page by page. */
+    suspend fun addRead(ttuId: Long, from: Float, to: Float) {}
 }
 
 /**
@@ -34,6 +37,9 @@ interface ReadingStore {
  * on screen ([MAX_CHARACTERS_PER_SECOND]): a jump forward through the table of contents is not
  * reading. Going back counts nothing. ttu's reports of all positions (from the library) count
  * what page turns missed, with a little allowance for reading before the app last stopped.
+ *
+ * **Stretches read**: the part of the book of each page counted is passed on ([ReadingStore.addRead]),
+ * for the words read (`WordKnowledge`); ttu's reports of all positions add none.
  *
  * Calls come from the main thread and from collectors of ttu's reports; state is guarded by a
  * lock, writes go through [store] one at a time.
@@ -81,8 +87,11 @@ class ReadingTracker(
         flushIfDue()
     }
 
-    /** The page turned in book [ttuId]: [characters] read up to the new reading position. */
-    fun onPage(ttuId: Long, characters: Long) {
+    /**
+     * The page turned in book [ttuId]: [characters] read up to the new reading position, which is
+     * at [progress] (0 to 1) in the book, if known.
+     */
+    fun onPage(ttuId: Long, characters: Long, progress: Float? = null) {
         synchronized(lock) {
             // The time on the page left counts up to now.
             if (active() && book == ttuId) {
@@ -103,7 +112,14 @@ class ReadingTracker(
                 } else {
                     0L
                 }
-                if (read > 0) safely { store.add(ttuId, day(clock()), 0, read) }
+                if (read > 0) {
+                    safely { store.add(ttuId, day(clock()), 0, read) }
+                    // The book's length from the new position: characters at progress.
+                    if (progress != null && progress > 0f && characters > 0) {
+                        val total = characters / progress.toDouble()
+                        safely { store.addRead(ttuId, (before / total).toFloat(), ((before + read) / total).toFloat()) }
+                    }
+                }
                 safely { store.setPosition(ttuId, characters) }
             }
         }

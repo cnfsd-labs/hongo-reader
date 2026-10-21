@@ -15,10 +15,13 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
@@ -31,6 +34,7 @@ import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -63,7 +67,6 @@ import app.honmani.reader.data.stats.Milestone
 import app.honmani.reader.data.stats.MilestoneKind
 import app.honmani.reader.data.stats.Progression
 import app.honmani.reader.data.stats.ReadingLevel
-import app.honmani.reader.ui.HonmaniTopAppBar
 import app.honmani.reader.ui.ProgressBar
 import app.honmani.reader.ui.stats.StatisticsContent
 import app.honmani.reader.ui.stats.characters
@@ -87,10 +90,13 @@ fun ProgressTab(bottomBar: @Composable () -> Unit, onOpenBook: (Long) -> Unit = 
     val pager = rememberPagerState { ProgressSection.entries.size }
     val scope = rememberCoroutineScope()
     Scaffold(
+        // No title: the bottom bar names the tab.
         topBar = {
-            Column {
-                HonmaniTopAppBar(title = stringResource(R.string.progress_title))
-                PrimaryTabRow(selectedTabIndex = pager.currentPage) {
+            Surface(color = TabRowDefaults.primaryContainerColor) {
+                PrimaryTabRow(
+                    selectedTabIndex = pager.currentPage,
+                    modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars),
+                ) {
                     ProgressSection.entries.forEachIndexed { index, entry ->
                         Tab(
                             selected = index == pager.currentPage,

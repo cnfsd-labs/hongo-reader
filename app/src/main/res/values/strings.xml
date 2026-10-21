@@ -11,7 +11,6 @@
     <string name="nav_words">Words</string>
     <string name="nav_progress">Progress</string>
     <string name="nav_settings">Settings</string>
-    <string name="settings_title">Settings</string>
     <string name="settings_accent">Accent colour</string>
     <string name="accent_purple">Purple</string>
     <string name="accent_blue">Blue</string>
@@ -155,10 +154,9 @@
     <string name="action_retry">Try again</string>
     <string name="action_save">Save</string>
 
-    <string name="words_title">Words</string>
     <string name="words_filter_learning">Learning (%1$d)</string>
     <string name="words_filter_known">Known (%1$d)</string>
-    <string name="words_empty_learning">Words you look up while reading appear here by themselves, starred ones first, then the ones you look up most. Each time you read a word it moves up a step; after 9 reads without looking it up it is known. A lookup takes it back two steps.</string>
+    <string name="words_empty_learning">Words you look up while reading appear here by themselves, starred ones first, then the ones you look up most. Each time you read a word it moves up a step (pages flicked past or skipped don\'t count); after 9 reads without looking it up it is known. A lookup takes it back two steps.</string>
     <string name="words_empty_known">Words you have read 9 times without looking them up appear here, and words you mark as learned (✓).</string>
     <string name="words_learning_hint">After 9 reads without a lookup a word is known; a lookup takes it back two steps.</string>
     <string name="words_known_hint">Known from reading in books with a difficulty, and words you marked as learned.</string>
@@ -203,7 +201,7 @@
     <string name="anki_package_progress">Saving for Anki: %1$d of %2$d…</string>
     <string name="anki_export_file_name">Honmani words.txt</string>
     <string name="action_export_anki_file">Save as text file for Anki</string>
-    <string name="words_menu">More options</string>
+    <string name="words_export">Export for Anki</string>
     <string name="anki_deck">Deck</string>
     <string name="anki_deck_details">New cards go to this AnkiDroid deck.</string>
     <string name="anki_deck_honmani">%1$s (Honmani\'s own)</string>
@@ -367,7 +365,6 @@
     <string name="lookup_no_dictionaries">No dictionary is installed yet. Get one in Settings → Dictionaries – it takes a minute.</string>
     <string name="lookup_open_dictionaries">Dictionaries</string>
     <!-- Progress: reading level and milestones -->
-    <string name="progress_title">Progress</string>
     <string name="progress_overview">Overview</string>
     <plurals name="progress_calendar">
         <item quantity="one">%1$d day of reading in the last year</item>
@@ -382,7 +379,7 @@
     <string name="skill_vocabulary_waiting">Your vocabulary joins in after %1$s characters in books with a difficulty (%2$s so far).</string>
     <string name="skill_trend">Reading fluency over the last %1$d weeks</string>
     <string name="skill_fitting">Books that fit you</string>
-    <string name="skill_how">Skill is on the same scale as book difficulty and has two parts. Fluency comes from how fast you read books of known difficulty: a book of difficulty 50 read at 8,000 characters an hour counts as 50, twice as fast as 60; recent weeks count more. Speed depends on your screen and settings, so compare it only with itself. Vocabulary comes from the words you have met in those books: words you looked up and haven\'t marked as learned count as unknown, all others as known. It is an estimate, a little high when you skip lookups.</string>
+    <string name="skill_how">Skill is on the same scale as book difficulty and has two parts. Fluency comes from how fast you read books of known difficulty: a book of difficulty 50 read at 8,000 characters an hour counts as 50, twice as fast as 60; recent weeks count more. Speed depends on your screen and settings, so compare it only with itself. Vocabulary comes from the words on the pages you have read in those books (pages flicked past or skipped don\'t count): words you looked up and haven\'t marked as learned count as unknown, all others as known. It is an estimate, a little high when you skip lookups.</string>
     <string name="progress_empty">Nothing read yet. Your level and milestones grow as you read.</string>
     <string name="progress_level">Level %1$d</string>
     <string name="progress_to_next">%1$s to level %2$d</string>

@@ -5,7 +5,6 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,18 +12,21 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Star
@@ -32,23 +34,27 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -75,13 +81,13 @@ import app.honmani.reader.data.words.WordEntity
 import app.honmani.reader.data.words.WordLookupEntity
 import app.honmani.reader.data.words.WordProgress
 import app.honmani.reader.data.words.WordStatus
-import app.honmani.reader.ui.HonmaniTopAppBar
 import app.honmani.reader.ui.ProgressBar
 import app.honmani.reader.ui.anki.label
 import app.honmani.reader.ui.anki.rememberAnkiAccess
 import app.honmani.reader.ui.anki.showAnkiResult
 import app.honmani.reader.ui.theme.HonmaniTheme
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 /** The words looked up while reading, most looked up (recently) first. */
 @Composable
@@ -162,7 +168,7 @@ fun WordsScreen(
 
     WordsContent(
         uiState = uiState,
-        now = remember(uiState.words) { System.currentTimeMillis() },
+        now = remember(uiState.learning, uiState.known) { System.currentTimeMillis() },
         snackbarHostState = snackbarHostState,
         bottomBar = bottomBar,
         onFilter = viewModel::setFilter,
@@ -195,16 +201,42 @@ private fun WordsContent(
     onExport: () -> Unit,
     onExportPackage: () -> Unit,
 ) {
+    val pager = rememberPagerState(initialPage = uiState.filter.ordinal) { WordFilter.entries.size }
+    val scope = rememberCoroutineScope()
+    // The list on screen is the one exports take.
+    LaunchedEffect(pager) {
+        snapshotFlow { pager.currentPage }.collect { onFilter(WordFilter.entries[it]) }
+    }
     Scaffold(
+        // No title (the bottom bar names the tab): Learning and Known, as tabs to tap or swipe
+        // between like Progress's sections, and the export beside them.
         topBar = {
-            HonmaniTopAppBar(
-                title = stringResource(R.string.words_title),
-                actions = {
-                    if (!uiState.words.isNullOrEmpty()) {
-                        WordsMenu(onExport, onExportPackage, enabled = uiState.ankiProgress == null)
+            Surface(color = TabRowDefaults.primaryContainerColor) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars),
+                ) {
+                    PrimaryTabRow(selectedTabIndex = pager.currentPage, modifier = Modifier.weight(1f)) {
+                        WordFilter.entries.forEachIndexed { index, filter ->
+                            Tab(
+                                selected = index == pager.currentPage,
+                                onClick = { scope.launch { pager.animateScrollToPage(index) } },
+                                text = {
+                                    Text(
+                                        stringResource(
+                                            filterLabel(filter),
+                                            if (filter == WordFilter.LEARNING) uiState.learning?.size ?: 0 else uiState.knownCount,
+                                        ),
+                                        maxLines = 1,
+                                    )
+                                },
+                            )
+                        }
                     }
-                },
-            )
+                    val shown = if (uiState.filter == WordFilter.LEARNING) uiState.learning else uiState.known
+                    ExportMenu(onExport, onExportPackage, enabled = !shown.isNullOrEmpty() && uiState.ankiProgress == null)
+                }
+            }
         },
         bottomBar = bottomBar,
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -214,28 +246,6 @@ private fun WordsContent(
                 .fillMaxSize()
                 .padding(padding),
         ) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp),
-            ) {
-                for (filter in WordFilter.entries) {
-                    FilterChip(
-                        selected = uiState.filter == filter,
-                        onClick = { onFilter(filter) },
-                        label = {
-                            Text(
-                                stringResource(
-                                    filterLabel(filter),
-                                    if (filter == WordFilter.LEARNING) uiState.learningCount else uiState.knownCount,
-                                ),
-                            )
-                        },
-                    )
-                }
-            }
-            val words = uiState.words
             val progress = uiState.ankiProgress
             if (progress != null) {
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
@@ -254,67 +264,105 @@ private fun WordsContent(
                             .padding(top = 6.dp),
                     )
                 }
-            } else if (uiState.filter == WordFilter.LEARNING && uiState.notInAnki > 0) {
-                FilledTonalButton(
-                    onClick = onAddAllToAnki,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_add_card),
-                        contentDescription = null,
-                        modifier = Modifier.padding(end = 8.dp),
-                    )
-                    Text(stringResource(R.string.action_add_all_to_anki, uiState.notInAnki))
+            }
+            HorizontalPager(state = pager, modifier = Modifier.fillMaxSize()) { page ->
+                val filter = WordFilter.entries[page]
+                WordList(
+                    filter = filter,
+                    words = if (filter == WordFilter.LEARNING) uiState.learning else uiState.known,
+                    knownByReading = if (filter == WordFilter.KNOWN) uiState.knownByReading else emptyList(),
+                    uiState = uiState,
+                    now = now,
+                    onToggleExpanded = onToggleExpanded,
+                    onSetStarred = onSetStarred,
+                    onMarkLearned = onMarkLearned,
+                    onMarkLearning = onMarkLearning,
+                    onDelete = onDelete,
+                    onAddToAnki = onAddToAnki,
+                    onAddAllToAnki = onAddAllToAnki,
+                )
+            }
+        }
+    }
+}
+
+/** One of the two lists: [words] saved, then (known list) [knownByReading]. */
+@Composable
+private fun WordList(
+    filter: WordFilter,
+    words: List<WordEntity>?,
+    knownByReading: List<Pair<String, Int>>,
+    uiState: WordsUiState,
+    now: Long,
+    onToggleExpanded: (id: Long) -> Unit,
+    onSetStarred: (id: Long, starred: Boolean) -> Unit,
+    onMarkLearned: (WordEntity) -> Unit,
+    onMarkLearning: (id: Long) -> Unit,
+    onDelete: (id: Long) -> Unit,
+    onAddToAnki: (WordEntity, WordLookupEntity?) -> Unit,
+    onAddAllToAnki: () -> Unit,
+) {
+    when {
+        words == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+        words.isEmpty() && knownByReading.isEmpty() -> Text(
+            text = stringResource(emptyText(filter)),
+            style = MaterialTheme.typography.bodyMedium,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(32.dp),
+        )
+        else -> LazyColumn(contentPadding = PaddingValues(bottom = 24.dp), modifier = Modifier.fillMaxSize()) {
+            if (filter == WordFilter.LEARNING && uiState.ankiProgress == null && uiState.notInAnki > 0) {
+                item(key = "addAll") {
+                    FilledTonalButton(
+                        onClick = onAddAllToAnki,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_add_card),
+                            contentDescription = null,
+                            modifier = Modifier.padding(end = 8.dp),
+                        )
+                        Text(stringResource(R.string.action_add_all_to_anki, uiState.notInAnki))
+                    }
                 }
             }
-            when {
-                words == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
-                words.isEmpty() && uiState.knownByReading.isEmpty() -> Text(
-                    text = stringResource(emptyText(uiState.filter)),
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(32.dp),
+            item(key = "hint") {
+                Text(
+                    text = stringResource(
+                        if (filter == WordFilter.LEARNING) R.string.words_learning_hint else R.string.words_known_hint,
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 )
-                else -> LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
-                    item(key = "hint") {
-                        Text(
-                            text = stringResource(
-                                if (uiState.filter == WordFilter.LEARNING) R.string.words_learning_hint else R.string.words_known_hint,
-                            ),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                        )
-                    }
-                    items(words, key = { it.id }) { word ->
-                        val expanded = word.id == uiState.expanded
-                        WordRow(
-                            word = word,
-                            now = now,
-                            // Known words are listed by name only; details on a tap.
-                            compact = uiState.filter == WordFilter.KNOWN && !expanded,
-                            steps = if (uiState.filter == WordFilter.LEARNING) uiState.steps[word.id] else null,
-                            expanded = expanded,
-                            lookups = if (expanded) uiState.lookups else emptyList(),
-                            onToggleExpanded = { onToggleExpanded(word.id) },
-                            onSetStarred = { onSetStarred(word.id, it) },
-                            onMarkLearned = { onMarkLearned(word) },
-                            onMarkLearning = { onMarkLearning(word.id) },
-                            onDelete = { onDelete(word.id) },
-                            onAddToAnki = { lookup -> onAddToAnki(word, lookup) },
-                            adding = word.id in uiState.addingToAnki,
-                        )
-                        HorizontalDivider()
-                    }
-                    items(uiState.knownByReading, key = { "read:" + it.first }) { (expression, reads) ->
-                        ReadWordRow(expression, reads)
-                        HorizontalDivider()
-                    }
-                }
+            }
+            items(words, key = { it.id }) { word ->
+                val expanded = word.id == uiState.expanded
+                WordRow(
+                    word = word,
+                    now = now,
+                    // Known words are listed by name only; details on a tap.
+                    compact = filter == WordFilter.KNOWN && !expanded,
+                    steps = if (filter == WordFilter.LEARNING) uiState.steps[word.id] else null,
+                    expanded = expanded,
+                    lookups = if (expanded) uiState.lookups else emptyList(),
+                    onToggleExpanded = { onToggleExpanded(word.id) },
+                    onSetStarred = { onSetStarred(word.id, it) },
+                    onMarkLearned = { onMarkLearned(word) },
+                    onMarkLearning = { onMarkLearning(word.id) },
+                    onDelete = { onDelete(word.id) },
+                    onAddToAnki = { lookup -> onAddToAnki(word, lookup) },
+                    adding = word.id in uiState.addingToAnki,
+                )
+                HorizontalDivider()
+            }
+            items(knownByReading, key = { "read:" + it.first }) { (expression, reads) ->
+                ReadWordRow(expression, reads)
+                HorizontalDivider()
             }
         }
     }
@@ -360,11 +408,11 @@ private fun StepsBar(steps: Int) {
 
 /** Exports the list shown as a file for Anki on a computer: a package with audio, or text. */
 @Composable
-private fun WordsMenu(onExport: () -> Unit, onExportPackage: () -> Unit, enabled: Boolean) {
+private fun ExportMenu(onExport: () -> Unit, onExportPackage: () -> Unit, enabled: Boolean) {
     var open by remember { mutableStateOf(false) }
     Box {
-        IconButton(onClick = { open = true }) {
-            Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.words_menu))
+        IconButton(onClick = { open = true }, enabled = enabled) {
+            Icon(painterResource(R.drawable.ic_export), contentDescription = stringResource(R.string.words_export))
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             DropdownMenuItem(
@@ -373,7 +421,6 @@ private fun WordsMenu(onExport: () -> Unit, onExportPackage: () -> Unit, enabled
                     open = false
                     onExportPackage()
                 },
-                enabled = enabled,
             )
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.action_export_anki_file)) },
@@ -627,12 +674,12 @@ private fun WordsPreview() {
     HonmaniTheme {
         WordsContent(
             uiState = WordsUiState(
-                words = listOf(
+                learning = listOf(
                     word(1, "名前", "なまえ", "name; full name", 4, starred = true),
                     word(2, "見当", "けんとう", "estimate; guess; aim", 2),
                 ),
+                known = emptyList(),
                 steps = mapOf(1L to 4, 2L to 1),
-                learningCount = 2,
                 knownCount = 40,
                 notInAnki = 2,
             ),

@@ -117,8 +117,11 @@ fun ReaderWebView(
     modifier: Modifier = Modifier,
     /** The reader touched or scrolled the book (for reading time). */
     onActivity: () -> Unit = {},
-    /** A page turn in book `ttuId` (ttu's id): characters read up to the new position. */
-    onPage: (ttuId: Long, characters: Long) -> Unit = { _, _ -> },
+    /**
+     * A page turn in book `ttuId` (ttu's id): characters read up to the new position, and where
+     * it is in the book (0 to 1; null if ttu didn't say).
+     */
+    onPage: (ttuId: Long, characters: Long, progress: Float?) -> Unit = { _, _, _ -> },
     /** The Settings entry in the reader's top bar: Honmani's reader settings, not ttu's page. */
     onOpenSettings: () -> Unit = {},
     highlightColor: Color = MaterialTheme.colorScheme.primary,
@@ -198,7 +201,7 @@ fun ReaderWebView(
                             is BridgeMessage.BookShown, BridgeMessage.SettingsShown ->
                                 if (uncover[0] != null) uncoverAfter(UNCOVER_SETTLE_MS)
                             BridgeMessage.Activity -> currentOnActivity()
-                            is BridgeMessage.Position -> currentOnPage(message.id, message.characters)
+                            is BridgeMessage.Position -> currentOnPage(message.id, message.characters, message.progress)
                             BridgeMessage.OpenSettings -> currentOnOpenSettings()
                         }
                     },

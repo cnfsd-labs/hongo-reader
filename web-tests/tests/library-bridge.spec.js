@@ -261,6 +261,10 @@ test('every page turn in a book reports the new reading position', async ({ page
   const reported = await positions();
   expect(reported.every((m) => m.id === book.id && Number.isInteger(m.characters))).toBe(true);
   expect(reported.at(-1).characters).toBeGreaterThan(0);
+  // Where in the book, for the stretches read: moves forward with the pages.
+  expect(reported.every((m) => typeof m.progress === 'number' && m.progress >= 0 && m.progress <= 1)).toBe(true);
+  expect(reported.at(-1).progress).toBeGreaterThan(0);
+  expect(reported.at(-1).progress).toBeCloseTo((await progress(page))[0].progress, 5);
   // The same number ttu keeps in its bookmark.
   expect((await progress(page))[0].characters).toBe(reported.at(-1).characters);
 });

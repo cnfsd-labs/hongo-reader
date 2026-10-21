@@ -14,6 +14,7 @@ class ReadingTrackerTest {
         val seconds = HashMap<Pair<Long, String>, Long>()
         val characters = HashMap<Pair<Long, String>, Long>()
         val positions = HashMap<Long, Long>()
+        val read = ArrayList<Pair<Float, Float>>()
 
         override suspend fun add(ttuId: Long, day: String, seconds: Long, characters: Long) {
             val key = ttuId to day
@@ -25,6 +26,10 @@ class ReadingTrackerTest {
 
         override suspend fun setPosition(ttuId: Long, characters: Long) {
             positions[ttuId] = characters
+        }
+
+        override suspend fun addRead(ttuId: Long, from: Float, to: Float) {
+            read += from to to
         }
     }
 
@@ -103,6 +108,40 @@ class ReadingTrackerTest {
 
     private fun seconds(count: Int) {
         now += count * 1_000L
+    }
+
+    @Test
+    fun onlyPagesReadAddStretches() = runTest {
+        // A book of 10,000 characters: the position is a tenth of the characters.
+        val tracker = tracker()
+        store.positions[7] = 1_000
+        tracker.setForeground(true)
+        tracker.setVisible(true)
+        tracker.setBook(7)
+        seconds(30)
+        tracker.onPage(7, 1_400, 0.14f)
+        advanceUntilIdle()
+        // Flicked past.
+        seconds(2)
+        tracker.onPage(7, 1_800, 0.18f)
+        advanceUntilIdle()
+        // A jump through the table of contents after ten seconds: what ten seconds allow.
+        seconds(10)
+        tracker.onPage(7, 6_000, 0.6f)
+        advanceUntilIdle()
+        // Back, then a page read without the position's share (nothing to place it with).
+        tracker.onPage(7, 2_000, 0.2f)
+        advanceUntilIdle()
+        seconds(30)
+        tracker.onPage(7, 2_400)
+        advanceUntilIdle()
+
+        val expected = listOf(0.1f to 0.14f, 0.18f to 0.18f + 10 * ReadingTracker.MAX_CHARACTERS_PER_SECOND / 10_000f)
+        assertEquals(expected.size, store.read.size)
+        for ((want, got) in expected.zip(store.read)) {
+            assertEquals(want.first, got.first, 0.0001f)
+            assertEquals(want.second, got.second, 0.0001f)
+        }
     }
 
     @Test

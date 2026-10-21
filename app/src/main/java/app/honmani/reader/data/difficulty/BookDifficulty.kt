@@ -30,7 +30,7 @@ data class BookDifficulty(
 /**
  * The distinct words of a book (dictionary forms, [Lexicon.UNRANKED] words included; names left
  * out), with their frequency rank and every place each occurs, as a share of the text in
- * [POSITIONS] steps, ascending: how often a reader has read each word up to some progress.
+ * [POSITIONS] steps, ascending: how often a reader has read each word in the parts read.
  */
 class BookWords(val keys: List<String>, val ranks: IntArray, val positions: List<ShortArray>) {
     val size: Int get() = keys.size
@@ -38,11 +38,17 @@ class BookWords(val keys: List<String>, val ranks: IntArray, val positions: List
     /** Where word [index] first appears, 0 to 1. */
     fun firstAt(index: Int): Float = positions[index][0] / POSITIONS.toFloat()
 
-    /** The words met by [progress] (0 to 1), with how many times each was read by then. */
-    inline fun forEachMet(progress: Float, action: (key: String, rank: Int, reads: Int) -> Unit) {
-        val limit = (progress * POSITIONS).toInt()
+    /**
+     * The words in the parts of the book read ([stretches]: ascending pairs `from, to` in
+     * [POSITIONS] steps, see `ReadStretches`), with how many times each was read there.
+     */
+    inline fun forEachRead(stretches: IntArray, action: (key: String, rank: Int, reads: Int) -> Unit) {
+        if (stretches.isEmpty()) return
         for (i in keys.indices) {
-            val reads = countUpTo(positions[i], limit)
+            var reads = 0
+            for (j in stretches.indices step 2) {
+                reads += countUpTo(positions[i], stretches[j + 1]) - countUpTo(positions[i], stretches[j] - 1)
+            }
             if (reads > 0) action(keys[i], ranks[i], reads)
         }
     }

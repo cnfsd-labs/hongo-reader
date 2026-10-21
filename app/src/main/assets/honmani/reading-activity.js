@@ -7,8 +7,9 @@
  * { type: 'reader.activity' }, at most once every 15 seconds.
  *
  * ttu saves its bookmark on every page turn; each save on the book page posts
- * { type: 'reader.position', id, characters } (ttu's book id and the characters read up to the
- * new position), so Honmani can tell pages read from pages flicked past.
+ * { type: 'reader.position', id, characters, progress } (ttu's book id, the characters read up to
+ * the new position and, when ttu has it, the position as a fraction of the book), so Honmani can
+ * tell pages read from pages flicked past, and which part of the book each page was.
  */
 (() => {
   'use strict';
@@ -32,9 +33,16 @@
     const id = Number(value.dataId);
     const characters = Number(value.exploredCharCount);
     if (!Number.isInteger(id) || id <= 0 || !Number.isFinite(characters) || characters < 0) return;
-    if (window.honmani) {
-      window.honmani.postMessage(JSON.stringify({ type: 'reader.position', id, characters: Math.floor(characters) }));
-    }
+    const message = { type: 'reader.position', id, characters: Math.floor(characters) };
+    const progress = toFraction(value.progress);
+    if (progress !== null) message.progress = progress;
+    if (window.honmani) window.honmani.postMessage(JSON.stringify(message));
+  }
+
+  /** ttu keeps the progress as a number or a string such as "12.3%". */
+  function toFraction(progress) {
+    const value = typeof progress === 'string' ? parseFloat(progress) / (progress.includes('%') ? 100 : 1) : progress;
+    return typeof value === 'number' && isFinite(value) ? Math.min(1, Math.max(0, value)) : null;
   }
 
   for (const method of ['put', 'add']) {

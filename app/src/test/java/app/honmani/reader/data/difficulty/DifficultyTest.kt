@@ -84,7 +84,7 @@ class DifficultyTest {
         assertEquals(0f, words.firstAt(0), 0.001f)
         assertEquals(910f / text.length, words.firstAt(4), 0.001f)
         val met = LinkedHashMap<String, Int>()
-        words.forEachMet(0.5f) { key, _, reads -> met[key] = reads }
+        words.forEachRead(intArrayOf(0, BookWords.POSITIONS / 2)) { key, _, reads -> met[key] = reads }
         // Half the book: 65 of the 130 sentences, each word once in each.
         assertEquals(listOf("猫", "が", "好き", "です"), met.keys.toList())
         assertEquals(65.0, met.getValue("猫").toDouble(), 1.0)

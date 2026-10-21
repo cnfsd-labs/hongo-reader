@@ -44,6 +44,7 @@ import app.honmani.reader.data.sync.KoSyncClient
 import app.honmani.reader.data.sync.KoSyncSettings
 import app.honmani.reader.data.sync.ProgressSync
 import app.honmani.reader.data.sync.RubyText
+import app.honmani.reader.data.words.ReadStretchStore
 import app.honmani.reader.data.words.WordKnowledge
 import app.honmani.reader.data.words.WordKnowledgeTracker
 import app.honmani.reader.data.words.WordProgressStore
@@ -230,6 +231,11 @@ class AppContainer(context: Context) {
 
             override suspend fun setPosition(ttuId: Long, characters: Long) =
                 bookDao.setCharactersByTtuId(ttuId, characters)
+
+            override suspend fun addRead(ttuId: Long, from: Float, to: Float) {
+                val book = bookDao.findByTtuId(ttuId) ?: return
+                withContext(Dispatchers.IO) { readStretches.add(book.contentHash, from, to) }
+            }
         }
         ReadingTracker(store, applicationScope, log = { Log.i("Honmani.stats", it) }).also { tracker ->
             applicationScope.launch {
@@ -276,10 +282,16 @@ class AppContainer(context: Context) {
         devicePreferences.edit().putString(KEY_DISMISSED_CONTINUE, key).apply()
     }
 
+    /** The parts of each book really read, for the words read. */
+    private val readStretches: ReadStretchStore by lazy {
+        ReadStretchStore(File(appContext.filesDir, "read-stretches.json"))
+    }
+
     /** The words read and how well each is known; one computation shared by its screens. */
     val wordKnowledge: Flow<WordKnowledge> by lazy {
         WordKnowledgeTracker(
             books = bookDao.observeAll(),
+            stretches = readStretches.stretches,
             grades = difficultyStore.grades,
             words = wordRepository.all,
             bookWords = difficultyStore::words,

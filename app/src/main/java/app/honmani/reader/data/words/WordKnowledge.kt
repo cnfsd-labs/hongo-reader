@@ -18,12 +18,14 @@ data class ReadWord(val rank: Int, val reads: Int)
 
 /** What the reader has read, and how well they know each word ([WordProgress]). */
 class WordKnowledge(
-    /** Every word read in graded books up to the reader's place, by dictionary form. */
+    /** Every word in the parts of graded books read ([ReadStretches]), by dictionary form. */
     val read: Map<String, ReadWord>,
     /** Looked-up words' progress, by word id. */
     val progress: Map<Long, WordStep>,
     /** Dictionary forms of looked-up words not known yet. */
     val learning: Set<String>,
+    /** The share of each graded book read (0 to 1), by content hash. */
+    val readShares: Map<String, Float> = emptyMap(),
 ) {
     fun steps(word: WordEntity): Int = progress[word.id]?.steps ?: 0
 
@@ -67,12 +69,15 @@ class WordProgressStore(private val file: File) {
 }
 
 /**
- * Works out [WordKnowledge] whenever the books' places, their grades or the word list change:
- * the words read so far from each graded book's words ([BookWords]) up to the reader's progress,
- * and each looked-up word's progress brought up to date ([WordProgress.update]).
+ * Works out [WordKnowledge] whenever the parts read, the books, their grades or the word list
+ * change: the words read from each graded book's words ([BookWords]) in the parts of it read
+ * ([ReadStretches]: pages on screen long enough, not everything up to the reader's place), and
+ * each looked-up word's progress brought up to date ([WordProgress.update]).
  */
 class WordKnowledgeTracker(
     books: Flow<List<BookEntity>>,
+    /** [ReadStretches] by content hash. */
+    stretches: Flow<Map<String, IntArray>>,
     /** Book grades by content hash. */
     grades: Flow<Map<String, StoredDifficulty>>,
     /** Every saved word. */
@@ -86,14 +91,15 @@ class WordKnowledgeTracker(
     private val cache = ConcurrentHashMap<String, Pair<String, BookWords?>>()
     private var progress: Map<Long, WordStep>? = null
 
-    val knowledge: Flow<WordKnowledge> = combine(books, grades, words) { books, grades, words ->
+    val knowledge: Flow<WordKnowledge> = combine(books, stretches, grades, words) { books, stretches, grades, words ->
         val read = HashMap<String, ReadWord>()
-        for (book in books) {
-            val grade = grades[book.contentHash]?.takeIf { it.difficulty.score > 0 } ?: continue
-            val place = if (book.finishedAt != null) 1f else book.progress.coerceIn(0f, 1f)
-            if (place <= 0f) continue
-            val inBook = wordsOf(book.contentHash, grade.signature) ?: continue
-            inBook.forEachMet(place) { key, rank, reads ->
+        val shares = HashMap<String, Float>()
+        for (hash in books.mapTo(HashSet()) { it.contentHash }) {
+            val grade = grades[hash]?.takeIf { it.difficulty.score > 0 } ?: continue
+            val parts = stretches[hash]?.takeIf { it.isNotEmpty() } ?: continue
+            val inBook = wordsOf(hash, grade.signature) ?: continue
+            shares[hash] = ReadStretches.share(parts)
+            inBook.forEachRead(parts) { key, rank, reads ->
                 val before = read[key]
                 read[key] = if (before == null) ReadWord(rank, reads) else ReadWord(minOf(before.rank, rank), before.reads + reads)
             }
@@ -110,7 +116,7 @@ class WordKnowledgeTracker(
         if (updated != previous) store.save(updated)
         progress = updated
         val learning = words.filter { (updated[it.id]?.steps ?: 0) < WordProgress.KNOWN }.mapTo(HashSet()) { it.expression }
-        WordKnowledge(read, updated, learning)
+        WordKnowledge(read, updated, learning, shares)
     }.flowOn(context)
 
     private fun wordsOf(contentHash: String, signature: String): BookWords? {

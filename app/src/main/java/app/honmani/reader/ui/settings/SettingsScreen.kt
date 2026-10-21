@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -58,7 +59,6 @@ import app.honmani.reader.R
 import app.honmani.reader.data.opds.OpdsCatalog
 import app.honmani.reader.data.settings.Accent
 import app.honmani.reader.data.settings.customAccentColor
-import app.honmani.reader.ui.HonmaniTopAppBar
 import app.honmani.reader.ui.dictionaries.DictionariesScreen
 import app.honmani.reader.ui.theme.HonmaniTheme
 import kotlinx.coroutines.launch
@@ -148,11 +148,12 @@ private fun SettingsContent(
     anki: @Composable () -> Unit = {},
     sync: @Composable () -> Unit = {},
 ) {
+    // No title: the bottom bar names the tab.
     Scaffold(
-        topBar = { HonmaniTopAppBar(title = stringResource(R.string.settings_title)) },
         bottomBar = bottomBar,
     ) { padding ->
         LazyColumn(
+            contentPadding = PaddingValues(top = 8.dp),
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),

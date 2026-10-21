@@ -42,14 +42,15 @@ enum class WordFilter {
 }
 
 data class WordsUiState(
+    /** The list shown, the one exports take. */
     val filter: WordFilter = WordFilter.LEARNING,
-    /** The saved words of the list shown; null until loaded. */
-    val words: List<WordEntity>? = null,
+    /** The saved words of each list; null until loaded. */
+    val learning: List<WordEntity>? = null,
+    val known: List<WordEntity>? = null,
     /** In the known list, after the saved words: words known from reading alone, with how often each was read. */
     val knownByReading: List<Pair<String, Int>> = emptyList(),
     /** Progress of saved words in steps of `WordProgress.KNOWN`, by id. */
     val steps: Map<Long, Int> = emptyMap(),
-    val learningCount: Int = 0,
     val knownCount: Int = 0,
     /** Words in the learning list without an Anki card, for "Add all to Anki". */
     val notInAnki: Int = 0,
@@ -145,10 +146,10 @@ class WordsViewModel(
         combine(filter, lists, expanded, lookups) { filter, lists, expanded, lookups ->
             WordsUiState(
                 filter = filter,
-                words = if (filter == WordFilter.LEARNING) lists.learning else lists.known,
-                knownByReading = if (filter == WordFilter.KNOWN) lists.knownByReading else emptyList(),
+                learning = lists.learning,
+                known = lists.known,
+                knownByReading = lists.knownByReading,
                 steps = lists.steps,
-                learningCount = lists.learning.size,
                 knownCount = lists.knownCount,
                 notInAnki = lists.learning.count { it.ankiNoteId == null },
                 expanded = expanded,
@@ -160,6 +161,7 @@ class WordsViewModel(
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), WordsUiState())
 
     fun setFilter(value: WordFilter) {
+        if (filter.value == value) return
         filter.value = value
         expanded.value = null
     }
