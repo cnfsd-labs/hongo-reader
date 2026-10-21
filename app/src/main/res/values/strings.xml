@@ -35,6 +35,8 @@
         <item quantity="one">%1$d update available</item>
         <item quantity="other">%1$d updates available</item>
     </plurals>
+    <string name="settings_cover_difficulty">Difficulty on covers</string>
+    <string name="settings_cover_difficulty_details">Each book\'s difficulty (1–100) in a corner of its cover</string>
     <string name="settings_reader">Reader settings</string>
     <string name="settings_reader_details">Font, size, colours, vertical or horizontal text, page turning</string>
     <string name="settings_diagnostics_details">Sends the reader\'s log, for reporting a problem</string>
@@ -357,6 +359,13 @@
     <!-- Progress: reading level and milestones -->
     <string name="progress_title">Progress</string>
     <string name="progress_overview">Overview</string>
+    <string name="progress_skill">Skill</string>
+    <string name="skill_value">Skill %1$d</string>
+    <string name="skill_based_on">Based on %1$s of reading in books with a difficulty</string>
+    <string name="skill_measuring">Still measuring: %1$d of %2$d minutes read in books with a difficulty.</string>
+    <string name="skill_trend">Skill over the last %1$d weeks</string>
+    <string name="skill_fitting">Books that fit you</string>
+    <string name="skill_how">Skill is on the same scale as book difficulty. It comes from how fast you read books of known difficulty: a book of difficulty 50 read at 8,000 characters an hour counts as 50, twice as fast as 60. Recent weeks count more. Speed depends on your screen and settings, so compare your skill only with itself.</string>
     <string name="progress_empty">Nothing read yet. Your level and milestones grow as you read.</string>
     <string name="progress_level">Level %1$d</string>
     <string name="progress_to_next">%1$s to level %2$d</string>
@@ -448,12 +457,16 @@
     <string name="book_open_again">Open again</string>
     <string name="book_hidden">Hidden from the library</string>
     <string name="book_difficulty">Difficulty %1$d</string>
-    <string name="book_difficulty_detail">95%% of its words are among the %1$s most common.</string>
-    <string name="difficulty_beginner">Beginner</string>
-    <string name="difficulty_elementary">Elementary</string>
-    <string name="difficulty_intermediate">Intermediate</string>
-    <string name="difficulty_advanced">Advanced</string>
-    <string name="difficulty_native">Native-level</string>
+    <string name="book_difficulty_detail">95%% of its words are among the %1$s most common. Kanji in %2$d%% of the words, %3$d characters per sentence.</string>
+    <string name="difficulty_n5">Beginner</string>
+    <string name="difficulty_n4">Elementary</string>
+    <string name="difficulty_n3">Intermediate</string>
+    <string name="difficulty_n2">Upper intermediate</string>
+    <string name="difficulty_n1">Advanced</string>
+    <string name="difficulty_beyond_n1">Native-level</string>
+    <string name="difficulty_jlpt">≈ JLPT %1$s</string>
+    <string name="difficulty_jlpt_beyond">beyond JLPT N1</string>
+    <string name="difficulty_band">%1$s · %2$s</string>
     <string name="book_nothing_counted">No reading counted in this book yet.</string>
     <string name="book_read_so_far">Read so far</string>
     <string name="book_of_characters">of %1$s characters</string>

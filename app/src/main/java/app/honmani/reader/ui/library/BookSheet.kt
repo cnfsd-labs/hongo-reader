@@ -52,8 +52,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.honmani.reader.R
 import app.honmani.reader.data.difficulty.BookDifficulty
-import app.honmani.reader.data.difficulty.DifficultyBand
 import app.honmani.reader.ui.ProgressBar
+import app.honmani.reader.ui.difficultyBand
 import app.honmani.reader.ui.stats.BookStatistics
 import app.honmani.reader.ui.stats.StatisticsViewModel
 import app.honmani.reader.ui.stats.duration
@@ -234,8 +234,8 @@ private fun StatusPill(book: LibraryBook) {
 }
 
 /**
- * How hard the book is, on the 1–100 scale with its band, and what that means: the vocabulary
- * that covers 95% of its words.
+ * How hard the book is, on the 1–100 scale with its band and about which JLPT level that is, and
+ * the three measures behind it.
  */
 @Composable
 private fun DifficultyCard(difficulty: BookDifficulty) {
@@ -247,35 +247,29 @@ private fun DifficultyCard(difficulty: BookDifficulty) {
             .padding(horizontal = 24.dp),
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text(
-                    text = stringResource(R.string.book_difficulty, difficulty.score),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.weight(1f),
-                )
-                Text(
-                    text = stringResource(bandLabel(DifficultyBand.of(difficulty.score))),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            Text(
+                text = stringResource(R.string.book_difficulty, difficulty.score),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                text = difficultyBand(difficulty.score),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             ProgressBar(progress = { difficulty.score / 100f }, modifier = Modifier.fillMaxWidth())
             Text(
-                text = stringResource(R.string.book_difficulty_detail, number(difficulty.r95.toLong())),
+                text = stringResource(
+                    R.string.book_difficulty_detail,
+                    number(difficulty.r95.toLong()),
+                    (difficulty.kanjiShare * 100).roundToInt(),
+                    difficulty.sentenceLength.roundToInt(),
+                ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
-}
-
-internal fun bandLabel(band: DifficultyBand): Int = when (band) {
-    DifficultyBand.BEGINNER -> R.string.difficulty_beginner
-    DifficultyBand.ELEMENTARY -> R.string.difficulty_elementary
-    DifficultyBand.INTERMEDIATE -> R.string.difficulty_intermediate
-    DifficultyBand.ADVANCED -> R.string.difficulty_advanced
-    DifficultyBand.NATIVE -> R.string.difficulty_native
 }
 
 /** Four numbers in two rows, then when the book was read. */

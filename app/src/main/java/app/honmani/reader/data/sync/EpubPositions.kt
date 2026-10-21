@@ -149,8 +149,8 @@ class EpubPositions private constructor(
 
         /**
          * The text ttu shows, one per spine document in reading order, with the characters that
-         * have furigana marked. Ruby readings are left out, so 漢字 with furigana stays one word.
-         * Null if it is not a readable EPUB.
+         * have furigana marked and a line break after each paragraph. Ruby readings are left out,
+         * so 漢字 with furigana stays one word. Null if it is not a readable EPUB.
          */
         fun texts(file: File): List<RubyText>? = try {
             ZipFile(file).use { zip ->
@@ -167,6 +167,8 @@ class EpubPositions private constructor(
                                 text.append(child.text)
                             } else if (!skipped(child)) {
                                 visit(child, inRuby || child.name == "ruby")
+                                // A paragraph ends a sentence even without 。 (「そうか」 on a line of its own).
+                                if (child.name in BLOCKS) text.append('\n')
                             }
                         }
                     }
@@ -179,6 +181,9 @@ class EpubPositions private constructor(
         } catch (_: IllegalArgumentException) {
             null
         }
+
+        /** Elements that end a line; [texts] marks their end with a line break. */
+        private val BLOCKS = setOf("p", "div", "br", "h1", "h2", "h3", "h4", "h5", "h6", "li", "blockquote", "tr", "section", "article")
 
         private fun ZipFile.text(name: String): String? = getEntry(name)?.let { decodeText(getInputStream(it).readBytes()) }
 

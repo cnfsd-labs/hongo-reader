@@ -25,17 +25,22 @@ data class BookDifficulty(
     val unknownShare: Float,
 )
 
-/** Bands of the 1–100 scale, 20 points each. */
-enum class DifficultyBand {
-    BEGINNER,
-    ELEMENTARY,
-    INTERMEDIATE,
-    ADVANCED,
-    NATIVE,
+/**
+ * Bands of the 1–100 scale, each about one JLPT level, at learnnatively.com's boundaries (N5 up to
+ * level 12, N4 13–19, N3 20–26, N2 27–33, N1 34–40) converted with [Difficulty.score]'s scale.
+ * [highest] is the band's top score.
+ */
+enum class DifficultyBand(val highest: Int) {
+    N5(28),
+    N4(43),
+    N3(59),
+    N2(74),
+    N1(90),
+    BEYOND_N1(100),
     ;
 
     companion object {
-        fun of(score: Int): DifficultyBand = entries[((score.coerceIn(1, 100) - 1) / 20)]
+        fun of(score: Int): DifficultyBand = entries.first { score.coerceIn(1, 100) <= it.highest }
     }
 }
 
@@ -48,8 +53,11 @@ enum class DifficultyBand {
  * half, as children's books with furigana throughout are graded about that much easier.
  */
 object Difficulty {
-    /** Raise when the scale or the word splitting changes, so stored results are redone. */
-    const val VERSION = 1
+    /**
+     * Raise when the scale or the word splitting changes, so stored results are redone. 2: EPUB
+     * paragraphs end sentences (dialogue without 。 had made sentences far too long).
+     */
+    const val VERSION = 2
 
     const val COVERAGE = 0.95
 
@@ -89,7 +97,7 @@ object Difficulty {
         return INTERCEPT + RANK_WEIGHT * ln(rank) + KANJI_WEIGHT * kanjiShare + SENTENCE_WEIGHT * length
     }
 
-    /** 1–100 from [nativelyLevel]: level [TOP_LEVEL] and above is 100. */
+    /** 1–100 from [nativelyLevel]: level [TOP_LEVEL] and above is 100, so a score is about 2.2 levels. */
     fun score(r95: Int, kanjiShare: Double, sentenceLength: Double): Int =
         (1 + 99 * nativelyLevel(r95, kanjiShare, sentenceLength) / TOP_LEVEL).roundToInt().coerceIn(1, 100)
 
@@ -157,7 +165,7 @@ object Difficulty {
     private const val MIN_R95 = 3_000.0
     private const val MAX_R95 = 150_000.0
     private const val MIN_SENTENCE = 6.0
-    private const val MAX_SENTENCE = 60.0
+    private const val MAX_SENTENCE = 50.0
     private const val TOP_LEVEL = 45.0
 
     private class IntList {

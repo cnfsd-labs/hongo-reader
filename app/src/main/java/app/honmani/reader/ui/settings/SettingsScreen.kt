@@ -81,6 +81,7 @@ fun SettingsScreen(
     val appearance = container.appearanceSettings
     val accent by appearance.accent.collectAsStateWithLifecycle()
     val customHue by appearance.customHue.collectAsStateWithLifecycle()
+    val showDifficulty by appearance.showDifficulty.collectAsStateWithLifecycle()
     val catalogs by container.opdsRepository.catalogs.collectAsStateWithLifecycle(emptyList())
     val dictionaries by container.dictionaryRepository.dictionaries.collectAsStateWithLifecycle(emptyList())
     val dictionaryUpdates by remember { container.dictionaryUpdateChecker.updates }.collectAsStateWithLifecycle(emptyList())
@@ -105,6 +106,8 @@ fun SettingsScreen(
         onAccentChange = appearance::setAccent,
         customHue = customHue,
         onCustomHueChange = appearance::setCustomHue,
+        showDifficulty = showDifficulty,
+        onShowDifficultyChange = appearance::setShowDifficulty,
         catalogs = catalogs,
         onAutoImportChange = { catalog, enabled ->
             scope.launch {
@@ -131,6 +134,8 @@ private fun SettingsContent(
     onAccentChange: (Accent) -> Unit,
     customHue: Float,
     onCustomHueChange: (Float) -> Unit,
+    showDifficulty: Boolean,
+    onShowDifficultyChange: (Boolean) -> Unit,
     catalogs: List<OpdsCatalog>,
     onAutoImportChange: (OpdsCatalog, Boolean) -> Unit,
     bottomBar: @Composable () -> Unit,
@@ -175,6 +180,14 @@ private fun SettingsContent(
                 ListItem(
                     headlineContent = { Text(stringResource(R.string.settings_accent)) },
                     supportingContent = { AccentPicker(accent, onAccentChange, customHue, onCustomHueChange) },
+                )
+            }
+            item {
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.settings_cover_difficulty)) },
+                    supportingContent = { Text(stringResource(R.string.settings_cover_difficulty_details)) },
+                    trailingContent = { Switch(checked = showDifficulty, onCheckedChange = onShowDifficultyChange) },
+                    modifier = Modifier.clickable { onShowDifficultyChange(!showDifficulty) },
                 )
             }
             if (catalogs.isNotEmpty()) {
@@ -362,6 +375,8 @@ private fun SettingsPreview() {
             onAccentChange = {},
             customHue = 300f,
             onCustomHueChange = {},
+            showDifficulty = true,
+            onShowDifficultyChange = {},
             catalogs = listOf(OpdsCatalog(1, "Calibre-Web", "https://books.example/opds", "me", true)),
             onAutoImportChange = { _, _ -> },
             bottomBar = {},

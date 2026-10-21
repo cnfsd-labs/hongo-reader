@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -24,19 +26,17 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.style.TextOverflow
@@ -55,26 +55,29 @@ import app.honmani.reader.ui.stats.characters
 import app.honmani.reader.ui.stats.number
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
+import kotlinx.coroutines.launch
 
 /** Sections of the Progress tab. Skill (book difficulty against the reader) will join Overview. */
 private enum class ProgressSection(val label: Int) {
     OVERVIEW(R.string.progress_overview),
+    SKILL(R.string.progress_skill),
     STATISTICS(R.string.stats_title),
 }
 
-/** The Progress tab: level and milestones, and the reading statistics. */
+/** The Progress tab: level and milestones, skill, and the reading statistics; swipe between them. */
 @Composable
 fun ProgressTab(bottomBar: @Composable () -> Unit) {
-    var section by rememberSaveable { mutableStateOf(ProgressSection.OVERVIEW) }
+    val pager = rememberPagerState { ProgressSection.entries.size }
+    val scope = rememberCoroutineScope()
     Scaffold(
         topBar = {
             Column {
                 HonmaniTopAppBar(title = stringResource(R.string.progress_title))
-                PrimaryTabRow(selectedTabIndex = section.ordinal) {
-                    for (entry in ProgressSection.entries) {
+                PrimaryTabRow(selectedTabIndex = pager.currentPage) {
+                    ProgressSection.entries.forEachIndexed { index, entry ->
                         Tab(
-                            selected = entry == section,
-                            onClick = { section = entry },
+                            selected = index == pager.currentPage,
+                            onClick = { scope.launch { pager.animateScrollToPage(index) } },
                             text = { Text(stringResource(entry.label), maxLines = 1) },
                         )
                     }
@@ -83,9 +86,17 @@ fun ProgressTab(bottomBar: @Composable () -> Unit) {
         },
         bottomBar = bottomBar,
     ) { padding ->
-        when (section) {
-            ProgressSection.OVERVIEW -> ProgressContent(Modifier.padding(padding))
-            ProgressSection.STATISTICS -> StatisticsContent(Modifier.padding(padding))
+        HorizontalPager(
+            state = pager,
+            modifier = Modifier
+                .padding(padding)
+                .fillMaxSize(),
+        ) { page ->
+            when (ProgressSection.entries[page]) {
+                ProgressSection.OVERVIEW -> ProgressContent()
+                ProgressSection.SKILL -> SkillContent()
+                ProgressSection.STATISTICS -> StatisticsContent()
+            }
         }
     }
 }

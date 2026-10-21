@@ -11,8 +11,8 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -91,10 +91,13 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -103,9 +106,10 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import app.honmani.reader.ui.ProgressBar
+import app.honmani.reader.HonmaniApplication
 import app.honmani.reader.R
 import app.honmani.reader.data.opds.AutoImportStatus
+import app.honmani.reader.ui.ProgressBar
 import app.honmani.reader.ui.opds.CatalogBrowser
 import app.honmani.reader.ui.opds.CatalogDialog
 import app.honmani.reader.ui.opds.OpdsViewModel
@@ -204,7 +208,13 @@ fun LibraryScreen(
             thumbnail = opds::thumbnail,
         )
     } else {
+        val container = (LocalContext.current.applicationContext as HonmaniApplication).container
+        val grades by container.difficultyStore.grades.collectAsStateWithLifecycle()
+        val showDifficulty by container.appearanceSettings.showDifficulty.collectAsStateWithLifecycle()
         LibraryContent(
+            difficulty = { book ->
+                if (showDifficulty) grades[book.contentHash]?.difficulty?.score?.takeIf { it > 0 } else null
+            },
             uiState = uiState,
             autoImport = autoImport,
             snackbarHostState = snackbarHostState,
@@ -282,6 +292,8 @@ private fun LibraryContent(
     modifier: Modifier = Modifier,
     onSetHidden: (id: Long, hidden: Boolean) -> Unit = { _, _ -> },
     onShowHidden: (Boolean) -> Unit = {},
+    /** The difficulty to show on a cover; null for none. */
+    difficulty: (LibraryBook) -> Int? = { null },
 ) {
     var pendingRemove by remember { mutableStateOf<LibraryBook?>(null) }
     var pendingReset by remember { mutableStateOf<LibraryBook?>(null) }
@@ -403,6 +415,7 @@ private fun LibraryContent(
                             opening = book.id == uiState.opening,
                             onOpen = { onOpen(book.id) },
                             onShowDetails = { detailsFor = book.id },
+                            difficulty = difficulty(book),
                         )
                     }
                     if (showHiddenLink) {
@@ -793,6 +806,7 @@ private fun BookCard(
     opening: Boolean,
     onOpen: () -> Unit,
     onShowDetails: () -> Unit,
+    difficulty: Int? = null,
 ) {
     Column(
         modifier = Modifier.combinedClickable(
@@ -803,6 +817,26 @@ private fun BookCard(
     ) {
         Box {
             Cover(book)
+            if (difficulty != null) {
+                // The book's difficulty, small, in the corner the finished check doesn't use.
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(4.dp),
+                ) {
+                    val description = stringResource(R.string.book_difficulty, difficulty)
+                    Text(
+                        text = "$difficulty",
+                        style = MaterialTheme.typography.labelMedium,
+                        modifier = Modifier
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                            .clearAndSetSemantics { contentDescription = description },
+                    )
+                }
+            }
             if (book.status == ReadingStatus.FINISHED) {
                 // A finished book carries a check on its cover, like the filter.
                 Icon(

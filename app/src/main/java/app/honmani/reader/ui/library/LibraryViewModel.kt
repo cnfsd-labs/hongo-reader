@@ -51,6 +51,8 @@ data class LibraryBook(
     val progress: Float,
     val status: ReadingStatus = ReadingStatus.of(progress, finishedAt = null),
     val hidden: Boolean = false,
+    /** Identifies the book's file, and with it its difficulty grade. */
+    val contentHash: String = "",
 )
 
 data class LibraryUiState(
@@ -328,6 +330,7 @@ class LibraryViewModel(
         progress = book.progress,
         status = ReadingStatus.of(book.progress, book.finishedAt),
         hidden = book.hidden,
+        contentHash = book.contentHash,
     )
 
     companion object {

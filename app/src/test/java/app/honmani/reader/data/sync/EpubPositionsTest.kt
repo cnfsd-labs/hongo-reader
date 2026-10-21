@@ -2,6 +2,7 @@ package app.honmani.reader.data.sync
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -75,6 +76,8 @@ class EpubPositionsTest {
         // The word under furigana stays whole: 未だ, not 未まだ.
         assertEquals("吾輩は猫である。名前は未だ無い。", texts[0].text.filterNot { it.isWhitespace() || it == '\u00A0' })
         assertEquals("二どこで生れたかとんと見当がつかぬ。", texts[1].text.filterNot { it.isWhitespace() })
+        // Each paragraph ends a line, so sentences without 。 still end there.
+        assertTrue("吾輩は猫である。\n" in texts[0].text)
         // Only 未 has furigana.
         val first = texts[0]
         assertEquals(listOf("未"), first.text.indices.filter { first.ruby[it] }.map { first.text[it].toString() })

@@ -66,6 +66,11 @@ class AppearanceSettings(private val preferences: SharedPreferences) {
     /** The hue (0–360°) of [Accent.CUSTOM]. */
     val customHue: StateFlow<Float> = _customHue.asStateFlow()
 
+    private val _showDifficulty = MutableStateFlow(preferences.getBoolean(KEY_SHOW_DIFFICULTY, true))
+
+    /** Whether library covers show the book's difficulty in a corner. */
+    val showDifficulty: StateFlow<Boolean> = _showDifficulty.asStateFlow()
+
     fun setAccent(accent: Accent) {
         _accent.value = accent
         preferences.edit().putString(KEY_ACCENT, accent.name).apply()
@@ -76,8 +81,14 @@ class AppearanceSettings(private val preferences: SharedPreferences) {
         preferences.edit().putFloat(KEY_CUSTOM_HUE, _customHue.value).apply()
     }
 
+    fun setShowDifficulty(show: Boolean) {
+        _showDifficulty.value = show
+        preferences.edit().putBoolean(KEY_SHOW_DIFFICULTY, show).apply()
+    }
+
     private companion object {
         const val KEY_ACCENT = "accent"
+        const val KEY_SHOW_DIFFICULTY = "show_difficulty"
         const val KEY_CUSTOM_HUE = "accent_custom_hue"
 
         /** A magenta that none of the presets has. */

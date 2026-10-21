@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import app.honmani.reader.HonmaniApplication
+import app.honmani.reader.data.difficulty.StoredDifficulty
 import app.honmani.reader.data.library.BookEntity
 import app.honmani.reader.data.stats.DayTotal
 import app.honmani.reader.data.stats.Milestone
@@ -15,6 +16,8 @@ import app.honmani.reader.data.stats.ProgressionData
 import app.honmani.reader.data.stats.ReadingDayEntity
 import app.honmani.reader.data.stats.ReadingLevel
 import app.honmani.reader.data.stats.ReadingStats
+import app.honmani.reader.data.stats.Skill
+import app.honmani.reader.data.stats.SkillEstimate
 import app.honmani.reader.data.stats.StatsPeriod
 import java.time.Instant
 import java.time.LocalDate
@@ -23,6 +26,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
@@ -37,7 +41,12 @@ data class ProgressUiState(
     val milestones: List<Milestone>,
     val next: List<Milestone>,
     val anyReading: Boolean,
+    val skill: SkillEstimate = SkillEstimate(null, emptyList(), 0),
+    /** Unfinished books that fit the reader's skill, best first. */
+    val fitting: List<FittingBook> = emptyList(),
 )
+
+data class FittingBook(val id: Long, val title: String, val difficulty: Int)
 
 class ProgressViewModel(
     private val days: Flow<List<ReadingDayEntity>>,
@@ -45,11 +54,13 @@ class ProgressViewModel(
     private val wordsLearned: Flow<Int>,
     private val ankiCards: Flow<Int>,
     private val store: MilestoneStore,
+    /** Book grades by content hash. */
+    private val grades: Flow<Map<String, StoredDifficulty>> = flowOf(emptyMap()),
     private val today: () -> LocalDate = LocalDate::now,
     private val zone: () -> ZoneId = ZoneId::systemDefault,
 ) : ViewModel() {
     val uiState: StateFlow<ProgressUiState?> =
-        combine(days, books, wordsLearned, ankiCards, store.seen) { rows, books, learned, anki, seen ->
+        combine(days, combine(books, grades) { b, g -> b to g }, wordsLearned, ankiCards, store.seen) { rows, (books, grades), learned, anki, seen ->
             val today = today()
             val zone = zone()
             val data = ProgressionData(
@@ -62,6 +73,12 @@ class ProgressViewModel(
             )
             val milestones = Progression.milestones(data, seen, today)
             val week = ReadingStats.period(rows, today, StatsPeriod.WEEK)
+            val scores = books.mapNotNull { book ->
+                grades[book.contentHash]?.difficulty?.score?.takeIf { it > 0 }?.let { book to it }
+            }
+            val byId = scores.associate { (book, score) -> book.id to score }
+            val skill = Skill.estimate(rows, byId::get, today)
+            val unfinished = scores.filter { (book, _) -> book.finishedAt == null && book.progress < 1f && !book.hidden }
             ProgressUiState(
                 level = Progression.level(rows.sumOf { it.characters }),
                 streak = week.streak,
@@ -69,6 +86,12 @@ class ProgressViewModel(
                 milestones = milestones,
                 next = Progression.next(milestones),
                 anyReading = week.anyReading,
+                skill = skill,
+                fitting = skill.current?.let { current ->
+                    val titles = unfinished.associate { (book, score) -> book.id to (book.title to score) }
+                    Skill.fitting(unfinished.map { (book, score) -> book.id to score }, current)
+                        .map { id -> titles.getValue(id).let { (title, score) -> FittingBook(id, title, score) } }
+                }.orEmpty(),
             )
         }
             .onEach { state -> store.record(state.milestones.filter { it.reached }.map { it.id }, today()) }
@@ -92,6 +115,7 @@ class ProgressViewModel(
                     wordsLearned = container.wordRepository.counts.map { it.learned },
                     ankiCards = container.wordRepository.ankiCards,
                     store = container.milestoneStore,
+                    grades = container.difficultyStore.grades,
                 )
             }
         }

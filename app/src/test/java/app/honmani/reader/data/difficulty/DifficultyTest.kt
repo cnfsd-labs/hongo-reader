@@ -35,15 +35,20 @@ class DifficultyTest {
         // grades 走れメロス 34 and 人間失格 41, children's books with furigana about 12.
         assertEquals(34.0, Difficulty.nativelyLevel(44_168, 0.441, 18.1), 3.0)
         assertEquals(41.0, Difficulty.nativelyLevel(46_578, 0.398, 39.6), 3.0)
-        assertEquals(DifficultyBand.ADVANCED, DifficultyBand.of(Difficulty.score(44_168, 0.441, 18.1)))
+        assertEquals(DifficultyBand.N2, DifficultyBand.of(Difficulty.score(44_168, 0.441, 18.1)))
     }
 
     @Test
-    fun bandsAreTwentyPointsEach() {
-        assertEquals(DifficultyBand.BEGINNER, DifficultyBand.of(1))
-        assertEquals(DifficultyBand.BEGINNER, DifficultyBand.of(20))
-        assertEquals(DifficultyBand.ELEMENTARY, DifficultyBand.of(21))
-        assertEquals(DifficultyBand.NATIVE, DifficultyBand.of(100))
+    fun bandsFollowNativelysJlptLevels() {
+        assertEquals(DifficultyBand.N5, DifficultyBand.of(1))
+        assertEquals(DifficultyBand.N5, DifficultyBand.of(28))
+        assertEquals(DifficultyBand.N4, DifficultyBand.of(29))
+        assertEquals(DifficultyBand.N3, DifficultyBand.of(59))
+        assertEquals(DifficultyBand.N2, DifficultyBand.of(60))
+        assertEquals(DifficultyBand.N1, DifficultyBand.of(90))
+        assertEquals(DifficultyBand.BEYOND_N1, DifficultyBand.of(91))
+        // Natively's level 24 (N3) is a score of about 54.
+        assertEquals(DifficultyBand.N3, DifficultyBand.of((1 + 99 * 24 / 45.0).toInt()))
     }
 
     private val lexicon = Lexicon.Builder()
@@ -76,6 +81,13 @@ class DifficultyTest {
         // 猫 (with furigana) counts half, 好き (without) whole: 1.5 of 4 words.
         assertEquals(0.375f, withFurigana.kanjiShare, 0.001f)
         assertEquals(0.5f, Difficulty.of(sequenceOf(RubyText(text)), Segmenter(lexicon))!!.kanjiShare, 0.001f)
+    }
+
+    @Test
+    fun lineBreaksEndSentences_dialogueWithoutAFullStopToo() {
+        // 「そうか」 on lines of their own: without the breaks this was one 900-character sentence.
+        val dialogue = Difficulty.of(sequenceOf(RubyText("猫が好きです\n".repeat(150))), Segmenter(lexicon))!!
+        assertEquals(6f, dialogue.sentenceLength, 0.001f)
     }
 
     @Test
