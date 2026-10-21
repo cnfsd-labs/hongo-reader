@@ -1,11 +1,21 @@
 // @ts-check
+const fs = require('node:fs');
 const path = require('node:path');
 const { test, expect } = require('@playwright/test');
 
 const SETTINGS = path.join(__dirname, '../../app/src/main/assets/honmani/reader-settings.js');
-const FIXTURE = 'file://' + path.join(__dirname, '../fixtures/book.html');
+const FIXTURES = path.join(__dirname, '../fixtures');
+// Served over http, not file://: a file:// page can reload in a new renderer before the old one
+// handed over its localStorage writes, and then starts without them.
+const ORIGIN = 'http://honmani.test';
+const FIXTURE = `${ORIGIN}/book.html`;
 
 test.beforeEach(async ({ page }) => {
+  await page.route(`${ORIGIN}/**`, (route) => {
+    const file = path.join(FIXTURES, new URL(route.request().url()).pathname);
+    if (!file.startsWith(FIXTURES) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return route.fulfill({ status: 404 });
+    return route.fulfill({ path: file });
+  });
   await page.addInitScript({ path: SETTINGS });
   await page.goto(FIXTURE);
   await page.evaluate(() => window.localStorage.clear());
