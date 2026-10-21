@@ -20,10 +20,11 @@ import app.honmani.reader.data.stats.Skill
 import app.honmani.reader.data.stats.SkillEstimate
 import app.honmani.reader.data.stats.SkillTracker
 import app.honmani.reader.data.stats.StatsPeriod
+import app.honmani.reader.data.words.WordKnowledge
+import app.honmani.reader.data.words.WordProgress
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
-import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -63,8 +64,8 @@ class ProgressViewModel(
     private val grades: Flow<Map<String, StoredDifficulty>> = flowOf(emptyMap()),
     private val today: () -> LocalDate = LocalDate::now,
     private val zone: () -> ZoneId = ZoneId::systemDefault,
-    /** The skill; by default from speed alone (no words known). */
-    private val skill: Flow<SkillEstimate> = SkillTracker(days, books, grades, flowOf(emptySet()), { null }, today, EmptyCoroutineContext).estimate,
+    /** The skill; by default from speed alone (no words read). */
+    private val skill: Flow<SkillEstimate> = SkillTracker(days, books, grades, flowOf(WordKnowledge.EMPTY), today).estimate,
 ) : ViewModel() {
     private val library = combine(books, grades, skill) { b, g, s -> Triple(b, g, s) }
 
@@ -121,7 +122,10 @@ class ProgressViewModel(
                 ProgressViewModel(
                     days = container.readingDao.observeAll(),
                     books = container.bookDao.observeAll(),
-                    wordsLearned = container.wordRepository.counts.map { it.learned },
+                    // Looked-up words that became known, by reading or by hand.
+                    wordsLearned = container.wordKnowledge.map { knowledge ->
+                        knowledge.progress.values.count { it.steps >= WordProgress.KNOWN }
+                    },
                     ankiCards = container.wordRepository.ankiCards,
                     store = container.milestoneStore,
                     grades = container.difficultyStore.grades,

@@ -8,15 +8,16 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -27,10 +28,10 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Star
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -69,13 +70,13 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import app.honmani.reader.ui.ProgressBar
 import app.honmani.reader.R
-import app.honmani.reader.data.words.WordCounts
 import app.honmani.reader.data.words.WordEntity
 import app.honmani.reader.data.words.WordLookupEntity
+import app.honmani.reader.data.words.WordProgress
 import app.honmani.reader.data.words.WordStatus
 import app.honmani.reader.ui.HonmaniTopAppBar
+import app.honmani.reader.ui.ProgressBar
 import app.honmani.reader.ui.anki.label
 import app.honmani.reader.ui.anki.rememberAnkiAccess
 import app.honmani.reader.ui.anki.showAnkiResult
@@ -224,7 +225,12 @@ private fun WordsContent(
                         selected = uiState.filter == filter,
                         onClick = { onFilter(filter) },
                         label = {
-                            Text(stringResource(filterLabel(filter), count(uiState.counts, filter)))
+                            Text(
+                                stringResource(
+                                    filterLabel(filter),
+                                    if (filter == WordFilter.LEARNING) uiState.learningCount else uiState.knownCount,
+                                ),
+                            )
                         },
                     )
                 }
@@ -248,19 +254,24 @@ private fun WordsContent(
                             .padding(top = 6.dp),
                     )
                 }
-            } else if (uiState.filter == WordFilter.FOR_ANKI && !words.isNullOrEmpty()) {
-                Button(
+            } else if (uiState.filter == WordFilter.LEARNING && uiState.notInAnki > 0) {
+                FilledTonalButton(
                     onClick = onAddAllToAnki,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 ) {
-                    Text(stringResource(R.string.action_add_all_to_anki, words.size))
+                    Icon(
+                        painter = painterResource(R.drawable.ic_add_card),
+                        contentDescription = null,
+                        modifier = Modifier.padding(end = 8.dp),
+                    )
+                    Text(stringResource(R.string.action_add_all_to_anki, uiState.notInAnki))
                 }
             }
             when {
                 words == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
                 }
-                words.isEmpty() -> Text(
+                words.isEmpty() && uiState.knownByReading.isEmpty() -> Text(
                     text = stringResource(emptyText(uiState.filter)),
                     style = MaterialTheme.typography.bodyMedium,
                     textAlign = TextAlign.Center,
@@ -269,13 +280,24 @@ private fun WordsContent(
                         .padding(32.dp),
                 )
                 else -> LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
+                    item(key = "hint") {
+                        Text(
+                            text = stringResource(
+                                if (uiState.filter == WordFilter.LEARNING) R.string.words_learning_hint else R.string.words_known_hint,
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        )
+                    }
                     items(words, key = { it.id }) { word ->
                         val expanded = word.id == uiState.expanded
                         WordRow(
                             word = word,
                             now = now,
-                            // Learned words are listed by name only; details on a tap.
-                            compact = uiState.filter == WordFilter.LEARNED && !expanded,
+                            // Known words are listed by name only; details on a tap.
+                            compact = uiState.filter == WordFilter.KNOWN && !expanded,
+                            steps = if (uiState.filter == WordFilter.LEARNING) uiState.steps[word.id] else null,
                             expanded = expanded,
                             lookups = if (expanded) uiState.lookups else emptyList(),
                             onToggleExpanded = { onToggleExpanded(word.id) },
@@ -288,9 +310,51 @@ private fun WordsContent(
                         )
                         HorizontalDivider()
                     }
+                    items(uiState.knownByReading, key = { "read:" + it.first }) { (expression, reads) ->
+                        ReadWordRow(expression, reads)
+                        HorizontalDivider()
+                    }
                 }
             }
         }
+    }
+}
+
+/** A word known from reading alone: no lookup, so no reading or meaning saved; how often it was read. */
+@Composable
+private fun ReadWordRow(expression: String, reads: Int) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+    ) {
+        Text(expression, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+        Text(
+            text = pluralStringResource(R.plurals.word_read_times, reads, reads),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/** Progress towards known: a short bar and the percentage. */
+@Composable
+private fun StepsBar(steps: Int) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.padding(top = 6.dp),
+    ) {
+        ProgressBar(
+            progress = { steps.toFloat() / WordProgress.KNOWN },
+            modifier = Modifier.width(96.dp),
+        )
+        Text(
+            text = stringResource(R.string.word_progress, WordProgress.percent(steps)),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.primary,
+        )
     }
 }
 
@@ -324,23 +388,12 @@ private fun WordsMenu(onExport: () -> Unit, onExportPackage: () -> Unit, enabled
 
 private fun filterLabel(filter: WordFilter) = when (filter) {
     WordFilter.LEARNING -> R.string.words_filter_learning
-    WordFilter.FOR_ANKI -> R.string.words_filter_for_anki
-    WordFilter.STARRED -> R.string.words_filter_starred
-    WordFilter.LEARNED -> R.string.words_filter_learned
-}
-
-private fun count(counts: WordCounts, filter: WordFilter) = when (filter) {
-    WordFilter.LEARNING -> counts.learning
-    WordFilter.FOR_ANKI -> counts.forAnki
-    WordFilter.STARRED -> counts.starred
-    WordFilter.LEARNED -> counts.learned
+    WordFilter.KNOWN -> R.string.words_filter_known
 }
 
 private fun emptyText(filter: WordFilter) = when (filter) {
     WordFilter.LEARNING -> R.string.words_empty_learning
-    WordFilter.FOR_ANKI -> R.string.words_empty_for_anki
-    WordFilter.STARRED -> R.string.words_empty_starred
-    WordFilter.LEARNED -> R.string.words_empty_learned
+    WordFilter.KNOWN -> R.string.words_empty_known
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -351,6 +404,8 @@ private fun WordRow(
     compact: Boolean,
     expanded: Boolean,
     lookups: List<WordLookupEntity>,
+    /** Progress towards known, shown in the learning list. */
+    steps: Int?,
     onToggleExpanded: () -> Unit,
     onSetStarred: (Boolean) -> Unit,
     onMarkLearned: () -> Unit,
@@ -468,6 +523,7 @@ private fun WordRow(
                         maxLines = 2,
                     )
                 }
+                steps?.let { StepsBar(it) }
                 Text(
                     text = details(word, now),
                     style = MaterialTheme.typography.labelSmall,
@@ -575,7 +631,10 @@ private fun WordsPreview() {
                     word(1, "名前", "なまえ", "name; full name", 4, starred = true),
                     word(2, "見当", "けんとう", "estimate; guess; aim", 2),
                 ),
-                counts = WordCounts(learning = 2, starred = 1, learned = 40),
+                steps = mapOf(1L to 4, 2L to 1),
+                learningCount = 2,
+                knownCount = 40,
+                notInAnki = 2,
             ),
             now = now,
             snackbarHostState = remember { SnackbarHostState() },

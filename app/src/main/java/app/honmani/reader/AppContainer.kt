@@ -44,6 +44,9 @@ import app.honmani.reader.data.sync.KoSyncClient
 import app.honmani.reader.data.sync.KoSyncSettings
 import app.honmani.reader.data.sync.ProgressSync
 import app.honmani.reader.data.sync.RubyText
+import app.honmani.reader.data.words.WordKnowledge
+import app.honmani.reader.data.words.WordKnowledgeTracker
+import app.honmani.reader.data.words.WordProgressStore
 import app.honmani.reader.data.words.WordRepository
 import app.honmani.reader.diagnostics.ReaderDiagnostics
 import app.honmani.reader.lookup.DictionaryLookup
@@ -53,12 +56,15 @@ import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -270,14 +276,24 @@ class AppContainer(context: Context) {
         devicePreferences.edit().putString(KEY_DISMISSED_CONTINUE, key).apply()
     }
 
+    /** The words read and how well each is known; one computation shared by its screens. */
+    val wordKnowledge: Flow<WordKnowledge> by lazy {
+        WordKnowledgeTracker(
+            books = bookDao.observeAll(),
+            grades = difficultyStore.grades,
+            words = wordRepository.all,
+            bookWords = difficultyStore::words,
+            store = WordProgressStore(File(appContext.filesDir, "word-progress.json")),
+        ).knowledge.shareIn(applicationScope, SharingStarted.WhileSubscribed(5_000), replay = 1)
+    }
+
     /** The reader's skill: fluency and vocabulary in graded books. */
     val skillTracker: SkillTracker by lazy {
         SkillTracker(
             days = readingDao.observeAll(),
             books = bookDao.observeAll(),
             grades = difficultyStore.grades,
-            learning = wordRepository.learning.map { words -> words.mapTo(HashSet()) { it.expression } }.distinctUntilChanged(),
-            words = difficultyStore::words,
+            knowledge = wordKnowledge,
         )
     }
 

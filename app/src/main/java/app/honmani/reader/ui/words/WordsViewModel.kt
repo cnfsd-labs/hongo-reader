@@ -10,8 +10,8 @@ import app.honmani.reader.HonmaniApplication
 import app.honmani.reader.anki.AnkiResult
 import app.honmani.reader.anki.VoiceProblem
 import app.honmani.reader.data.words.DeletedWord
-import app.honmani.reader.data.words.WordCounts
 import app.honmani.reader.data.words.WordEntity
+import app.honmani.reader.data.words.WordKnowledge
 import app.honmani.reader.data.words.WordLookupEntity
 import app.honmani.reader.data.words.WordRepository
 import java.io.IOException
@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -33,20 +34,25 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 enum class WordFilter {
-    /** Words being learned, most looked up (recently) first. */
+    /** Saved words not known yet, starred first, then the most looked up (recently). */
     LEARNING,
 
-    /** Suggested for Anki: looked up more than once and not in Anki yet. */
-    FOR_ANKI,
-    STARRED,
-    LEARNED,
+    /** Words known: read often enough without a lookup, or marked as learned. */
+    KNOWN,
 }
 
 data class WordsUiState(
     val filter: WordFilter = WordFilter.LEARNING,
-    /** Null until loaded. */
+    /** The saved words of the list shown; null until loaded. */
     val words: List<WordEntity>? = null,
-    val counts: WordCounts = WordCounts(),
+    /** In the known list, after the saved words: words known from reading alone, with how often each was read. */
+    val knownByReading: List<Pair<String, Int>> = emptyList(),
+    /** Progress of saved words in steps of `WordProgress.KNOWN`, by id. */
+    val steps: Map<Long, Int> = emptyMap(),
+    val learningCount: Int = 0,
+    val knownCount: Int = 0,
+    /** Words in the learning list without an Anki card, for "Add all to Anki". */
+    val notInAnki: Int = 0,
     /** The word whose details are shown, if any. */
     val expanded: Long? = null,
     /** The expanded word's latest lookups, newest first. */
@@ -106,6 +112,8 @@ class WordsViewModel(
      */
     private val writePackage: suspend (uri: String, List<WordEntity>, onProgress: (Int) -> Unit) -> VoiceProblem? =
         { _, _, _ -> null },
+    /** What was read and how well each word is known; null while it is worked out. */
+    private val knowledge: Flow<WordKnowledge?> = flowOf(null),
 ) : ViewModel() {
     private val filter = MutableStateFlow(WordFilter.LEARNING)
     private val expanded = MutableStateFlow<Long?>(null)
@@ -121,13 +129,12 @@ class WordsViewModel(
     /** Changes to offer an undo for. */
     val changes: Flow<WordChange> = _changes.receiveAsFlow()
 
-    private val words: Flow<List<WordEntity>> = filter.flatMapLatest {
-        when (it) {
-            WordFilter.LEARNING -> repository.learning
-            WordFilter.FOR_ANKI -> repository.forAnki
-            WordFilter.STARRED -> repository.starred
-            WordFilter.LEARNED -> repository.learned
-        }
+    private val lists: Flow<WordLists> = combine(repository.all, knowledge.onStart { emit(null) }) { words, knowledge ->
+        WordLists.of(words, knowledge)
+    }
+
+    private val words: Flow<List<WordEntity>> = combine(filter, lists) { filter, lists ->
+        if (filter == WordFilter.LEARNING) lists.learning else lists.known
     }
 
     private val lookups: Flow<List<WordLookupEntity>> = expanded.flatMapLatest { id ->
@@ -135,8 +142,18 @@ class WordsViewModel(
     }
 
     val uiState: StateFlow<WordsUiState> =
-        combine(filter, words, repository.counts, expanded, lookups) { filter, words, counts, expanded, lookups ->
-            WordsUiState(filter, words, counts, expanded, if (expanded == null) emptyList() else lookups)
+        combine(filter, lists, expanded, lookups) { filter, lists, expanded, lookups ->
+            WordsUiState(
+                filter = filter,
+                words = if (filter == WordFilter.LEARNING) lists.learning else lists.known,
+                knownByReading = if (filter == WordFilter.KNOWN) lists.knownByReading else emptyList(),
+                steps = lists.steps,
+                learningCount = lists.learning.size,
+                knownCount = lists.knownCount,
+                notInAnki = lists.learning.count { it.ankiNoteId == null },
+                expanded = expanded,
+                lookups = if (expanded == null) emptyList() else lookups,
+            )
         }.combine(ankiProgress) { state, progress -> state.copy(ankiProgress = progress) }
             .combine(addingToAnki) { state, adding -> state.copy(addingToAnki = adding) }
             .combine(savingPackage) { state, saving -> state.copy(savingPackage = saving) }
@@ -186,11 +203,11 @@ class WordsViewModel(
         }
     }
 
-    /** Adds every suggested word to Anki, one after another; stops if AnkiDroid can't take them. */
+    /** Adds every word being learned that has no card to Anki, one after another; stops if AnkiDroid can't take them. */
     fun addAllToAnki() {
         if (ankiProgress.value != null) return
         viewModelScope.launch {
-            val suggested = repository.forAnki.first()
+            val suggested = lists.first().learning.filter { it.ankiNoteId == null }
             var added = 0
             var stopped: AnkiResult? = null
             var audioProblem: VoiceProblem? = null
@@ -287,6 +304,7 @@ class WordsViewModel(
                         } ?: throw IOException("Cannot write $uri")
                         out.use { container.ankiExporter.ankiPackage(list, it, onProgress) }
                     },
+                    knowledge = container.wordKnowledge,
                 )
             }
         }

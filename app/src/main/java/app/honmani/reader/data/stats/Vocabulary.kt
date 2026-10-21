@@ -1,6 +1,6 @@
 package app.honmani.reader.data.stats
 
-import app.honmani.reader.data.difficulty.BookWords
+import app.honmani.reader.data.words.ReadWord
 import kotlin.math.pow
 import kotlin.math.roundToInt
 
@@ -18,7 +18,7 @@ data class VocabularyEstimate(
 
 /**
  * The vocabulary estimate. Every word met in a graded book (before the reader's position) counts
- * as known, unless it is in the word list as being learned (looked up and not marked Learned).
+ * as known, unless it is in the word list and not known yet (`WordProgress`).
  * Words are grouped in frequency bands that double in size (the 500 most common, the next 500,
  * the next 1,000, …), and the estimate is the rank where the share of known words falls below
  * [KNOWN_SHARE], between band edges on a log scale. A band with few words met leans on the band
@@ -42,18 +42,14 @@ object Vocabulary {
     /** Known up to where at most one met word in ten is being learned. */
     const val KNOWN_SHARE = 0.9
 
-    /** [books]: each book's words with how far the reader is in it (0 to 1). [learning]: dictionary forms being learned. */
-    fun estimate(books: List<Pair<BookWords, Float>>, learning: Set<String>): VocabularyEstimate {
-        val met = HashMap<String, Int>()
-        for ((words, progress) in books) {
-            words.forEachMet(progress) { key, rank -> met.merge(key, rank, ::minOf) }
-        }
+    /** [met]: the words read so far, by dictionary form. [learning]: those being learned. */
+    fun estimate(met: Map<String, ReadWord>, learning: Set<String>): VocabularyEstimate {
         val bands = BAND_EDGES.size - 1
         val seen = IntArray(bands)
         val unknown = IntArray(bands)
         var learningMet = 0
-        for ((key, rank) in met) {
-            val band = band(rank) ?: continue
+        for ((key, word) in met) {
+            val band = band(word.rank) ?: continue
             seen[band]++
             if (key in learning) {
                 unknown[band]++

@@ -28,16 +28,38 @@ data class BookDifficulty(
 )
 
 /**
- * The distinct words of a book (dictionary forms, [Lexicon.UNRANKED] words included), with their
- * frequency rank and where in the book each first appears, as a share of the text (0 to 1): the
- * words a reader has met up to some progress, for the vocabulary estimate.
+ * The distinct words of a book (dictionary forms, [Lexicon.UNRANKED] words included; names left
+ * out), with their frequency rank and every place each occurs, as a share of the text in
+ * [POSITIONS] steps, ascending: how often a reader has read each word up to some progress.
  */
-class BookWords(val keys: List<String>, val ranks: IntArray, val firstAt: FloatArray) {
+class BookWords(val keys: List<String>, val ranks: IntArray, val positions: List<ShortArray>) {
     val size: Int get() = keys.size
 
-    /** The words met by [progress] (0 to 1). */
-    inline fun forEachMet(progress: Float, action: (key: String, rank: Int) -> Unit) {
-        for (i in keys.indices) if (firstAt[i] <= progress) action(keys[i], ranks[i])
+    /** Where word [index] first appears, 0 to 1. */
+    fun firstAt(index: Int): Float = positions[index][0] / POSITIONS.toFloat()
+
+    /** The words met by [progress] (0 to 1), with how many times each was read by then. */
+    inline fun forEachMet(progress: Float, action: (key: String, rank: Int, reads: Int) -> Unit) {
+        val limit = (progress * POSITIONS).toInt()
+        for (i in keys.indices) {
+            val reads = countUpTo(positions[i], limit)
+            if (reads > 0) action(keys[i], ranks[i], reads)
+        }
+    }
+
+    companion object {
+        const val POSITIONS = 10_000
+
+        /** How many of the ascending [positions] are at most [limit]. */
+        fun countUpTo(positions: ShortArray, limit: Int): Int {
+            var low = 0
+            var high = positions.size
+            while (low < high) {
+                val middle = (low + high) ushr 1
+                if (positions[middle] <= limit) low = middle + 1 else high = middle
+            }
+            return low
+        }
     }
 }
 
@@ -75,9 +97,10 @@ object Difficulty {
     /**
      * Raise when the scale or the word splitting changes, so stored results are redone. 2: EPUB
      * paragraphs end sentences (dialogue without 。 had made sentences far too long). 3: the
-     * book's characters are kept. 4: the book's words are kept ([BookWords]).
+     * book's characters are kept. 4: the book's words are kept ([BookWords]). 5: names left out
+     * ([isName]); every place a word occurs is kept.
      */
-    const val VERSION = 4
+    const val VERSION = 5
 
     const val COVERAGE = 0.95
 
@@ -126,12 +149,15 @@ object Difficulty {
 
     /** [of], with the book's words. */
     fun measure(text: Sequence<RubyText>, segmenter: Segmenter): Measured? {
-        val ranks = IntList()
-        // Each distinct word's rank and first offset in the whole text, in order of appearance.
-        val distinct = LinkedHashMap<String, LongArray>()
+        // First the words, in order: which word each is (an index into keys), and how much it
+        // counts as written in kanji. Names are only known once the whole book is counted.
+        val keys = LinkedHashMap<String, Int>()
+        val keyRanks = IntList()
+        val occurrences = ArrayList<IntList>()
+        val tokens = IntList()
+        val kanji = ByteList()
         var offset = 0L
         var unknown = 0
-        var kanjiWords = 0.0
         var characters = 0L
         var sentences = 0L
         for (chapter in text) {
@@ -139,12 +165,23 @@ object Difficulty {
             segmenter.segment(part) { token ->
                 if (token.rank == Token.UNKNOWN) {
                     unknown++
-                } else {
-                    ranks.add(token.rank)
-                    distinct.getOrPut(token.key) { longArrayOf(token.rank.toLong(), offset + token.start) }
-                    val kanji = (token.start until token.start + token.length).filter { JapaneseText.isKanji(part[it].code) }
-                    if (kanji.isNotEmpty()) kanjiWords += if (kanji.all { chapter.ruby[it] }) FURIGANA_KANJI else 1.0
+                    return@segment
                 }
+                val index = keys.getOrPut(token.key) {
+                    keyRanks.add(token.rank)
+                    occurrences += IntList(4)
+                    keys.size
+                }
+                tokens.add(index)
+                occurrences[index].add((offset + token.start).coerceAtMost(Int.MAX_VALUE.toLong()).toInt())
+                val inKanji = (token.start until token.start + token.length).filter { JapaneseText.isKanji(part[it].code) }
+                kanji.add(
+                    when {
+                        inKanji.isEmpty() -> NO_KANJI
+                        inKanji.all { chapter.ruby[it] } -> FURIGANA_KANJI
+                        else -> WHOLE_KANJI
+                    },
+                )
             }
             var inSentence = false
             for (c in part) {
@@ -159,15 +196,32 @@ object Difficulty {
             if (inSentence) sentences++
             offset += part.length
         }
+        val names = BooleanArray(keys.size) { isName(keyRanks[it], occurrences[it].size, tokens.size) }
+        val ranks = IntList()
+        var kanjiWords = 0.0
+        for (i in 0 until tokens.size) {
+            val index = tokens[i]
+            if (names[index]) {
+                unknown++
+                continue
+            }
+            ranks.add(keyRanks[index])
+            kanjiWords += kanji[i] / WHOLE_KANJI.toDouble()
+        }
         if (ranks.size < MIN_WORDS || sentences == 0L) return null
         val r95 = r95(ranks.toArray())
         val kanjiShare = kanjiWords / ranks.size
         val sentenceLength = characters.toDouble() / sentences
-        val length = offset.coerceAtLeast(1).toFloat()
+        val length = offset.coerceAtLeast(1).toDouble()
+        val kept = keys.keys.filterIndexed { index, _ -> !names[index] }
+        val keptIndices = (0 until keys.size).filter { !names[it] }
         val words = BookWords(
-            keys = distinct.keys.toList(),
-            ranks = IntArray(distinct.size).also { array -> distinct.values.forEachIndexed { i, v -> array[i] = v[0].toInt() } },
-            firstAt = FloatArray(distinct.size).also { array -> distinct.values.forEachIndexed { i, v -> array[i] = v[1] / length } },
+            keys = kept,
+            ranks = IntArray(keptIndices.size) { keyRanks[keptIndices[it]] },
+            positions = keptIndices.map { index ->
+                val at = occurrences[index]
+                ShortArray(at.size) { (at[it] / length * BookWords.POSITIONS).toInt().coerceAtMost(BookWords.POSITIONS).toShort() }
+            },
         )
         val difficulty = BookDifficulty(
             version = VERSION,
@@ -177,10 +231,23 @@ object Difficulty {
             sentenceLength = sentenceLength.toFloat(),
             characters = characters,
             words = ranks.size,
-            distinctWords = distinct.size,
+            distinctWords = kept.size,
             unknownShare = unknown.toFloat() / (unknown + ranks.size),
         )
         return Measured(difficulty, words)
+    }
+
+    /**
+     * A word the book uses far more than its rank says words are used: mostly names of people
+     * and places (茅, 八尋, 千早 in a novel), which dictionaries list as rare words. jiten.moe, which
+     * the scale was fitted on, leaves names out; counted, a novel's names alone made it read
+     * 10–15 points harder. Also a book's own rare terms, which a reader learns within the book.
+     * By Zipf's law a word of rank r is about 1 / (r · ln N) of a text's words.
+     */
+    internal fun isName(rank: Int, count: Int, words: Int): Boolean {
+        if (count < NAME_MIN_COUNT || rank < NAME_MIN_RANK) return false
+        val expected = words / (rank.toDouble() * ln(Segmenter.RARE_RANK.toDouble()))
+        return count >= NAME_EXCESS * expected
     }
 
     /** Short stories count; a page or two doesn't. */
@@ -188,7 +255,14 @@ object Difficulty {
 
     private const val SENTENCE_ENDS = "。！？!?\n"
 
-    private const val FURIGANA_KANJI = 0.5
+    // A word written in kanji counts 1, with furigana over all its kanji 0.5 (stored in halves).
+    private const val NO_KANJI: Byte = 0
+    private const val WHOLE_KANJI: Byte = 2
+    private const val FURIGANA_KANJI: Byte = 1
+
+    private const val NAME_MIN_COUNT = 20
+    private const val NAME_MIN_RANK = 5_000
+    private const val NAME_EXCESS = 1_000.0
 
     // The fit (see the class comment); refit and raise VERSION together.
     private const val INTERCEPT = -41.56
@@ -202,8 +276,21 @@ object Difficulty {
     private const val MAX_SENTENCE = 50.0
     private const val TOP_LEVEL = 45.0
 
-    private class IntList {
-        private var values = IntArray(4096)
+    private class ByteList {
+        private var values = ByteArray(4096)
+        var size = 0
+            private set
+
+        fun add(value: Byte) {
+            if (size == values.size) values = values.copyOf(size * 2)
+            values[size++] = value
+        }
+
+        operator fun get(index: Int): Byte = values[index]
+    }
+
+    private class IntList(capacity: Int = 4096) {
+        private var values = IntArray(capacity)
         var size = 0
             private set
 
@@ -211,6 +298,8 @@ object Difficulty {
             if (size == values.size) values = values.copyOf(size * 2)
             values[size++] = value
         }
+
+        operator fun get(index: Int): Int = values[index]
 
         fun toArray(): IntArray = values.copyOf(size)
     }

@@ -151,6 +151,16 @@ class WordRepositoryTest {
     }
 
     @Test
+    fun aLearnedWordLookedUpAgainIsBeingLearned() = runTest {
+        repository.record(lookup("猫", sentence = "一。"))
+        repository.markLearned(learning().single().id)
+        now += 60_000
+        repository.record(lookup("猫", sentence = "二。"))
+
+        assertEquals(listOf("猫"), learning().map { it.expression })
+    }
+
+    @Test
     fun countsFollowTheTabs() = runTest {
         repository.record(lookup("猫"))
         repository.record(lookup("犬"))

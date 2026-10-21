@@ -5,6 +5,7 @@ import app.honmani.reader.data.sync.RubyText
 import java.util.BitSet
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -80,11 +81,26 @@ class DifficultyTest {
 
         assertEquals(listOf("猫", "が", "好き", "です", "ねこ"), words.keys)
         assertEquals(listOf(900, 3, 200, 5, 900), words.ranks.toList())
-        assertEquals(0f, words.firstAt[0], 0.001f)
-        assertEquals(910f / text.length, words.firstAt[4], 0.001f)
-        val met = ArrayList<String>()
-        words.forEachMet(0.5f) { key, _ -> met += key }
-        assertEquals(listOf("猫", "が", "好き", "です"), met)
+        assertEquals(0f, words.firstAt(0), 0.001f)
+        assertEquals(910f / text.length, words.firstAt(4), 0.001f)
+        val met = LinkedHashMap<String, Int>()
+        words.forEachMet(0.5f) { key, _, reads -> met[key] = reads }
+        // Half the book: 65 of the 130 sentences, each word once in each.
+        assertEquals(listOf("猫", "が", "好き", "です"), met.keys.toList())
+        assertEquals(65.0, met.getValue("猫").toDouble(), 1.0)
+    }
+
+    @Test
+    fun namesTheBookRepeatsAreLeftOut() {
+        // 八尋 is a rare word in the dictionaries, but this book's main character.
+        val names = Lexicon.Builder().add("猫", 0, 900).add("が", 0, 3).add("好き", 0, 200).add("です", 0, 5).add("八尋", 0, 116_747).build()
+        val measured = Difficulty.measure(sequenceOf(RubyText("八尋が猫が好きです。".repeat(150))), Segmenter(names))!!
+
+        assertEquals(listOf("が", "猫", "好き", "です"), measured.words.keys)
+        assertEquals(900, measured.difficulty.r95)
+        assertTrue(Difficulty.isName(rank = 116_747, count = 488, words = 52_715))
+        // A rare word used a few times more than its rank says is still a word (心持 in こころ).
+        assertFalse(Difficulty.isName(rank = 63_707, count = 57, words = 70_798))
     }
 
     @Test

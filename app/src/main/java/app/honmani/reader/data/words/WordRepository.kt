@@ -41,6 +41,9 @@ class WordRepository(
     val starred = dao.observeStarred()
     val learned = dao.observeLearned()
 
+    /** Every saved word, being learned or learned. */
+    val all: Flow<List<WordEntity>> = combine(learning, learned) { learning, learned -> learning + learned }
+
     /** Words to suggest for Anki; see [WordDao.observeSuggested]. */
     val forAnki = dao.observeSuggested()
 
@@ -71,7 +74,8 @@ class WordRepository(
 
     /**
      * Records a lookup. Looking the same word up again in the same sentence soon after (a
-     * second tap, a correction) does not count again.
+     * second tap, a correction) does not count again. A learned word looked up is being learned
+     * again.
      */
     suspend fun record(word: LookedUpWord) {
         val time = now()
@@ -104,6 +108,8 @@ class WordRepository(
                 }
                 dao.update(
                     existing.copy(
+                        // Looked up again: being forgotten, so learned no longer (see WordProgress).
+                        status = WordStatus.LEARNING,
                         gloss = gloss.ifEmpty { existing.gloss },
                         lookupCount = existing.lookupCount + 1,
                         lastLookedUpAt = time,

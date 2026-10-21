@@ -1,5 +1,7 @@
 package app.honmani.reader.data.difficulty
 
+import java.io.DataInputStream
+import java.io.DataOutputStream
 import java.io.File
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -41,10 +43,15 @@ class DifficultyStore(private val directory: File) {
     fun saveWords(contentHash: String, words: BookWords) {
         directory.mkdirs()
         val temporary = File(directory, "$contentHash$WORDS_SUFFIX.tmp")
-        temporary.bufferedWriter().use { out ->
+        DataOutputStream(temporary.outputStream().buffered()).use { out ->
+            out.writeInt(WORDS_FORMAT)
+            out.writeInt(words.size)
             for (i in 0 until words.size) {
-                out.append(words.keys[i]).append('\t').append(words.ranks[i].toString()).append('\t')
-                    .append(words.firstAt[i].toString()).append('\n')
+                out.writeUTF(words.keys[i])
+                out.writeInt(words.ranks[i])
+                val positions = words.positions[i]
+                out.writeInt(positions.size)
+                for (position in positions) out.writeShort(position.toInt())
             }
         }
         temporary.renameTo(File(directory, contentHash + WORDS_SUFFIX))
@@ -55,18 +62,19 @@ class DifficultyStore(private val directory: File) {
         val file = File(directory, contentHash + WORDS_SUFFIX)
         if (!file.exists()) return null
         return runCatching {
-            val keys = ArrayList<String>()
-            val ranks = ArrayList<Int>()
-            val firstAt = ArrayList<Float>()
-            file.forEachLine { line ->
-                val fields = line.split('\t')
-                if (fields.size == 3) {
-                    keys += fields[0]
-                    ranks += fields[1].toInt()
-                    firstAt += fields[2].toFloat()
+            DataInputStream(file.inputStream().buffered()).use { input ->
+                if (input.readInt() != WORDS_FORMAT) return null
+                val count = input.readInt()
+                val keys = ArrayList<String>(count)
+                val ranks = IntArray(count)
+                val positions = ArrayList<ShortArray>(count)
+                for (i in 0 until count) {
+                    keys += input.readUTF()
+                    ranks[i] = input.readInt()
+                    positions += ShortArray(input.readInt()) { input.readShort() }
                 }
+                BookWords(keys, ranks, positions)
             }
-            BookWords(keys, ranks.toIntArray(), firstAt.toFloatArray())
         }.getOrNull()
     }
 
@@ -84,6 +92,9 @@ class DifficultyStore(private val directory: File) {
     internal companion object {
         private const val SUFFIX = ".json"
         private const val WORDS_SUFFIX = ".words"
+
+        /** Words files of another layout are read as none: their books are graded again anyway. */
+        private const val WORDS_FORMAT = 2
 
         fun encode(grade: StoredDifficulty): JSONObject = with(grade.difficulty) {
             JSONObject()

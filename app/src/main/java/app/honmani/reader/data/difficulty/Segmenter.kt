@@ -124,7 +124,7 @@ class Segmenter(private val lexicon: Lexicon) {
         private const val CACHED_LENGTH = 6
 
         /** Rank assumed for words in a dictionary but in no frequency list. */
-        private const val RARE_RANK = 500_000
+        internal const val RARE_RANK = 500_000
 
         /** Zipf: a word of rank r has probability about 1 / (r · ln N), N the list's length. */
         private val WORD_COST = ln(ln(RARE_RANK.toDouble()))
