@@ -102,7 +102,7 @@ class AppearanceSettings(private val preferences: SharedPreferences) {
         const val KEY_LIBRARY_SORT = "library_sort"
         const val KEY_CUSTOM_HUE = "accent_custom_hue"
 
-        /** A magenta that none of the presets has. */
-        const val DEFAULT_CUSTOM_HUE = 300f
+        /** A sky blue that none of the presets has (#51C5EC). */
+        const val DEFAULT_CUSTOM_HUE = 195f
     }
 }

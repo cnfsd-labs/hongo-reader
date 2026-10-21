@@ -45,6 +45,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -270,7 +271,7 @@ private fun AccentPicker(
                     label = stringResource(accent.label()),
                     isSelected = accent == selected,
                     onClick = { onSelect(accent) },
-                    rainbowRing = accent == Accent.CUSTOM,
+                    adjustable = accent == Accent.CUSTOM,
                 )
             }
         }
@@ -314,24 +315,14 @@ private fun AccentSwatch(
     label: String,
     isSelected: Boolean,
     onClick: () -> Unit,
-    rainbowRing: Boolean = false,
+    /** The custom swatch: a tune icon on its colour, so it reads as "your own colour". */
+    adjustable: Boolean = false,
 ) {
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .size(40.dp)
             .clip(CircleShape)
-            // The custom swatch: its colour inside a rainbow ring, so it reads as "any colour".
-            .then(
-                if (rainbowRing) {
-                    Modifier
-                        .background(Brush.sweepGradient(rainbow(steps = 12)))
-                        .padding(5.dp)
-                        .clip(CircleShape)
-                } else {
-                    Modifier
-                },
-            )
             .background(color)
             .border(
                 width = 2.dp,
@@ -341,11 +332,15 @@ private fun AccentSwatch(
             .semantics { selected = isSelected }
             .clickable(onClickLabel = label, role = Role.RadioButton, onClick = onClick),
     ) {
+        val tint = if (color.luminance() > 0.4f) Color.Black else Color.White
         if (isSelected) {
+            Icon(Icons.Filled.Check, contentDescription = label, tint = tint)
+        } else if (adjustable) {
             Icon(
-                Icons.Filled.Check,
+                painterResource(R.drawable.ic_tune),
                 contentDescription = label,
-                tint = if (color.luminance() > 0.4f) Color.Black else Color.White,
+                tint = tint,
+                modifier = Modifier.size(20.dp),
             )
         }
     }
