@@ -345,6 +345,55 @@
     <string name="lookup_nothing_found">No entry for “%1$s”.</string>
     <string name="lookup_no_dictionaries">No dictionary is installed yet. Get one in Dictionaries – it takes a minute.</string>
     <string name="lookup_open_dictionaries">Dictionaries</string>
+    <!-- Progress: reading level and milestones -->
+    <string name="action_progress">Progress</string>
+    <string name="progress_title">Progress</string>
+    <string name="progress_empty">Nothing read yet. Your level and milestones grow as you read.</string>
+    <string name="progress_level">Level %1$d</string>
+    <string name="progress_to_next">%1$s to level %2$d</string>
+    <string name="progress_streak">Streak: %1$s</string>
+    <string name="progress_this_week">Read on %1$d of the last 7 days</string>
+    <string name="progress_next">Next milestones</string>
+    <string name="progress_milestones">Milestones</string>
+    <string name="progress_of_goal">%1$s of %2$s</string>
+    <string name="progress_how">Your level grows with every character you read and never goes down. Milestones are dated from your reading; words learned and Anki cards from the day Honmani first saw them.</string>
+    <string name="progress_kind_characters">Characters read</string>
+    <string name="progress_kind_hours">Hours of reading</string>
+    <string name="progress_kind_books">Books finished</string>
+    <string name="progress_kind_days">Days of reading</string>
+    <string name="progress_kind_words">Words learned</string>
+    <string name="progress_kind_anki">Anki</string>
+    <string name="progress_kind_speed">Speed over 2 weeks</string>
+    <string name="progress_first_card">First card</string>
+    <string name="progress_reached_on">Reached %1$s</string>
+    <plurals name="milestone_characters">
+        <item quantity="one">%1$s character read</item>
+        <item quantity="other">%1$s characters read</item>
+    </plurals>
+    <plurals name="milestone_hours">
+        <item quantity="one">%1$s hour of reading</item>
+        <item quantity="other">%1$s hours of reading</item>
+    </plurals>
+    <plurals name="milestone_books">
+        <item quantity="one">%1$s book finished</item>
+        <item quantity="other">%1$s books finished</item>
+    </plurals>
+    <plurals name="milestone_days">
+        <item quantity="one">%1$s day of reading</item>
+        <item quantity="other">%1$s days of reading</item>
+    </plurals>
+    <plurals name="milestone_words">
+        <item quantity="one">%1$s word learned</item>
+        <item quantity="other">%1$s words learned</item>
+    </plurals>
+    <string name="milestone_anki">First Anki card</string>
+    <string name="milestone_speed">%1$s characters/hour over 2 weeks</string>
+    <string name="milestone_reached">Milestone: %1$s</string>
+    <plurals name="milestones_reached">
+        <item quantity="one">%1$d new milestone</item>
+        <item quantity="other">%1$d new milestones</item>
+    </plurals>
+    <string name="action_view_progress">View</string>
     <!-- Reading statistics -->
     <string name="stats_title">Reading statistics</string>
     <string name="action_statistics">Reading statistics</string>

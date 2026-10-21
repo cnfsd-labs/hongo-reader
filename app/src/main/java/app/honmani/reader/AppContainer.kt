@@ -27,6 +27,7 @@ import app.honmani.reader.data.opds.OpdsClient
 import app.honmani.reader.data.opds.OpdsRepository
 import app.honmani.reader.data.settings.AppearanceSettings
 import app.honmani.reader.data.settings.OnboardingSettings
+import app.honmani.reader.data.stats.MilestoneStore
 import app.honmani.reader.data.stats.ReadingDao
 import app.honmani.reader.data.stats.ReadingDayEntity
 import app.honmani.reader.data.stats.ReadingStore
@@ -190,6 +191,8 @@ class AppContainer(context: Context) {
     val ttuLibrary = TtuLibrary()
 
     val readingDao: ReadingDao by lazy { database.readingDao() }
+
+    val milestoneStore: MilestoneStore by lazy { MilestoneStore(devicePreferences) }
 
     /** Counts reading time and characters; fed by the reader screen and ttu's position reports. */
     val readingTracker: ReadingTracker by lazy {

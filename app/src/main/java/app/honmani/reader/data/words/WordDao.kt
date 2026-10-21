@@ -37,6 +37,9 @@ interface WordDao {
     @Query("SELECT COUNT(*) FROM word WHERE status = 'LEARNED'")
     fun countLearned(): Flow<Int>
 
+    @Query("SELECT COUNT(*) FROM word WHERE anki_note_id IS NOT NULL")
+    fun countInAnki(): Flow<Int>
+
     /** All lookups ever counted, for statistics; see [LookupEventEntity]. */
     @Query("SELECT COUNT(*) FROM lookup_event")
     fun countLookups(): Flow<Int>

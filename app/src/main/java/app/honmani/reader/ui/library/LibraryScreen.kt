@@ -61,8 +61,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -107,6 +109,9 @@ import app.honmani.reader.data.opds.AutoImportStatus
 import app.honmani.reader.ui.opds.CatalogBrowser
 import app.honmani.reader.ui.opds.CatalogDialog
 import app.honmani.reader.ui.opds.OpdsViewModel
+import app.honmani.reader.ui.progress.ProgressScreen
+import app.honmani.reader.ui.progress.ProgressViewModel
+import app.honmani.reader.ui.progress.milestoneTitle
 import app.honmani.reader.ui.stats.StatisticsScreen
 import app.honmani.reader.ui.theme.HonmaniTheme
 import java.io.File
@@ -125,6 +130,7 @@ fun LibraryScreen(
     modifier: Modifier = Modifier,
     viewModel: LibraryViewModel = viewModel(factory = LibraryViewModel.Factory),
     opds: OpdsViewModel = viewModel(factory = OpdsViewModel.Factory),
+    progress: ProgressViewModel = viewModel(factory = ProgressViewModel.Factory),
     /** Opens the "Add book" sheet right away (from the first-start screen). */
     addBookOnStart: Boolean = false,
     onAddBookStarted: () -> Unit = {},
@@ -134,6 +140,7 @@ fun LibraryScreen(
     val opdsState by opds.uiState.collectAsStateWithLifecycle()
     var choosingSource by rememberSaveable { mutableStateOf(false) }
     var showingStatistics by rememberSaveable { mutableStateOf(false) }
+    var showingProgress by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(addBookOnStart) {
         if (addBookOnStart) {
             choosingSource = true
@@ -162,8 +169,32 @@ fun LibraryScreen(
     }
 
     val browsing = opdsState.browsing
+
+    // Milestones reached since the library was last on screen, quietly, once the books show.
+    val milestones by progress.pending.collectAsStateWithLifecycle()
+    val atBooks = !showingStatistics && !showingProgress && browsing == null
+    val milestoneText = milestones.takeIf { atBooks && it.isNotEmpty() }?.let {
+        if (it.size == 1) {
+            stringResource(R.string.milestone_reached, milestoneTitle(it.single()))
+        } else {
+            pluralStringResource(R.plurals.milestones_reached, it.size, it.size)
+        }
+    }
+    val viewProgress = stringResource(R.string.action_view_progress)
+    LaunchedEffect(milestoneText) {
+        if (milestoneText != null) {
+            val showing = milestones
+            val result = snackbarHostState.showSnackbar(milestoneText, actionLabel = viewProgress, duration = SnackbarDuration.Long)
+            // Only once seen: leaving the library first keeps them for next time.
+            progress.shown(showing)
+            if (result == SnackbarResult.ActionPerformed) showingProgress = true
+        }
+    }
+
     if (showingStatistics) {
         StatisticsScreen(onBack = { showingStatistics = false })
+    } else if (showingProgress) {
+        ProgressScreen(onBack = { showingProgress = false }, viewModel = progress)
     } else if (browsing != null) {
         CatalogBrowser(
             state = browsing,
@@ -194,6 +225,7 @@ fun LibraryScreen(
             onShowHidden = viewModel::showHidden,
             onSearch = viewModel::search,
             onShowStatistics = { showingStatistics = true },
+            onShowProgress = { showingProgress = true },
             bottomBar = bottomBar,
             modifier = modifier,
         )
@@ -260,6 +292,7 @@ private fun LibraryContent(
     onSetHidden: (id: Long, hidden: Boolean) -> Unit = { _, _ -> },
     onShowHidden: (Boolean) -> Unit = {},
     onShowStatistics: () -> Unit = {},
+    onShowProgress: () -> Unit = {},
 ) {
     var pendingRemove by remember { mutableStateOf<LibraryBook?>(null) }
     var pendingReset by remember { mutableStateOf<LibraryBook?>(null) }
@@ -317,6 +350,7 @@ private fun LibraryContent(
                             onShowHidden = onShowHidden,
                             onAdd = onAdd,
                             onShowStatistics = onShowStatistics,
+                            onShowProgress = onShowProgress,
                         )
                     }
                 }
@@ -470,8 +504,8 @@ private val COVER_MIN_WIDTH = 96.dp
 
 /**
  * One compact row above the tabs: the reading-status filters with their counts (or, on the
- * hidden shelf, the way back), then statistics, search and adding a book at the right. While
- * searching, a search field takes its place.
+ * hidden shelf, the way back), then progress, statistics, search and adding a book at the
+ * right. While searching, a search field takes its place.
  */
 @Composable
 private fun LibraryToolbar(
@@ -484,6 +518,7 @@ private fun LibraryToolbar(
     onShowHidden: (Boolean) -> Unit,
     onAdd: () -> Unit,
     onShowStatistics: () -> Unit = {},
+    onShowProgress: () -> Unit = {},
 ) {
     Box {
         if (searching) {
@@ -553,6 +588,12 @@ private fun LibraryToolbar(
                 }
                 // 48 dp touch targets already keep 8 dp between the 40 dp buttons.
                 Row {
+                    FilledTonalIconButton(onClick = onShowProgress) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_progress),
+                            contentDescription = stringResource(R.string.action_progress),
+                        )
+                    }
                     FilledTonalIconButton(onClick = onShowStatistics) {
                         Icon(
                             painter = painterResource(R.drawable.ic_stats),

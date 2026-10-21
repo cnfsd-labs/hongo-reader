@@ -48,6 +48,9 @@ class WordRepository(
     val counts: Flow<WordCounts> =
         combine(dao.countLearning(), dao.countStarred(), dao.countLearned(), dao.countSuggested(), ::WordCounts)
 
+    /** Words added to AnkiDroid as cards. */
+    val ankiCards: Flow<Int> = dao.countInAnki()
+
     suspend fun find(id: Long): WordEntity? = dao.find(id)
 
     suspend fun find(expression: String, reading: String): WordEntity? = dao.find(expression, reading)

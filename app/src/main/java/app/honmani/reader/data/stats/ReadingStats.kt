@@ -136,7 +136,7 @@ object ReadingStats {
         return speed(first.sumOf { it.seconds }, first.sumOf { it.characters })
     }
 
-    private fun isReadingDay(total: DayTotal) = total.seconds >= MIN_DAY_SECONDS || total.characters > 0
+    internal fun isReadingDay(total: DayTotal) = total.seconds >= MIN_DAY_SECONDS || total.characters > 0
 
     private fun streak(byDay: Map<LocalDate, DayTotal>, today: LocalDate): Int {
         fun read(day: LocalDate) = byDay[day]?.let(::isReadingDay) == true
@@ -149,6 +149,6 @@ object ReadingStats {
         return count
     }
 
-    private fun speed(seconds: Long, characters: Long): Long? =
+    internal fun speed(seconds: Long, characters: Long): Long? =
         if (seconds >= MIN_SPEED_SECONDS && characters > 0) characters * 3_600 / seconds else null
 }
