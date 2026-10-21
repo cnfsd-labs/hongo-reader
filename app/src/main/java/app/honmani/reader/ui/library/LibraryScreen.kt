@@ -7,6 +7,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animate
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -16,6 +17,9 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -29,6 +33,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -77,6 +82,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -93,9 +100,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -108,6 +117,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -233,6 +243,7 @@ fun LibraryScreen(
             onShowHidden = viewModel::showHidden,
             onSearch = viewModel::search,
             onSort = viewModel::setSort,
+            onDismissContinue = viewModel::dismissContinue,
             bottomBar = bottomBar,
             modifier = modifier,
         )
@@ -301,6 +312,7 @@ private fun LibraryContent(
     /** The difficulty to show on a cover; null for none. */
     difficulty: (LibraryBook) -> Int? = { null },
     onSort: (LibrarySort) -> Unit = {},
+    onDismissContinue: () -> Unit = {},
 ) {
     var pendingRemove by remember { mutableStateOf<LibraryBook?>(null) }
     var pendingReset by remember { mutableStateOf<LibraryBook?>(null) }
@@ -349,7 +361,7 @@ private fun LibraryContent(
                         enter = fadeIn() + expandVertically(),
                         exit = fadeOut() + shrinkVertically(),
                     ) {
-                        lastContinue[0]?.let { book -> ContinueBubble(book, onOpen = { onOpen(book.id) }) }
+                        lastContinue[0]?.let { book -> ContinueBubble(book, onOpen = { onOpen(book.id) }, onDismiss = onDismissContinue) }
                     }
                     if (uiState.totalBooks > 0) {
                         LibraryToolbar(
@@ -781,7 +793,12 @@ private fun floatingChipColors() = FilterChipDefaults.filterChipColors(
  * the thumb, as wide as its title needs up to a limit.
  */
 @Composable
-private fun ContinueBubble(book: LibraryBook, onOpen: () -> Unit) {
+private fun ContinueBubble(book: LibraryBook, onOpen: () -> Unit, onDismiss: () -> Unit) {
+    // Swiped to the right far enough (or flung), it slides off and stays away; otherwise it springs back.
+    var offset by remember { mutableFloatStateOf(0f) }
+    var width by remember { mutableIntStateOf(0) }
+    val dismissAt = width * DISMISS_FRACTION
+    val drag = rememberDraggableState { delta -> offset = (offset + delta).coerceAtLeast(0f) }
     Row(
         horizontalArrangement = Arrangement.End,
         modifier = Modifier
@@ -794,7 +811,23 @@ private fun ContinueBubble(book: LibraryBook, onOpen: () -> Unit) {
             contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
             shape = CircleShape,
             shadowElevation = 4.dp,
-            modifier = Modifier.widthIn(max = 320.dp),
+            modifier = Modifier
+                .widthIn(max = 320.dp)
+                .onSizeChanged { width = it.width }
+                .offset { IntOffset(offset.roundToInt(), 0) }
+                .graphicsLayer { alpha = 1f - (offset / (width.coerceAtLeast(1) * 1.2f)).coerceIn(0f, 1f) }
+                .draggable(
+                    state = drag,
+                    orientation = Orientation.Horizontal,
+                    onDragStopped = { velocity ->
+                        if (offset > dismissAt || velocity > FLING_VELOCITY) {
+                            animate(offset, width * 1.5f) { value, _ -> offset = value }
+                            onDismiss()
+                        } else {
+                            animate(offset, 0f) { value, _ -> offset = value }
+                        }
+                    },
+                ),
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -823,6 +856,11 @@ private fun ContinueBubble(book: LibraryBook, onOpen: () -> Unit) {
         }
     }
 }
+
+private const val DISMISS_FRACTION = 0.4f
+
+/** Pixels per second; a quick flick to the right dismisses from any distance. */
+private const val FLING_VELOCITY = 1_500f
 
 @Composable
 internal fun statusIcon(status: ReadingStatus): Painter = when (status) {

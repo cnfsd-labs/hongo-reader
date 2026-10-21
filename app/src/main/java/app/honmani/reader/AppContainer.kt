@@ -53,6 +53,8 @@ import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
@@ -255,6 +257,19 @@ class AppContainer(context: Context) {
         )
     }
 
+    private val _dismissedContinue by lazy { MutableStateFlow(devicePreferences.getString(KEY_DISMISSED_CONTINUE, null)) }
+
+    /**
+     * The "Continue reading" bubble swiped away, as `LibraryViewModel.continueKey` (book ids are
+     * this phone's): it stays away until a book is opened again.
+     */
+    val dismissedContinue: StateFlow<String?> get() = _dismissedContinue
+
+    fun dismissContinue(key: String) {
+        _dismissedContinue.value = key
+        devicePreferences.edit().putString(KEY_DISMISSED_CONTINUE, key).apply()
+    }
+
     /** The reader's skill: fluency and vocabulary in graded books. */
     val skillTracker: SkillTracker by lazy {
         SkillTracker(
@@ -288,5 +303,6 @@ class AppContainer(context: Context) {
         /** Shared preferences files; the backup rules in `res/xml` name them as `<name>.xml`. */
         const val SETTINGS = "settings"
         const val DEVICE_SETTINGS = "device"
+        private const val KEY_DISMISSED_CONTINUE = "continue_dismissed"
     }
 }

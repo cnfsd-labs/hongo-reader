@@ -227,6 +227,30 @@ class LibraryViewModelTest {
     }
 
     @Test
+    fun aSwipedAwayBubbleStaysAwayUntilABookIsOpenedAgain() = runBlocking {
+        val dismissed = MutableStateFlow<String?>(null)
+        val library = LibraryViewModel(
+            dao = dao,
+            importer = importer,
+            ttu = ttu,
+            openFile = { null },
+            dismissedContinue = dismissed,
+            saveDismissedContinue = { dismissed.value = it },
+        )
+        val neko = addAndWait("neko.epub", TestBooks.epub())
+        ttu.onMessage(LibraryMessage.Progress(listOf(TtuProgress(neko.ttuId!!, 0.5f))))
+        eventually { dao.find(neko.id)?.progress?.takeIf { it > 0f } }
+        dao.setLastOpened(neko.id, 2L)
+        library.uiState.first { it.continueBook != null }
+
+        library.dismissContinue()
+        library.uiState.first { it.continueBook == null && it.books?.isNotEmpty() == true }
+
+        dao.setLastOpened(neko.id, 3L)
+        assertEquals(neko.id, library.uiState.first { it.continueBook != null }.continueBook!!.id)
+    }
+
+    @Test
     fun hiddenBooksOnlyShowOnTheHiddenShelf() = runBlocking {
         val neko = addAndWait("neko.epub", TestBooks.epub())
         val kokoro = addAndWait("kokoro.epub", TestBooks.epub(title = "こころ"))

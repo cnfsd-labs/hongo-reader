@@ -103,6 +103,7 @@ private data class Ordering(
     val grades: Map<String, StoredDifficulty>,
     val sort: LibrarySort,
     val skill: Int?,
+    val dismissedContinue: String?,
 )
 
 /** Which books the library shows: one reading status (or all), or the hidden ones. */
@@ -132,6 +133,9 @@ class LibraryViewModel(
     private val saveSort: (String) -> Unit = {},
     /** The reader's skill (`Skill.estimate`), for [LibrarySort.BEST_FIT]. */
     private val skill: Flow<Int?> = flowOf(null),
+    /** The "Continue reading" bubble swiped away ([continueKey]), and where that is kept. */
+    private val dismissedContinue: Flow<String?> = flowOf(null),
+    private val saveDismissedContinue: (String) -> Unit = {},
 ) : ViewModel() {
     private val adding = MutableStateFlow<String?>(null)
     private val opening = MutableStateFlow<Long?>(null)
@@ -149,14 +153,14 @@ class LibraryViewModel(
 
     val uiState: StateFlow<LibraryUiState> =
         combine(
-            combine(dao.observeAll(), grades, sortName, skill) { entities, grades, sort, skill ->
-                Ordering(entities, grades, LibrarySort.fromName(sort), skill)
+            combine(dao.observeAll(), grades, sortName, skill, dismissedContinue) { entities, grades, sort, skill, dismissed ->
+                Ordering(entities, grades, LibrarySort.fromName(sort), skill, dismissed)
             },
             adding,
             opening,
             shelf,
             searchTerms,
-        ) { (entities, grades, sort, skill), adding, opening, shelf, terms ->
+        ) { (entities, grades, sort, skill, dismissed), adding, opening, shelf, terms ->
             val (query, readings) = terms
             val books = sort.apply(entities.map(::toLibraryBook), skill) { book ->
                 grades[book.contentHash]?.difficulty?.score?.takeIf { it > 0 }
@@ -177,6 +181,7 @@ class LibraryViewModel(
                 continueBook = entities
                     .filter { !it.hidden && it.lastOpenedAt != null }
                     .maxByOrNull { it.lastOpenedAt!! }
+                    ?.takeIf { continueKey(it) != dismissed }
                     ?.let(::toLibraryBook)
                     ?.takeIf { it.status == ReadingStatus.READING },
                 query = query,
@@ -296,6 +301,14 @@ class LibraryViewModel(
 
     fun setSort(sort: LibrarySort) = saveSort(sort.name)
 
+    /** Hides the "Continue reading" bubble until a book is opened again. */
+    fun dismissContinue() {
+        val id = uiState.value.continueBook?.id ?: return
+        viewModelScope.launch {
+            dao.observeAll().first().firstOrNull { it.id == id }?.let { saveDismissedContinue(continueKey(it)) }
+        }
+    }
+
     fun search(text: String) {
         query.value = text
         if (Romaji.isRomaji(text)) readTitles()
@@ -378,6 +391,9 @@ class LibraryViewModel(
             return "${safeTitle.ifBlank { "book" }}.${book.format.extension}"
         }
 
+        /** Identifies one opening of a book: opening it (or another) again brings the bubble back. */
+        fun continueKey(book: BookEntity): String = "${book.id}:${book.lastOpenedAt}"
+
         val Factory = viewModelFactory {
             initializer {
                 val application = this[APPLICATION_KEY] as HonmaniApplication
@@ -395,6 +411,8 @@ class LibraryViewModel(
                     sortName = container.appearanceSettings.librarySort,
                     saveSort = container.appearanceSettings::setLibrarySort,
                     skill = container.skillTracker.estimate.map { it.current }.distinctUntilChanged(),
+                    dismissedContinue = container.dismissedContinue,
+                    saveDismissedContinue = container::dismissContinue,
                     syncPosition = { book, ttuId ->
                         val ttu = container.ttuLibrary
                         // Sync is a bonus: the book opens where it was if the reader page can't answer.
