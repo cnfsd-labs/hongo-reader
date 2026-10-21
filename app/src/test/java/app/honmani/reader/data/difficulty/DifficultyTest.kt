@@ -69,6 +69,7 @@ class DifficultyTest {
         assertEquals(900, difficulty.r95)
         assertEquals(0.5f, difficulty.kanjiShare, 0.001f)
         assertEquals(6f, difficulty.sentenceLength, 0.001f)
+        assertEquals(840L, difficulty.characters)
         assertEquals(Difficulty.VERSION, difficulty.version)
     }
 

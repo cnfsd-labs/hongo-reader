@@ -19,6 +19,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.BottomSheetDefaults
@@ -32,8 +34,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
@@ -52,8 +57,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.honmani.reader.R
 import app.honmani.reader.data.difficulty.BookDifficulty
+import app.honmani.reader.data.difficulty.GradingState
 import app.honmani.reader.ui.ProgressBar
 import app.honmani.reader.ui.difficultyBand
+import app.honmani.reader.ui.progress.ProgressViewModel
 import app.honmani.reader.ui.stats.BookStatistics
 import app.honmani.reader.ui.stats.StatisticsViewModel
 import app.honmani.reader.ui.stats.duration
@@ -77,9 +84,12 @@ fun BookSheet(
     onSetHidden: (Boolean) -> Unit,
     onRemove: () -> Unit,
     viewModel: StatisticsViewModel = viewModel(factory = StatisticsViewModel.Factory),
+    progress: ProgressViewModel = viewModel(factory = ProgressViewModel.Factory),
 ) {
     val flow = remember(book.id) { viewModel.book(book.id) }
     val stats by flow.collectAsStateWithLifecycle(null)
+    val progressState by progress.uiState.collectAsStateWithLifecycle()
+    val skill = progressState?.skill?.current
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -114,7 +124,7 @@ fun BookSheet(
                     modifier = Modifier.padding(start = 8.dp),
                 )
             }
-            stats?.difficulty?.let { DifficultyCard(it) }
+            stats?.let { DifficultyCard(it, book, skill) }
             stats?.let { Statistics(it) }
             Actions(
                 book = book,
@@ -234,12 +244,30 @@ private fun StatusPill(book: LibraryBook) {
 }
 
 /**
- * How hard the book is, on the 1–100 scale with its band and about which JLPT level that is, and
- * the three measures behind it.
+ * How hard the book is: the score, how it fits the reader's skill, and its band with about which
+ * JLPT level that is. A tap shows the rest: reading time at the reader's speed and the measures
+ * behind the score. Without a grade: that it is being worked out, or what is missing.
  */
 @Composable
-private fun DifficultyCard(difficulty: BookDifficulty) {
+private fun DifficultyCard(stats: BookStatistics, book: LibraryBook, skill: Int?) {
+    val difficulty = stats.difficulty
+    if (difficulty == null) {
+        val hint = when (stats.grading) {
+            GradingState.GRADING -> R.string.book_difficulty_grading
+            GradingState.NO_DICTIONARIES -> R.string.book_difficulty_no_dictionaries
+            GradingState.IDLE -> return
+        }
+        Text(
+            text = stringResource(hint),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 24.dp),
+        )
+        return
+    }
+    var expanded by rememberSaveable(book.id) { mutableStateOf(false) }
     Surface(
+        onClick = { expanded = !expanded },
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surfaceContainer,
         modifier = Modifier
@@ -247,28 +275,94 @@ private fun DifficultyCard(difficulty: BookDifficulty) {
             .padding(horizontal = 24.dp),
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(
-                text = stringResource(R.string.book_difficulty, difficulty.score),
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = stringResource(R.string.book_difficulty, difficulty.score),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.weight(1f),
+                )
+                skill?.let { FitLabel(BookFit.of(difficulty.score, it)) }
+                Icon(
+                    imageVector = if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                    contentDescription = stringResource(if (expanded) R.string.action_hide_details else R.string.action_show_details),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 8.dp),
+                )
+            }
             Text(
                 text = difficultyBand(difficulty.score),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             ProgressBar(progress = { difficulty.score / 100f }, modifier = Modifier.fillMaxWidth())
-            Text(
-                text = stringResource(
-                    R.string.book_difficulty_detail,
-                    number(difficulty.r95.toLong()),
-                    (difficulty.kanjiShare * 100).roundToInt(),
-                    difficulty.sentenceLength.roundToInt(),
-                ),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            if (expanded) {
+                val speed = stats.readerSpeed
+                if (speed != null && difficulty.characters > 0) {
+                    val reading = book.status == ReadingStatus.READING
+                    val share = if (reading) (1f - book.progress).coerceIn(0f, 1f) else 1f
+                    Text(
+                        text = stringResource(
+                            if (reading) R.string.book_time_left else R.string.book_time_whole,
+                            duration((difficulty.characters * share * 3_600 / speed).toLong()),
+                            number(speed),
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+                Text(
+                    text = stringResource(
+                        R.string.book_difficulty_detail,
+                        number(difficulty.r95.toLong()),
+                        (difficulty.kanjiShare * 100).roundToInt(),
+                        difficulty.sentenceLength.roundToInt(),
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
+    }
+}
+
+/** How a book of some difficulty fits a reader of some skill. */
+internal enum class BookFit {
+    EASY,
+    FITS,
+    CHALLENGE,
+    HARD,
+    ;
+
+    companion object {
+        /** "Fits" is the range of "Books that fit you" in Progress: a little easier to a little harder. */
+        fun of(score: Int, skill: Int): BookFit = when (score - skill) {
+            in Int.MIN_VALUE..-6 -> EASY
+            in -5..8 -> FITS
+            in 9..15 -> CHALLENGE
+            else -> HARD
+        }
+    }
+}
+
+@Composable
+private fun FitLabel(fit: BookFit) {
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = if (fit == BookFit.FITS) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = if (fit == BookFit.FITS) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSecondaryContainer,
+    ) {
+        Text(
+            text = stringResource(
+                when (fit) {
+                    BookFit.EASY -> R.string.book_fit_easy
+                    BookFit.FITS -> R.string.book_fit_fits
+                    BookFit.CHALLENGE -> R.string.book_fit_challenge
+                    BookFit.HARD -> R.string.book_fit_hard
+                },
+            ),
+            style = MaterialTheme.typography.labelLarge,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+        )
     }
 }
 

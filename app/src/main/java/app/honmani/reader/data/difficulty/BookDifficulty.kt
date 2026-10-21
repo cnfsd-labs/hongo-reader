@@ -18,6 +18,8 @@ data class BookDifficulty(
     val kanjiShare: Float,
     /** Characters per sentence, on average. */
     val sentenceLength: Float,
+    /** Japanese characters in the book (letters, kana and kanji; no punctuation), for reading time. */
+    val characters: Long = 0,
     /** Words counted (text no dictionary knows left out), and how many of them differ. */
     val words: Int,
     val distinctWords: Int,
@@ -55,9 +57,10 @@ enum class DifficultyBand(val highest: Int) {
 object Difficulty {
     /**
      * Raise when the scale or the word splitting changes, so stored results are redone. 2: EPUB
-     * paragraphs end sentences (dialogue without 。 had made sentences far too long).
+     * paragraphs end sentences (dialogue without 。 had made sentences far too long). 3: the
+     * book's characters are kept.
      */
-    const val VERSION = 2
+    const val VERSION = 3
 
     const val COVERAGE = 0.95
 
@@ -143,6 +146,7 @@ object Difficulty {
             r95 = r95,
             kanjiShare = kanjiShare.toFloat(),
             sentenceLength = sentenceLength.toFloat(),
+            characters = characters,
             words = ranks.size,
             distinctWords = distinct.size,
             unknownShare = unknown.toFloat() / (unknown + ranks.size),

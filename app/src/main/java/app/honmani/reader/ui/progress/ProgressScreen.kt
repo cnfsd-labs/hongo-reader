@@ -1,6 +1,14 @@
 package app.honmani.reader.ui.progress
 
+import android.provider.Settings
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -25,15 +33,22 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -53,6 +68,8 @@ import app.honmani.reader.ui.ProgressBar
 import app.honmani.reader.ui.stats.StatisticsContent
 import app.honmani.reader.ui.stats.characters
 import app.honmani.reader.ui.stats.number
+import java.time.DayOfWeek
+import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import kotlinx.coroutines.launch
@@ -125,7 +142,8 @@ private fun ProgressContent(
         }
         LevelCard(current)
         if (current.next.isNotEmpty()) NextMilestones(current.next)
-        AllMilestones(current.milestones)
+        ReadingCalendar(current.calendar, current.today)
+        AllMilestones(current.milestones, recentSince = current.today.minusDays(RECENT_DAYS))
         Text(
             text = stringResource(R.string.progress_how),
             style = MaterialTheme.typography.bodySmall,
@@ -241,7 +259,7 @@ private fun NextMilestones(next: List<Milestone>) {
  * kind fills its rows evenly (seven goals as four and three), so none sits alone in a row.
  */
 @Composable
-private fun AllMilestones(milestones: List<Milestone>) {
+private fun AllMilestones(milestones: List<Milestone>, recentSince: LocalDate) {
     val dateFormat = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.SHORT) }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(
@@ -261,7 +279,12 @@ private fun AllMilestones(milestones: List<Milestone>) {
                         for (row in goals.chunked(columns)) {
                             Row(horizontalArrangement = Arrangement.spacedBy(TILE_SPACING)) {
                                 for (milestone in row) {
-                                    MilestoneTile(milestone, dateFormat, Modifier.weight(1f))
+                                    MilestoneTile(
+                                        milestone,
+                                        dateFormat,
+                                        recent = milestone.reachedOn?.let { it >= recentSince } == true,
+                                        modifier = Modifier.weight(1f),
+                                    )
                                 }
                                 // The last row's tiles keep the width of the others.
                                 repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
@@ -275,7 +298,7 @@ private fun AllMilestones(milestones: List<Milestone>) {
 }
 
 @Composable
-private fun MilestoneTile(milestone: Milestone, dateFormat: DateTimeFormatter, modifier: Modifier = Modifier) {
+private fun MilestoneTile(milestone: Milestone, dateFormat: DateTimeFormatter, recent: Boolean, modifier: Modifier = Modifier) {
     val date = milestone.reachedOn?.format(dateFormat)
     val title = milestoneTitle(milestone)
     val description = date?.let { "$title, ${stringResource(R.string.progress_reached_on, it)}" } ?: title
@@ -291,7 +314,9 @@ private fun MilestoneTile(milestone: Milestone, dateFormat: DateTimeFormatter, m
         } else {
             MaterialTheme.colorScheme.outline
         },
-        modifier = modifier.clearAndSetSemantics { contentDescription = description },
+        modifier = modifier
+            .then(if (recent) Modifier.recentGlow(MaterialTheme.colorScheme.primary) else Modifier)
+            .clearAndSetSemantics { contentDescription = description },
     ) {
         Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
             Text(
@@ -304,6 +329,99 @@ private fun MilestoneTile(milestone: Milestone, dateFormat: DateTimeFormatter, m
         }
     }
 }
+
+/**
+ * A border that slowly brightens and fades, for milestones reached in the last days; a still
+ * border when the phone's animations are off.
+ */
+@Composable
+private fun Modifier.recentGlow(color: Color): Modifier {
+    val context = LocalContext.current
+    val animate = remember(context) {
+        Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) > 0f
+    }
+    val alpha: State<Float> = if (animate) {
+        rememberInfiniteTransition(label = "milestone glow").animateFloat(
+            initialValue = 0.35f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(tween(GLOW_PERIOD_MS, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+            label = "milestone glow alpha",
+        )
+    } else {
+        remember { mutableFloatStateOf(1f) }
+    }
+    // Read only while drawing, so the glow redraws without recomposing.
+    return drawWithContent {
+        drawContent()
+        drawRoundRect(
+            color = color.copy(alpha = alpha.value),
+            cornerRadius = CornerRadius(12.dp.toPx()),
+            style = Stroke(width = 2.dp.toPx()),
+        )
+    }
+}
+
+/**
+ * Reading days of the last year, a column per week (Monday on top), darker the longer the day's
+ * reading; it opens at the current week and scrolls back.
+ */
+@Composable
+private fun ReadingCalendar(calendar: Map<LocalDate, Long>, today: LocalDate) {
+    val firstMonday = today.with(DayOfWeek.MONDAY).minusWeeks(CALENDAR_WEEKS - 1L)
+    val empty = MaterialTheme.colorScheme.surfaceContainerHighest
+    val fill = MaterialTheme.colorScheme.primary
+    val days = calendar.count { (day, seconds) -> day >= firstMonday && seconds >= 60 }
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(
+                pluralStringResource(R.plurals.progress_calendar, days, days),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            val scroll = rememberScrollState()
+            LaunchedEffect(scroll.maxValue) { scroll.scrollTo(scroll.maxValue) }
+            Canvas(
+                modifier = Modifier
+                    .horizontalScroll(scroll)
+                    .size(width = (CELL + GAP) * CALENDAR_WEEKS, height = (CELL + GAP) * 7),
+            ) {
+                val cell = CELL.toPx()
+                val step = (CELL + GAP).toPx()
+                for (week in 0 until CALENDAR_WEEKS) {
+                    for (weekday in 0 until 7) {
+                        val day = firstMonday.plusDays(week * 7L + weekday)
+                        if (day > today) continue
+                        val minutes = (calendar[day] ?: 0L) / 60
+                        val color = when {
+                            minutes < 1 -> empty
+                            minutes < 15 -> fill.copy(alpha = 0.35f)
+                            minutes < 30 -> fill.copy(alpha = 0.55f)
+                            minutes < 60 -> fill.copy(alpha = 0.75f)
+                            else -> fill
+                        }
+                        drawRoundRect(
+                            color = color,
+                            topLeft = Offset(week * step, weekday * step),
+                            size = Size(cell, cell),
+                            cornerRadius = CornerRadius(2.dp.toPx()),
+                        )
+                    }
+                }
+            }
+            Text(
+                stringResource(R.string.progress_calendar_legend),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+private const val RECENT_DAYS = 6L
+private const val GLOW_PERIOD_MS = 1_600
+private const val CALENDAR_WEEKS = 53
+private val CELL = 12.dp
+private val GAP = 3.dp
 
 private val MIN_TILE_WIDTH = 72.dp
 private val TILE_SPACING = 8.dp

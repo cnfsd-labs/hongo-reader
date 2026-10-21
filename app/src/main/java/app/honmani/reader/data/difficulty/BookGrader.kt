@@ -2,6 +2,18 @@ package app.honmani.reader.data.difficulty
 
 import app.honmani.reader.data.library.BookEntity
 import app.honmani.reader.data.sync.RubyText
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+
+/** What grading is doing, for the book sheet. */
+enum class GradingState {
+    IDLE,
+    GRADING,
+
+    /** No word dictionary or no frequency list is installed: nothing can be graded. */
+    NO_DICTIONARIES,
+}
 
 /**
  * Grades the library's books that have no current grade, one at a time, keeping each grade as
@@ -18,10 +30,26 @@ class BookGrader(
     private val texts: (BookEntity) -> Sequence<RubyText>?,
     private val log: (String) -> Unit = {},
 ) {
+    private val _state = MutableStateFlow(GradingState.IDLE)
+    val state: StateFlow<GradingState> = _state.asStateFlow()
+
     /** Grades until every book has a current grade; returns how many were graded. */
     suspend fun gradeAll(): Int {
         if (store.grades.value.isEmpty()) store.load()
-        val sources = sources() ?: return 0
+        val sources = sources()
+        if (sources == null) {
+            _state.value = GradingState.NO_DICTIONARIES
+            return 0
+        }
+        _state.value = GradingState.GRADING
+        try {
+            return gradeWith(sources)
+        } finally {
+            _state.value = GradingState.IDLE
+        }
+    }
+
+    private suspend fun gradeWith(sources: LexiconSources): Int {
         val signature = sources.signature
         var segmenter: Segmenter? = null
         var graded = 0

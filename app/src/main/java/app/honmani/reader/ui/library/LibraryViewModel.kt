@@ -11,6 +11,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import app.honmani.reader.HonmaniApplication
 import app.honmani.reader.R
+import app.honmani.reader.data.difficulty.StoredDifficulty
 import app.honmani.reader.data.library.BookDao
 import app.honmani.reader.data.library.BookEntity
 import app.honmani.reader.data.library.BookImporter
@@ -34,6 +35,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -70,6 +72,7 @@ data class LibraryUiState(
     /** The book read last, if the reader is still reading it: offered as "Continue reading". */
     val continueBook: LibraryBook? = null,
     val query: String = "",
+    val sort: LibrarySort = LibrarySort.RECENT,
     /** Name of the file being added, if any. */
     val adding: String? = null,
     /** The book being opened, if any. */
@@ -110,6 +113,11 @@ class LibraryViewModel(
     private val openSample: () -> PickedFile? = { null },
     /** Takes a newer reading position from progress sync before the book (ttu id) opens. */
     private val syncPosition: suspend (BookEntity, Long) -> Unit = { _, _ -> },
+    /** Book grades by content hash, for sorting by difficulty. */
+    private val grades: Flow<Map<String, StoredDifficulty>> = flowOf(emptyMap()),
+    /** The chosen order (a [LibrarySort] name) and where a new choice is kept. */
+    private val sortName: Flow<String?> = flowOf(null),
+    private val saveSort: (String) -> Unit = {},
 ) : ViewModel() {
     private val adding = MutableStateFlow<String?>(null)
     private val opening = MutableStateFlow<Long?>(null)
@@ -126,9 +134,17 @@ class LibraryViewModel(
     val notices: Flow<LibraryNotice> = _notices.receiveAsFlow()
 
     val uiState: StateFlow<LibraryUiState> =
-        combine(dao.observeAll(), adding, opening, shelf, searchTerms) { entities, adding, opening, shelf, terms ->
+        combine(
+            combine(dao.observeAll(), grades, sortName) { entities, grades, sort -> Triple(entities, grades, LibrarySort.fromName(sort)) },
+            adding,
+            opening,
+            shelf,
+            searchTerms,
+        ) { (entities, grades, sort), adding, opening, shelf, terms ->
             val (query, readings) = terms
-            val books = entities.map(::toLibraryBook)
+            val books = sort.apply(entities.map(::toLibraryBook)) { book ->
+                grades[book.contentHash]?.difficulty?.score?.takeIf { it > 0 }
+            }
             val (hidden, shown) = books.partition { it.hidden }
             val onShelf = when {
                 shelf.hidden -> hidden
@@ -148,6 +164,7 @@ class LibraryViewModel(
                     ?.let(::toLibraryBook)
                     ?.takeIf { it.status == ReadingStatus.READING },
                 query = query,
+                sort = sort,
                 adding = adding,
                 opening = opening,
             )
@@ -260,6 +277,8 @@ class LibraryViewModel(
         viewModelScope.launch { dao.setHidden(id, hidden) }
     }
 
+    fun setSort(sort: LibrarySort) = saveSort(sort.name)
+
     fun search(text: String) {
         query.value = text
         if (Romaji.isRomaji(text)) readTitles()
@@ -355,6 +374,9 @@ class LibraryViewModel(
                         runCatching { PickedFile(SAMPLE_FILE_NAME, application.assets.open(SAMPLE_ASSET)) }.getOrNull()
                     },
                     autoImport = container.opdsAutoImport.status,
+                    grades = container.difficultyStore.grades,
+                    sortName = container.appearanceSettings.librarySort,
+                    saveSort = container.appearanceSettings::setLibrarySort,
                     syncPosition = { book, ttuId ->
                         val ttu = container.ttuLibrary
                         // Sync is a bonus: the book opens where it was if the reader page can't answer.

@@ -44,6 +44,9 @@ data class ProgressUiState(
     val skill: SkillEstimate = SkillEstimate(null, emptyList(), 0),
     /** Unfinished books that fit the reader's skill, best first. */
     val fitting: List<FittingBook> = emptyList(),
+    /** Seconds read per day, all books together, for the year calendar. */
+    val calendar: Map<LocalDate, Long> = emptyMap(),
+    val today: LocalDate = LocalDate.now(),
 )
 
 data class FittingBook(val id: Long, val title: String, val difficulty: Int)
@@ -87,6 +90,8 @@ class ProgressViewModel(
                 next = Progression.next(milestones),
                 anyReading = week.anyReading,
                 skill = skill,
+                calendar = rows.groupBy { LocalDate.parse(it.day) }.mapValues { (_, list) -> list.sumOf { it.seconds } },
+                today = today,
                 fitting = skill.current?.let { current ->
                     val titles = unfinished.associate { (book, score) -> book.id to (book.title to score) }
                     Skill.fitting(unfinished.map { (book, score) -> book.id to score }, current)

@@ -25,6 +25,28 @@ enum class ReadingStatus {
     }
 }
 
+/** The library's order. */
+enum class LibrarySort {
+    /** Last opened first, then last added: the order the database gives. */
+    RECENT,
+    EASIEST,
+    HARDEST,
+    TITLE,
+    ;
+
+    /** [books] in this order; by difficulty, books without one come last, in their recent order. */
+    fun apply(books: List<LibraryBook>, difficulty: (LibraryBook) -> Int?): List<LibraryBook> = when (this) {
+        RECENT -> books
+        EASIEST -> books.sortedWith(compareBy(nullsLast()) { difficulty(it) })
+        HARDEST -> books.sortedWith(compareBy(nullsLast(reverseOrder())) { difficulty(it) })
+        TITLE -> books.sortedBy { it.title }
+    }
+
+    companion object {
+        fun fromName(name: String?): LibrarySort = entries.firstOrNull { it.name == name } ?: RECENT
+    }
+}
+
 /**
  * Search in the library: by title or author, ignoring case, spaces and hiragana/katakana. A query
  * in Latin letters is also compared as romaji with the books' readings (`Romaji.loose`).

@@ -46,7 +46,9 @@ class BookGraderTest {
     fun gradesEachBookOnce_andKeepsTheGradesInFiles() = runBlocking {
         val store = DifficultyStore(folder.root)
 
-        assertEquals(2, grader(store).gradeAll())
+        val grader = grader(store)
+        assertEquals(2, grader.gradeAll())
+        assertEquals(GradingState.IDLE, grader.state.value)
         assertEquals(1, lexiconsBuilt)
         // Too short: kept as 0, so it isn't tried on every run.
         assertEquals(0, store.grades.value.getValue("short").difficulty.score)
@@ -75,8 +77,11 @@ class BookGraderTest {
     fun withoutDictionariesNothingIsGraded() = runBlocking {
         sources = null
         val store = DifficultyStore(folder.root)
+        val grader = grader(store)
 
-        assertEquals(0, grader(store).gradeAll())
+        assertEquals(0, grader.gradeAll())
         assertEquals(emptyMap<String, StoredDifficulty>(), store.grades.value)
+        // The book sheet says what is missing.
+        assertEquals(GradingState.NO_DICTIONARIES, grader.state.value)
     }
 }

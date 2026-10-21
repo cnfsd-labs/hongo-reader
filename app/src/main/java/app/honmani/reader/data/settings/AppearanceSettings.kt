@@ -81,6 +81,16 @@ class AppearanceSettings(private val preferences: SharedPreferences) {
         preferences.edit().putFloat(KEY_CUSTOM_HUE, _customHue.value).apply()
     }
 
+    private val _librarySort = MutableStateFlow(preferences.getString(KEY_LIBRARY_SORT, null))
+
+    /** The library's order, as a `LibrarySort` name; null for the default. */
+    val librarySort: StateFlow<String?> = _librarySort.asStateFlow()
+
+    fun setLibrarySort(name: String) {
+        _librarySort.value = name
+        preferences.edit().putString(KEY_LIBRARY_SORT, name).apply()
+    }
+
     fun setShowDifficulty(show: Boolean) {
         _showDifficulty.value = show
         preferences.edit().putBoolean(KEY_SHOW_DIFFICULTY, show).apply()
@@ -89,6 +99,7 @@ class AppearanceSettings(private val preferences: SharedPreferences) {
     private companion object {
         const val KEY_ACCENT = "accent"
         const val KEY_SHOW_DIFFICULTY = "show_difficulty"
+        const val KEY_LIBRARY_SORT = "library_sort"
         const val KEY_CUSTOM_HUE = "accent_custom_hue"
 
         /** A magenta that none of the presets has. */

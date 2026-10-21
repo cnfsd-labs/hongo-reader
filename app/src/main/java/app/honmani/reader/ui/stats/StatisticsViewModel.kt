@@ -7,6 +7,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import app.honmani.reader.HonmaniApplication
 import app.honmani.reader.data.difficulty.BookDifficulty
+import app.honmani.reader.data.difficulty.GradingState
 import app.honmani.reader.data.difficulty.StoredDifficulty
 import app.honmani.reader.data.library.BookEntity
 import app.honmani.reader.data.stats.BookReading
@@ -53,6 +54,10 @@ data class BookStatistics(
     val finishedAt: Long?,
     /** How hard the book is; null until it has been graded (or if it can't be). */
     val difficulty: BookDifficulty? = null,
+    /** Whether grading is running or can't run, for when [difficulty] is null. */
+    val grading: GradingState = GradingState.IDLE,
+    /** The reader's speed (characters per hour), recent if there is enough, else overall. */
+    val readerSpeed: Long? = null,
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -66,6 +71,7 @@ class StatisticsViewModel(
     private val words: Flow<WordCounts>,
     /** Book grades by content hash. */
     private val grades: Flow<Map<String, StoredDifficulty>> = flowOf(emptyMap()),
+    private val grading: Flow<GradingState> = flowOf(GradingState.IDLE),
     private val today: () -> LocalDate = LocalDate::now,
     private val zone: () -> ZoneId = ZoneId::systemDefault,
 ) : ViewModel() {
@@ -108,7 +114,13 @@ class StatisticsViewModel(
 
     /** Statistics of book [bookId]; nothing while the book isn't in the library. */
     fun book(bookId: Long): Flow<BookStatistics?> =
-        combine(bookDays(bookId), books, bookLookups(bookId), grades) { days, books, lookups, grades ->
+        combine(
+            bookDays(bookId),
+            books,
+            bookLookups(bookId),
+            combine(grades, grading) { grades, grading -> grades to grading },
+            this.days,
+        ) { days, books, lookups, (grades, grading), allDays ->
             val book = books.firstOrNull { it.id == bookId } ?: return@combine null
             BookStatistics(
                 reading = ReadingStats.book(days),
@@ -124,6 +136,9 @@ class StatisticsViewModel(
                 finishedAt = book.finishedAt,
                 // Score 0: too little text to grade.
                 difficulty = grades[book.contentHash]?.difficulty?.takeIf { it.score > 0 },
+                grading = grading,
+                readerSpeed = ReadingStats.period(allDays, today(), StatsPeriod.ALL).charactersPerHour
+                    ?: ReadingStats.book(allDays).charactersPerHour,
             )
         }
 
@@ -139,6 +154,7 @@ class StatisticsViewModel(
                     bookLookups = container.wordRepository::bookLookupCount,
                     words = container.wordRepository.counts,
                     grades = container.difficultyStore.grades,
+                    grading = container.bookGrader.state,
                 )
             }
         }

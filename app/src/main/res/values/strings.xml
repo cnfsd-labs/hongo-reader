@@ -35,6 +35,11 @@
         <item quantity="one">%1$d update available</item>
         <item quantity="other">%1$d updates available</item>
     </plurals>
+    <string name="action_sort">Order</string>
+    <string name="sort_recent">Recently opened</string>
+    <string name="sort_easiest">Easiest first</string>
+    <string name="sort_hardest">Hardest first</string>
+    <string name="sort_title">Title</string>
     <string name="settings_cover_difficulty">Difficulty on covers</string>
     <string name="settings_cover_difficulty_details">Each book\'s difficulty (1–100) in a corner of its cover</string>
     <string name="settings_reader">Reader settings</string>
@@ -359,6 +364,11 @@
     <!-- Progress: reading level and milestones -->
     <string name="progress_title">Progress</string>
     <string name="progress_overview">Overview</string>
+    <plurals name="progress_calendar">
+        <item quantity="one">%1$d day of reading in the last year</item>
+        <item quantity="other">%1$d days of reading in the last year</item>
+    </plurals>
+    <string name="progress_calendar_legend">Lighter: a few minutes; darker: up to an hour or more.</string>
     <string name="progress_skill">Skill</string>
     <string name="skill_value">Skill %1$d</string>
     <string name="skill_based_on">Based on %1$s of reading in books with a difficulty</string>
@@ -458,6 +468,16 @@
     <string name="book_hidden">Hidden from the library</string>
     <string name="book_difficulty">Difficulty %1$d</string>
     <string name="book_difficulty_detail">95%% of its words are among the %1$s most common. Kanji in %2$d%% of the words, %3$d characters per sentence.</string>
+    <string name="book_difficulty_grading">Working out how hard this book is…</string>
+    <string name="book_difficulty_no_dictionaries">The difficulty needs a dictionary and a frequency list, such as Jiten. Get them in Settings → Dictionaries.</string>
+    <string name="book_time_whole">About %1$s to read at your speed (%2$s characters an hour).</string>
+    <string name="book_time_left">About %1$s left at your speed (%2$s characters an hour).</string>
+    <string name="book_fit_easy">Easy read</string>
+    <string name="book_fit_fits">Fits you</string>
+    <string name="book_fit_challenge">A challenge</string>
+    <string name="book_fit_hard">Hard for now</string>
+    <string name="action_show_details">Show details</string>
+    <string name="action_hide_details">Hide details</string>
     <string name="difficulty_n5">Beginner</string>
     <string name="difficulty_n4">Elementary</string>
     <string name="difficulty_n3">Intermediate</string>

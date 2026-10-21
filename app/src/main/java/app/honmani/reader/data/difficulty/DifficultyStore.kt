@@ -55,6 +55,7 @@ class DifficultyStore(private val directory: File) {
                 .put("r95", r95)
                 .put("kanjiShare", kanjiShare.toDouble())
                 .put("sentenceLength", sentenceLength.toDouble())
+                .put("characters", characters)
                 .put("words", words)
                 .put("distinctWords", distinctWords)
                 .put("unknownShare", unknownShare.toDouble())
@@ -67,6 +68,7 @@ class DifficultyStore(private val directory: File) {
                 r95 = json.getInt("r95"),
                 kanjiShare = json.getDouble("kanjiShare").toFloat(),
                 sentenceLength = json.getDouble("sentenceLength").toFloat(),
+                characters = json.optLong("characters"),
                 words = json.getInt("words"),
                 distinctWords = json.getInt("distinctWords"),
                 unknownShare = json.getDouble("unknownShare").toFloat(),

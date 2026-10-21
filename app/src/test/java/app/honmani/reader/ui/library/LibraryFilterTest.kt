@@ -47,4 +47,16 @@ class LibraryFilterTest {
         // Without a reading, kanji can't match romaji.
         assertFalse(LibrarySearch.matches(neko, "wagahai"))
     }
+
+    @Test
+    fun sortsByDifficulty_ungradedBooksLast() {
+        val books = listOf(book("A"), book("B"), book("C"), book("D")).mapIndexed { i, it -> it.copy(id = i.toLong()) }
+        val scores = mapOf(0L to 60, 1L to 30, 3L to 45)
+        fun order(sort: LibrarySort) = sort.apply(books) { scores[it.id] }.map { it.title }
+
+        assertEquals(listOf("A", "B", "C", "D"), order(LibrarySort.RECENT))
+        assertEquals(listOf("B", "D", "A", "C"), order(LibrarySort.EASIEST))
+        assertEquals(listOf("A", "D", "B", "C"), order(LibrarySort.HARDEST))
+        assertEquals(LibrarySort.RECENT, LibrarySort.fromName("nonsense"))
+    }
 }

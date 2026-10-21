@@ -51,6 +51,8 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -60,6 +62,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
@@ -227,6 +230,7 @@ fun LibraryScreen(
             onFilter = viewModel::setFilter,
             onShowHidden = viewModel::showHidden,
             onSearch = viewModel::search,
+            onSort = viewModel::setSort,
             bottomBar = bottomBar,
             modifier = modifier,
         )
@@ -294,6 +298,7 @@ private fun LibraryContent(
     onShowHidden: (Boolean) -> Unit = {},
     /** The difficulty to show on a cover; null for none. */
     difficulty: (LibraryBook) -> Int? = { null },
+    onSort: (LibrarySort) -> Unit = {},
 ) {
     var pendingRemove by remember { mutableStateOf<LibraryBook?>(null) }
     var pendingReset by remember { mutableStateOf<LibraryBook?>(null) }
@@ -350,6 +355,7 @@ private fun LibraryContent(
                             onFilter = onFilter,
                             onShowHidden = onShowHidden,
                             onAdd = onAdd,
+                            onSort = onSort,
                         )
                     }
                 }
@@ -504,8 +510,8 @@ private val COVER_MIN_WIDTH = 96.dp
 
 /**
  * One compact row above the tabs: the reading-status filters with their counts (or, on the
- * hidden shelf, the way back), then search and adding a book at the right. While searching,
- * a search field takes its place.
+ * hidden shelf, the way back), then the order, search and adding a book at the right. While
+ * searching, a search field takes its place.
  */
 @Composable
 private fun LibraryToolbar(
@@ -517,6 +523,7 @@ private fun LibraryToolbar(
     onFilter: (ReadingStatus?) -> Unit,
     onShowHidden: (Boolean) -> Unit,
     onAdd: () -> Unit,
+    onSort: (LibrarySort) -> Unit = {},
 ) {
     Box {
         if (searching) {
@@ -586,6 +593,7 @@ private fun LibraryToolbar(
                 }
                 // 48 dp touch targets already keep 8 dp between the 40 dp buttons.
                 Row {
+                    SortButton(uiState.sort, onSort)
                     FilledTonalIconButton(onClick = onStartSearch) {
                         Icon(Icons.Filled.Search, contentDescription = stringResource(R.string.action_search))
                     }
@@ -593,6 +601,42 @@ private fun LibraryToolbar(
                         Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.action_add_book))
                     }
                 }
+            }
+        }
+    }
+}
+
+/** The library's order, from a small menu. */
+@Composable
+private fun SortButton(sort: LibrarySort, onSort: (LibrarySort) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        FilledTonalIconButton(onClick = { open = true }) {
+            Icon(painter = painterResource(R.drawable.ic_sort), contentDescription = stringResource(R.string.action_sort))
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            for (entry in LibrarySort.entries) {
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            stringResource(
+                                when (entry) {
+                                    LibrarySort.RECENT -> R.string.sort_recent
+                                    LibrarySort.EASIEST -> R.string.sort_easiest
+                                    LibrarySort.HARDEST -> R.string.sort_hardest
+                                    LibrarySort.TITLE -> R.string.sort_title
+                                },
+                            ),
+                        )
+                    },
+                    leadingIcon = {
+                        RadioButton(selected = entry == sort, onClick = null)
+                    },
+                    onClick = {
+                        open = false
+                        onSort(entry)
+                    },
+                )
             }
         }
     }
