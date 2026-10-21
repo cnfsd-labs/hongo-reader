@@ -70,7 +70,7 @@ class Lexicon private constructor(
         }
 
         fun build(): Lexicon {
-            val all = CharArray(text.length).also { text.getChars(0, text.length, it, 0) }
+            val all = text.toString().toCharArray()
             fun end(i: Int) = if (i + 1 < count) starts[i + 1] else all.size
             fun compare(a: Int, b: Int): Int {
                 val lengthA = end(a) - starts[a]
@@ -101,7 +101,7 @@ class Lexicon private constructor(
                 size++
             }
             outStarts[size] = packed.length
-            val chars = CharArray(packed.length).also { packed.getChars(0, packed.length, it, 0) }
+            val chars = packed.toString().toCharArray()
             return Lexicon(chars, outStarts.copyOf(size + 1), outClasses.copyOf(size), outRanks.copyOf(size))
         }
 
