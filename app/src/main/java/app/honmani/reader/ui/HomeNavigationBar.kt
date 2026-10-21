@@ -34,7 +34,7 @@ enum class HomeTab(
 ) {
     LIBRARY(R.string.nav_library, drawable = R.drawable.ic_library),
     WORDS(R.string.nav_words, vector = Icons.AutoMirrored.Filled.List),
-    DICTIONARIES(R.string.nav_dictionaries, drawable = R.drawable.ic_dictionary),
+    PROGRESS(R.string.nav_progress, drawable = R.drawable.ic_progress),
     SETTINGS(R.string.nav_settings, vector = Icons.Filled.Settings),
 }
 

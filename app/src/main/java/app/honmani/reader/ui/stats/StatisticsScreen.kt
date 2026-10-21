@@ -1,6 +1,5 @@
 package app.honmani.reader.ui.stats
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -11,7 +10,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -19,11 +17,9 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -51,7 +47,6 @@ import app.honmani.reader.data.stats.DayTotal
 import app.honmani.reader.data.stats.PeriodSummary
 import app.honmani.reader.data.stats.StatsPeriod
 import app.honmani.reader.data.stats.WeekSpeed
-import app.honmani.reader.ui.HonmaniTopAppBar
 import java.text.NumberFormat
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -59,28 +54,25 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
- * Reading statistics over all books, for the period picked at the bottom: today (per book),
- * the last 7 days (per day) or all time (per week, with the reading speed's trend).
+ * Reading statistics over all books, for the period picked at the top: today (per book), the
+ * last 7 days (per day) or all time (per week, with the reading speed's trend). In the Progress
+ * tab.
  */
 @Composable
-fun StatisticsScreen(
-    onBack: () -> Unit,
+fun StatisticsContent(
+    modifier: Modifier = Modifier,
     viewModel: StatisticsViewModel = viewModel(factory = StatisticsViewModel.Factory),
 ) {
-    BackHandler(onBack = onBack)
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val period by viewModel.period.collectAsStateWithLifecycle()
-    Scaffold(
-        topBar = { HonmaniTopAppBar(title = stringResource(R.string.stats_title), onBack = onBack) },
-        bottomBar = { PeriodPicker(period, viewModel::setPeriod) },
-    ) { padding ->
-        val current = state ?: return@Scaffold
+    Column(modifier = modifier.fillMaxSize()) {
+        PeriodPicker(period, viewModel::setPeriod)
+        val current = state ?: return@Column
         val summary = current.summary
         Column(
             verticalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp, vertical = 8.dp),
         ) {
@@ -122,21 +114,18 @@ fun StatisticsScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PeriodPicker(period: StatsPeriod, onPick: (StatsPeriod) -> Unit) {
-    Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
-        SingleChoiceSegmentedButtonRow(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-        ) {
-            StatsPeriod.entries.forEachIndexed { index, entry ->
-                SegmentedButton(
-                    selected = entry == period,
-                    onClick = { onPick(entry) },
-                    shape = SegmentedButtonDefaults.itemShape(index, StatsPeriod.entries.size),
-                    label = { Text(periodName(entry), maxLines = 1) },
-                )
-            }
+    SingleChoiceSegmentedButtonRow(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+    ) {
+        StatsPeriod.entries.forEachIndexed { index, entry ->
+            SegmentedButton(
+                selected = entry == period,
+                onClick = { onPick(entry) },
+                shape = SegmentedButtonDefaults.itemShape(index, StatsPeriod.entries.size),
+                label = { Text(periodName(entry), maxLines = 1) },
+            )
         }
     }
 }

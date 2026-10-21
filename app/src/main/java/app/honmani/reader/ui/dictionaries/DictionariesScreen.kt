@@ -1,5 +1,6 @@
 package app.honmani.reader.ui.dictionaries
 
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -66,9 +67,10 @@ private val DICTIONARY_MIME_TYPES =
 
 @Composable
 fun DictionariesScreen(
-    bottomBar: @Composable () -> Unit,
+    onBack: () -> Unit,
     viewModel: DictionariesViewModel = viewModel(factory = DictionariesViewModel.Factory),
 ) {
+    BackHandler(onBack = onBack)
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let { viewModel.import(it.toString()) }
@@ -76,7 +78,7 @@ fun DictionariesScreen(
     val withNotifications = rememberWithNotifications()
     DictionariesContent(
         uiState = uiState,
-        bottomBar = bottomBar,
+        onBack = onBack,
         onImport = { withNotifications { picker.launch(DICTIONARY_MIME_TYPES) } },
         onDownload = { dictionary -> withNotifications { viewModel.download(dictionary) } },
         onDismissFailures = viewModel::dismissFailures,
@@ -91,7 +93,7 @@ fun DictionariesScreen(
 @Composable
 private fun DictionariesContent(
     uiState: DictionariesUiState,
-    bottomBar: @Composable () -> Unit,
+    onBack: () -> Unit,
     onImport: () -> Unit,
     onDownload: (CatalogDictionary) -> Unit,
     onDismissFailures: () -> Unit,
@@ -105,9 +107,8 @@ private fun DictionariesContent(
 
     Scaffold(
         topBar = {
-            HonmaniTopAppBar(title = stringResource(R.string.dictionaries_title))
+            HonmaniTopAppBar(title = stringResource(R.string.dictionaries_title), onBack = onBack)
         },
-        bottomBar = bottomBar,
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = onImport,
@@ -514,7 +515,7 @@ private fun DictionariesContentPreview() {
                     ImportStatus.Failed("b", ImportError.INVALID, "index.json is missing"),
                 ),
             ),
-            bottomBar = {},
+            onBack = {},
             onImport = {},
             onDownload = {},
             onDismissFailures = {},

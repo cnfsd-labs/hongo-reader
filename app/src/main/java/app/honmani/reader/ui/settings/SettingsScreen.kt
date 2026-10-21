@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.Badge
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
@@ -43,6 +44,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -57,6 +59,7 @@ import app.honmani.reader.data.opds.OpdsCatalog
 import app.honmani.reader.data.settings.Accent
 import app.honmani.reader.data.settings.customAccentColor
 import app.honmani.reader.ui.HonmaniTopAppBar
+import app.honmani.reader.ui.dictionaries.DictionariesScreen
 import app.honmani.reader.ui.theme.HonmaniTheme
 import kotlinx.coroutines.launch
 
@@ -69,6 +72,9 @@ fun SettingsScreen(
     bottomBar: @Composable () -> Unit,
     onOpenReaderSettings: () -> Unit,
     onShareDiagnostics: () -> Unit,
+    /** The Dictionaries screen, kept by the caller so a lookup without dictionaries can open it. */
+    showingDictionaries: Boolean = false,
+    onShowDictionaries: (Boolean) -> Unit = {},
 ) {
     val context = LocalContext.current
     val container = remember { (context.applicationContext as HonmaniApplication).container }
@@ -76,6 +82,8 @@ fun SettingsScreen(
     val accent by appearance.accent.collectAsStateWithLifecycle()
     val customHue by appearance.customHue.collectAsStateWithLifecycle()
     val catalogs by container.opdsRepository.catalogs.collectAsStateWithLifecycle(emptyList())
+    val dictionaries by container.dictionaryRepository.dictionaries.collectAsStateWithLifecycle(emptyList())
+    val dictionaryUpdates by remember { container.dictionaryUpdateChecker.updates }.collectAsStateWithLifecycle(emptyList())
     val scope = rememberCoroutineScope()
     val version = remember {
         runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }
@@ -85,6 +93,10 @@ fun SettingsScreen(
     var showingAbout by rememberSaveable { mutableStateOf(false) }
     if (showingAbout) {
         AboutScreen(version, onBack = { showingAbout = false })
+        return
+    }
+    if (showingDictionaries) {
+        DictionariesScreen(onBack = { onShowDictionaries(false) })
         return
     }
     SettingsContent(
@@ -101,6 +113,9 @@ fun SettingsScreen(
             }
         },
         bottomBar = bottomBar,
+        dictionaries = dictionaries.size,
+        dictionaryUpdates = dictionaryUpdates.size,
+        onOpenDictionaries = { onShowDictionaries(true) },
         onOpenReaderSettings = onOpenReaderSettings,
         onShareDiagnostics = onShareDiagnostics,
         onOpenAbout = { showingAbout = true },
@@ -119,6 +134,9 @@ private fun SettingsContent(
     catalogs: List<OpdsCatalog>,
     onAutoImportChange: (OpdsCatalog, Boolean) -> Unit,
     bottomBar: @Composable () -> Unit,
+    dictionaries: Int,
+    dictionaryUpdates: Int,
+    onOpenDictionaries: () -> Unit,
     onOpenReaderSettings: () -> Unit,
     onShareDiagnostics: () -> Unit,
     onOpenAbout: () -> Unit,
@@ -134,6 +152,25 @@ private fun SettingsContent(
                 .fillMaxSize()
                 .padding(padding),
         ) {
+            item {
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.dictionaries_title)) },
+                    supportingContent = {
+                        if (dictionaryUpdates > 0) {
+                            Text(
+                                pluralStringResource(R.plurals.settings_dictionary_updates, dictionaryUpdates, dictionaryUpdates),
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        } else if (dictionaries == 0) {
+                            Text(stringResource(R.string.settings_dictionaries_none))
+                        } else {
+                            Text(pluralStringResource(R.plurals.settings_dictionaries_installed, dictionaries, dictionaries))
+                        }
+                    },
+                    trailingContent = { if (dictionaryUpdates > 0) Badge() },
+                    modifier = Modifier.clickable(onClick = onOpenDictionaries),
+                )
+            }
             item {
                 ListItem(
                     headlineContent = { Text(stringResource(R.string.settings_accent)) },
@@ -328,6 +365,9 @@ private fun SettingsPreview() {
             catalogs = listOf(OpdsCatalog(1, "Calibre-Web", "https://books.example/opds", "me", true)),
             onAutoImportChange = { _, _ -> },
             bottomBar = {},
+            dictionaries = 3,
+            dictionaryUpdates = 0,
+            onOpenDictionaries = {},
             onOpenReaderSettings = {},
             onShareDiagnostics = {},
             onOpenAbout = {},

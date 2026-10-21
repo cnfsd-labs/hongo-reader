@@ -1,30 +1,33 @@
 package app.honmani.reader.ui.progress
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -33,58 +36,90 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.honmani.reader.R
 import app.honmani.reader.data.stats.Milestone
 import app.honmani.reader.data.stats.MilestoneKind
+import app.honmani.reader.data.stats.Progression
 import app.honmani.reader.data.stats.ReadingLevel
 import app.honmani.reader.ui.HonmaniTopAppBar
 import app.honmani.reader.ui.ProgressBar
+import app.honmani.reader.ui.stats.StatisticsContent
 import app.honmani.reader.ui.stats.characters
 import app.honmani.reader.ui.stats.number
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
-/** The reading level, the next milestones and all milestones, from the library's toolbar. */
+/** Sections of the Progress tab. Skill (book difficulty against the reader) will join Overview. */
+private enum class ProgressSection(val label: Int) {
+    OVERVIEW(R.string.progress_overview),
+    STATISTICS(R.string.stats_title),
+}
+
+/** The Progress tab: level and milestones, and the reading statistics. */
 @Composable
-fun ProgressScreen(
-    onBack: () -> Unit,
+fun ProgressTab(bottomBar: @Composable () -> Unit) {
+    var section by rememberSaveable { mutableStateOf(ProgressSection.OVERVIEW) }
+    Scaffold(
+        topBar = {
+            Column {
+                HonmaniTopAppBar(title = stringResource(R.string.progress_title))
+                PrimaryTabRow(selectedTabIndex = section.ordinal) {
+                    for (entry in ProgressSection.entries) {
+                        Tab(
+                            selected = entry == section,
+                            onClick = { section = entry },
+                            text = { Text(stringResource(entry.label), maxLines = 1) },
+                        )
+                    }
+                }
+            }
+        },
+        bottomBar = bottomBar,
+    ) { padding ->
+        when (section) {
+            ProgressSection.OVERVIEW -> ProgressContent(Modifier.padding(padding))
+            ProgressSection.STATISTICS -> StatisticsContent(Modifier.padding(padding))
+        }
+    }
+}
+
+/** The reading level, the next milestones and all milestones. */
+@Composable
+private fun ProgressContent(
+    modifier: Modifier = Modifier,
     viewModel: ProgressViewModel = viewModel(factory = ProgressViewModel.Factory),
 ) {
-    BackHandler(onBack = onBack)
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    Scaffold(
-        topBar = { HonmaniTopAppBar(title = stringResource(R.string.progress_title), onBack = onBack) },
-    ) { padding ->
-        val current = state ?: return@Scaffold
-        Column(
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-        ) {
-            if (!current.anyReading) {
-                Text(
-                    text = stringResource(R.string.progress_empty),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            LevelCard(current)
-            if (current.next.isNotEmpty()) NextMilestones(current.next)
-            AllMilestones(current.milestones)
+    val current = state ?: return
+    Column(
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        if (!current.anyReading) {
             Text(
-                text = stringResource(R.string.progress_how),
-                style = MaterialTheme.typography.bodySmall,
+                text = stringResource(R.string.progress_empty),
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        LevelCard(current)
+        if (current.next.isNotEmpty()) NextMilestones(current.next)
+        AllMilestones(current.milestones)
+        Text(
+            text = stringResource(R.string.progress_how),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -190,47 +225,35 @@ private fun NextMilestones(next: List<Milestone>) {
     }
 }
 
-/** Every milestone by kind: reached ones with their date, the others greyed with their goal. */
-@OptIn(ExperimentalLayoutApi::class)
+/**
+ * Every milestone by kind: reached ones with their date, the others greyed with their goal. Each
+ * kind fills its rows evenly (seven goals as four and three), so none sits alone in a row.
+ */
 @Composable
 private fun AllMilestones(milestones: List<Milestone>) {
-    val dateFormat = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
+    val dateFormat = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.SHORT) }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(
             stringResource(R.string.progress_milestones),
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        for ((kind, goals) in milestones.groupBy { it.kind }) {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(stringResource(kindName(kind)), style = MaterialTheme.typography.titleSmall)
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    for (milestone in goals) {
-                        val date = milestone.reachedOn?.format(dateFormat)
-                        val title = milestoneTitle(milestone)
-                        val description = date?.let { "$title, ${stringResource(R.string.progress_reached_on, it)}" } ?: title
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = if (milestone.reached) {
-                                MaterialTheme.colorScheme.primaryContainer
-                            } else {
-                                MaterialTheme.colorScheme.surfaceContainer
-                            },
-                            contentColor = if (milestone.reached) {
-                                MaterialTheme.colorScheme.onPrimaryContainer
-                            } else {
-                                MaterialTheme.colorScheme.outline
-                            },
-                            modifier = Modifier
-                                .width(96.dp)
-                                .clearAndSetSemantics { contentDescription = description },
-                        ) {
-                            Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
-                                Text(goalLabel(milestone), style = MaterialTheme.typography.titleMedium, maxLines = 1)
-                                Text(date ?: "–", style = MaterialTheme.typography.labelSmall, maxLines = 1)
+        BoxWithConstraints {
+            // As many tiles in a row as fit a goal and a short date, also with large text.
+            val minTile = MIN_TILE_WIDTH * LocalDensity.current.fontScale.coerceAtLeast(1f)
+            val maxColumns = ((maxWidth + TILE_SPACING) / (minTile + TILE_SPACING)).toInt().coerceAtLeast(2)
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                for ((kind, goals) in milestones.groupBy { it.kind }) {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(stringResource(kindName(kind)), style = MaterialTheme.typography.titleSmall)
+                        val columns = Progression.columns(goals.size, maxColumns)
+                        for (row in goals.chunked(columns)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(TILE_SPACING)) {
+                                for (milestone in row) {
+                                    MilestoneTile(milestone, dateFormat, Modifier.weight(1f))
+                                }
+                                // The last row's tiles keep the width of the others.
+                                repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
                             }
                         }
                     }
@@ -239,6 +262,40 @@ private fun AllMilestones(milestones: List<Milestone>) {
         }
     }
 }
+
+@Composable
+private fun MilestoneTile(milestone: Milestone, dateFormat: DateTimeFormatter, modifier: Modifier = Modifier) {
+    val date = milestone.reachedOn?.format(dateFormat)
+    val title = milestoneTitle(milestone)
+    val description = date?.let { "$title, ${stringResource(R.string.progress_reached_on, it)}" } ?: title
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = if (milestone.reached) {
+            MaterialTheme.colorScheme.primaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceContainer
+        },
+        contentColor = if (milestone.reached) {
+            MaterialTheme.colorScheme.onPrimaryContainer
+        } else {
+            MaterialTheme.colorScheme.outline
+        },
+        modifier = modifier.clearAndSetSemantics { contentDescription = description },
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+            Text(
+                goalLabel(milestone),
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(date ?: "–", style = MaterialTheme.typography.labelSmall, maxLines = 1)
+        }
+    }
+}
+
+private val MIN_TILE_WIDTH = 72.dp
+private val TILE_SPACING = 8.dp
 
 private fun kindName(kind: MilestoneKind): Int = when (kind) {
     MilestoneKind.CHARACTERS -> R.string.progress_kind_characters

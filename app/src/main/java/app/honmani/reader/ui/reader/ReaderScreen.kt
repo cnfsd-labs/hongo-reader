@@ -36,10 +36,10 @@ import app.honmani.reader.ui.HomeNavigationBar
 import app.honmani.reader.ui.HomeTab
 import app.honmani.reader.ui.anki.rememberAnkiAccess
 import app.honmani.reader.ui.anki.showAnkiResult
-import app.honmani.reader.ui.dictionaries.DictionariesScreen
 import app.honmani.reader.ui.library.LibraryScreen
 import app.honmani.reader.ui.library.LibraryViewModel
 import app.honmani.reader.ui.onboarding.OnboardingScreen
+import app.honmani.reader.ui.progress.ProgressTab
 import app.honmani.reader.ui.settings.ReaderSettingsScreen
 import app.honmani.reader.ui.settings.SettingsScreen
 import app.honmani.reader.ui.words.WordsScreen
@@ -121,6 +121,8 @@ private fun ReaderWithTabs(viewModel: ReaderViewModel) {
     var addBookOnStart by remember { mutableStateOf(false) }
     // Honmani's reader settings, from the Settings tab or the reader's top bar.
     var readerSettings by rememberSaveable { mutableStateOf(false) }
+    // The Dictionaries screen, under Settings; lookups without a dictionary open it directly.
+    var dictionariesShown by rememberSaveable { mutableStateOf(false) }
     val library: LibraryViewModel = viewModel(factory = LibraryViewModel.Factory)
     LaunchedEffect(viewModel) {
         viewModel.ankiResults.collect { (expression, result) -> showAnkiResult(context, expression, result) }
@@ -172,8 +174,9 @@ private fun ReaderWithTabs(viewModel: ReaderViewModel) {
                     onShowKanji = viewModel::showKanji,
                     onBack = { viewModel.back() },
                     onOpenDictionaries = {
-                        // Leave the book for the Dictionaries tab.
-                        tab = HomeTab.DICTIONARIES
+                        // Leave the book for the Dictionaries screen.
+                        tab = HomeTab.SETTINGS
+                        dictionariesShown = true
                         viewModel.ttuLibrary.show(LIBRARY_PATH)
                     },
                     modifier = Modifier
@@ -207,8 +210,12 @@ private fun ReaderWithTabs(viewModel: ReaderViewModel) {
             val bottomBar = @Composable {
                 HomeNavigationBar(
                     selected = tab,
-                    onSelect = { tab = it },
-                    badges = if (dictionaryUpdates.isNotEmpty()) setOf(HomeTab.DICTIONARIES) else emptySet(),
+                    onSelect = {
+                        tab = it
+                        // A tab opens at its top level.
+                        dictionariesShown = false
+                    },
+                    badges = if (dictionaryUpdates.isNotEmpty()) setOf(HomeTab.SETTINGS) else emptySet(),
                 )
             }
             when (tab) {
@@ -217,11 +224,14 @@ private fun ReaderWithTabs(viewModel: ReaderViewModel) {
                     viewModel = library,
                     addBookOnStart = addBookOnStart,
                     onAddBookStarted = { addBookOnStart = false },
+                    onShowProgress = { tab = HomeTab.PROGRESS },
                 )
                 HomeTab.WORDS -> WordsScreen(bottomBar = bottomBar)
-                HomeTab.DICTIONARIES -> DictionariesScreen(bottomBar = bottomBar)
+                HomeTab.PROGRESS -> ProgressTab(bottomBar = bottomBar)
                 HomeTab.SETTINGS -> SettingsScreen(
                     bottomBar = bottomBar,
+                    showingDictionaries = dictionariesShown,
+                    onShowDictionaries = { dictionariesShown = it },
                     onOpenReaderSettings = { readerSettings = true },
                     onShareDiagnostics = {
                         val share = Intent(Intent.ACTION_SEND)

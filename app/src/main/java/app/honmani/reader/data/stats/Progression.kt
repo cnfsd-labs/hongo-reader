@@ -125,6 +125,16 @@ object Progression {
             .sortedByDescending { it.fraction }
             .take(count)
 
+    /**
+     * Columns for [count] tiles, at most [maxColumns], so that the rows come out as even as they
+     * can: seven goals in four columns rather than six and one. A single tile takes half a row.
+     */
+    fun columns(count: Int, maxColumns: Int): Int {
+        if (count <= 1) return (maxColumns / 2).coerceAtLeast(1)
+        val rows = (count + maxColumns - 1) / maxColumns
+        return (count + rows - 1) / rows
+    }
+
     /** The first day on which the running total of [value] reached [goal]. */
     private fun firstCumulative(days: List<DayTotal>, goal: Long, value: (DayTotal) -> Long): LocalDate? {
         var total = 0L

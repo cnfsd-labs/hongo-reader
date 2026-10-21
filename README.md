@@ -10,7 +10,7 @@ conjugated: 食べさせられなかった leads straight to 食べる.
 - Readings, definitions, word frequency, pitch accent and kanji details for every tap
 - Every word you look up is saved with its sentence; send words to Anki (AnkiDroid or an
   `.apkg` for Anki on a computer)
-- Reading statistics: time, characters, speed
+- Reading statistics (time, characters, speed), a reading level and milestones
 - Your own book server (OPDS, such as Calibre-Web): browse, search, download
 - Reading progress sync with KOReader (e-readers, Calibre-Web Automated), to the character
 - No account, no ads, no tracking ([privacy policy](docs/privacy-policy.md))
@@ -49,7 +49,7 @@ libraries, a complete bundled reader, and no Play-restricted permissions.
   in `app/src/main/assets/honmani/` are injected at document start: they report taps, page turns
   and positions to the app, hand books to ttu, and read and write ttu's settings.
 - **App.** Kotlin, Jetpack Compose (Material 3), Room, manual dependency injection
-  (`AppContainer`). One screen: the library, words, dictionaries and settings tabs are drawn over
+  (`AppContainer`). One screen: the library, words, progress and settings tabs are drawn over
   the reader, which stays loaded underneath.
 - **Library.** Honmani keeps the book files (named by their SHA-256) and feeds them to ttu, whose
   own storage is only a cache. Text files are converted to UTF-8; Aozora Bunko texts become EPUBs

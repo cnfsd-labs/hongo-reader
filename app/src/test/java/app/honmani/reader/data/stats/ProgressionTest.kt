@@ -129,4 +129,16 @@ class ProgressionTest {
             next.map { it.kind to it.goal },
         )
     }
+
+    @Test
+    fun tilesFillTheirRowsEvenly() {
+        assertEquals(4, Progression.columns(7, maxColumns = 4))
+        assertEquals(3, Progression.columns(6, maxColumns = 4))
+        assertEquals(4, Progression.columns(4, maxColumns = 4))
+        assertEquals(4, Progression.columns(7, maxColumns = 5))
+        assertEquals(3, Progression.columns(6, maxColumns = 5))
+        assertEquals(2, Progression.columns(4, maxColumns = 3))
+        assertEquals(2, Progression.columns(1, maxColumns = 4))
+        assertEquals(1, Progression.columns(1, maxColumns = 2))
+    }
 }
