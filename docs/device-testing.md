@@ -25,9 +25,9 @@ device and WebView versions, the reader's console messages and how the last book
 
 ## Test files
 
-- **Sample book:** [`docs/samples/wagahai-neko-1.epub`](samples/wagahai-neko-1.epub), chapter 1 of
-  吾輩は猫である with furigana, converted from Aozora Bunko (also built into the app: the
-  first-start screen offers it). It is known to be well-formed, so if it shows no text the
+- **Sample book:** [`docs/samples/tebukuro.epub`](samples/tebukuro.epub), 新美南吉's 手袋を買いに with
+  furigana, converted from Aozora Bunko (also built into the app: the first-start screen offers
+  it; Settings → Sample books has eight more, built by `scripts/sample-books/`). It is known to be well-formed, so if it shows no text the
   problem is in the app, not the file.
 - Any other DRM-free Japanese EPUB, or an Aozora Bunko `.txt` file (from a work's page on
   aozora.gr.jp, the zip under "テキストファイル(ルビあり)"; unzip it first).

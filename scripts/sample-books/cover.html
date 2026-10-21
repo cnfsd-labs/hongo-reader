@@ -1,0 +1,47 @@
+<!doctype html>
+<meta charset="utf-8">
+<style>
+  @font-face { font-family: "Shippori"; src: url("fonts/ShipporiMincho-ExtraBold.ttf"); }
+  @font-face { font-family: "Kaku"; src: url("fonts/ZenKakuGothicNew-Medium.ttf"); }
+  html, body { margin: 0; width: 800px; height: 1200px; overflow: hidden; }
+  .c { position: relative; width: 800px; height: 1200px; overflow: hidden; color: var(--ink); background: var(--bg); }
+  .frame { position: absolute; inset: 36px; border: 3px solid var(--line); }
+  .frame::after { content: ""; position: absolute; inset: 10px; border: 1px solid var(--line); }
+  .title { position: absolute; right: 120px; top: 150px; writing-mode: vertical-rl; font: var(--size)/1.15 "Shippori";
+    letter-spacing: .06em; text-shadow: 0 4px 16px rgba(0,0,0,.18); }
+  .author { position: absolute; left: 130px; bottom: 150px; writing-mode: vertical-rl; font: 52px/1 "Shippori";
+    letter-spacing: .25em; opacity: .9; }
+  .seal { position: absolute; left: 118px; top: 150px; width: 84px; height: 84px; border-radius: 10px; background: var(--seal);
+    color: var(--bg); font: 54px/84px "Shippori"; text-align: center; }
+  .motif { position: absolute; inset: 0; pointer-events: none; }
+</style>
+<div id="root"></div>
+<script>
+const B = {
+  neko:   { t: "吾輩は猫である", a: "夏目漱石", bg: "#2E3A59", ink: "#F4EBDD", line: "rgba(244,235,221,.45)", seal: "#D9A441", s: "猫", size: 132 },
+  bocchan:{ t: "坊っちゃん", a: "夏目漱石", bg: "#B5482F", ink: "#FFF3E6", line: "rgba(255,243,230,.5)", seal: "#2D2A26", s: "坊", size: 150 },
+  rasho:  { t: "羅生門", a: "芥川龍之介", bg: "#26262A", ink: "#EDE6DA", line: "rgba(237,230,218,.35)", seal: "#B63A2B", s: "門", size: 190 },
+  ginga:  { t: "銀河鉄道の夜", a: "宮沢賢治", bg: "#16204A", ink: "#E8EEFF", line: "rgba(232,238,255,.35)", seal: "#C9B458", s: "星", size: 138, stars: true },
+  kokoro: { t: "こころ", a: "夏目漱石", bg: "#5E7D68", ink: "#F6F2E8", line: "rgba(246,242,232,.45)", seal: "#2F3E33", s: "心", size: 190 },
+  kumo:   { t: "蜘蛛の糸", a: "芥川龍之介", bg: "#8593A3", ink: "#FFFFFF", line: "rgba(255,255,255,.5)", seal: "#2F3540", s: "糸", size: 160, thread: true },
+  tebukuro: { t: "手袋を買いに", a: "新美南吉", bg: "#E9EEF2", ink: "#2C3A4A", line: "rgba(44,58,74,.35)", seal: "#B5533C", s: "狐", size: 140, snow: true },
+  gon: { t: "ごんぎつね", a: "新美南吉", bg: "#C8642E", ink: "#FFF6EA", line: "rgba(255,246,234,.5)", seal: "#3A2A1E", s: "栗", size: 150 },
+  ryori:  { t: "注文の多い料理店", a: "宮沢賢治", bg: "#3E5C3A", ink: "#F3EEDC", line: "rgba(243,238,220,.45)", seal: "#B7792E", s: "森", size: 112 },
+}[new URLSearchParams(location.search).get("v")];
+let motif = "";
+if (B.stars) for (let i = 0; i < 70; i++) {
+  const x = (i * 97) % 800, y = (i * 211) % 1200, r = 1 + (i % 3);
+  motif += `<circle cx="${x}" cy="${y}" r="${r}" fill="#fff" opacity="${0.25 + (i % 5) * 0.12}"/>`;
+}
+if (B.snow) for (let i = 0; i < 90; i++) {
+  const x = (i * 131) % 800, y = (i * 173) % 1200, r = 2 + (i % 4);
+  motif += `<circle cx="${x}" cy="${y}" r="${r}" fill="#9fb3c8" opacity="${0.25 + (i % 4) * 0.1}"/>`;
+}
+if (B.thread) motif = `<line x1="400" y1="0" x2="400" y2="1200" stroke="#fff" stroke-width="2" opacity=".55"/>`;
+document.getElementById("root").innerHTML = `<div class="c" style="--bg:${B.bg};--ink:${B.ink};--line:${B.line};--seal:${B.seal};--size:${B.size}px">
+  <svg class="motif" viewBox="0 0 800 1200">${motif}</svg>
+  <div class="frame"></div>
+  <div class="seal">${B.s}</div>
+  <div class="title">${B.t}</div>
+  <div class="author">${B.a}</div></div>`;
+</script>

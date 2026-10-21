@@ -1,7 +1,8 @@
 // @ts-check
 /**
  * Converts Aozora Bunko text (already decoded to a string) to an EPUB, keeping furigana as
- * <ruby>. Used to make the sample book in docs/samples; enough for Aozora's basic markup.
+ * <ruby>, for tests; enough for Aozora's basic markup. (The sample books are built by
+ * scripts/sample-books/.)
  */
 const { buildEpub } = require('./epub');
 

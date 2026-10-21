@@ -1,0 +1,10 @@
+# key|Aozora card (author/card)|title|author|options — easiest first, as the app lists them
+tebukuro|000121/card637|手袋を買いに|新美南吉|
+gon|000121/card628|ごんぎつね|新美南吉|
+ryori|000081/card43754|注文の多い料理店|宮沢賢治|
+kumo|000879/card92|蜘蛛の糸|芥川龍之介|
+rasho|000879/card127|羅生門|芥川龍之介|
+ginga|000081/card456|銀河鉄道の夜|宮沢賢治|
+bocchan|000148/card752|坊っちゃん|夏目漱石|
+kokoro|000148/card773|こころ|夏目漱石|
+neko|000148/card789|吾輩は猫である（一）|夏目漱石|--first-chapter

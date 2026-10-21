@@ -65,8 +65,11 @@
     <string name="about_downloads_details">Dictionaries and fonts come from their publishers when you download them, under their own licences.</string>
     <string name="about_fonts">Reader fonts</string>
     <string name="about_fonts_details">%1$s · SIL Open Font License 1.1</string>
-    <string name="about_sample_book">Sample book</string>
-    <string name="about_sample_book_details">吾輩は猫である by Natsume Sōseki, from Aozora Bunko · public domain</string>
+    <string name="about_sample_book">Sample books</string>
+    <string name="about_sample_book_details">Texts from Aozora Bunko (aozora.gr.jp), typed and proofread by its volunteers, who are named at the end of each book · public domain (Niimi Nankichi, Miyazawa Kenji, Akutagawa Ryūnosuke, Natsume Sōseki) · covers made for Honmani in Shippori Mincho (SIL Open Font License)</string>
+    <string name="settings_sample_books">Sample books</string>
+    <string name="settings_sample_books_details">Nine Japanese classics that come with the app, from children\'s stories to novels</string>
+    <string name="sample_books_hint">Roughly easiest first. A tap adds the book to your library and opens it.</string>
 
     <string name="library_empty_title">No books yet</string>
     <string name="library_empty_message">Add an EPUB or a text file (Aozora Bunko works too) from your phone or your book server. Then open it and tap any word to look it up.</string>
@@ -121,6 +124,7 @@
     <string name="action_download_book">Download %1$s</string>
     <string name="action_search">Search</string>
     <string name="action_done">Done</string>
+    <string name="action_close">Close</string>
     <string name="library_auto_importing">Importing from %1$s: %2$s</string>
     <plurals name="library_auto_imported">
         <item quantity="one">%d new book added so far</item>

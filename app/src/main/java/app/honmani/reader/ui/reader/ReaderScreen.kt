@@ -247,6 +247,11 @@ private fun ReaderWithTabs(viewModel: ReaderViewModel) {
                     showingDictionaries = dictionariesShown,
                     onShowDictionaries = { dictionariesShown = it },
                     onOpenReaderSettings = { readerSettings = true },
+                    onOpenSample = {
+                        // Back from the book is the library, where it now is.
+                        tab = HomeTab.LIBRARY
+                        library.addSample(it)
+                    },
                     onShareDiagnostics = {
                         val share = Intent(Intent.ACTION_SEND)
                             .setType("text/plain")

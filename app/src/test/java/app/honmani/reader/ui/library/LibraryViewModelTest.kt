@@ -155,7 +155,7 @@ class LibraryViewModelTest {
             ttu = ttu,
             openFile = { null },
             now = { 42L },
-            openSample = { PickedFile("sample.epub", TestBooks.epub().inputStream()) },
+            openSample = { sample -> PickedFile(sample.fileName, TestBooks.epub().inputStream()) },
         )
 
         withSample.addSample()

@@ -7,28 +7,32 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
@@ -57,6 +61,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.honmani.reader.HonmaniApplication
 import app.honmani.reader.R
+import app.honmani.reader.data.library.SampleBook
 import app.honmani.reader.data.opds.OpdsCatalog
 import app.honmani.reader.data.settings.Accent
 import app.honmani.reader.data.settings.customAccentColor
@@ -76,6 +81,8 @@ fun SettingsScreen(
     /** The Dictionaries screen, kept by the caller so a lookup without dictionaries can open it. */
     showingDictionaries: Boolean = false,
     onShowDictionaries: (Boolean) -> Unit = {},
+    /** Adds a sample book to the library (if it isn't there) and opens it. */
+    onOpenSample: (SampleBook) -> Unit = {},
 ) {
     val context = LocalContext.current
     val container = remember { (context.applicationContext as HonmaniApplication).container }
@@ -123,6 +130,7 @@ fun SettingsScreen(
         onOpenReaderSettings = onOpenReaderSettings,
         onShareDiagnostics = onShareDiagnostics,
         onOpenAbout = { showingAbout = true },
+        onOpenSample = onOpenSample,
         anki = { AnkiSettingsSection() },
         sync = { ProgressSyncSection() },
     )
@@ -146,9 +154,20 @@ private fun SettingsContent(
     onOpenReaderSettings: () -> Unit,
     onShareDiagnostics: () -> Unit,
     onOpenAbout: () -> Unit,
+    onOpenSample: (SampleBook) -> Unit = {},
     anki: @Composable () -> Unit = {},
     sync: @Composable () -> Unit = {},
 ) {
+    var showingSamples by rememberSaveable { mutableStateOf(false) }
+    if (showingSamples) {
+        SampleBooksDialog(
+            onOpen = {
+                showingSamples = false
+                onOpenSample(it)
+            },
+            onDismiss = { showingSamples = false },
+        )
+    }
     // No title: the bottom bar names the tab.
     Scaffold(
         bottomBar = bottomBar,
@@ -215,6 +234,13 @@ private fun SettingsContent(
                     )
                 }
             }
+            item {
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.settings_sample_books)) },
+                    supportingContent = { Text(stringResource(R.string.settings_sample_books_details)) },
+                    modifier = Modifier.clickable { showingSamples = true },
+                )
+            }
             item { anki() }
             item { sync() }
             item {
@@ -240,6 +266,40 @@ private fun SettingsContent(
             }
         }
     }
+}
+
+/** The books that come with the app, roughly easiest first; a tap opens one. */
+@Composable
+private fun SampleBooksDialog(onOpen: (SampleBook) -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.settings_sample_books)) },
+        text = {
+            Column {
+                Text(
+                    text = stringResource(R.string.sample_books_hint),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 8.dp),
+                )
+                LazyColumn {
+                    items(SampleBook.entries) { sample ->
+                        ListItem(
+                            headlineContent = { Text(sample.title) },
+                            supportingContent = { Text(sample.author) },
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable { onOpen(sample) },
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_close)) }
+        },
+    )
 }
 
 @OptIn(ExperimentalLayoutApi::class)

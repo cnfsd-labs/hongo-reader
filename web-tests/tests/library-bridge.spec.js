@@ -48,6 +48,9 @@ const BOOKS = {
   }),
   'broken.epub': Buffer.from('PK this is not really a zip'),
 };
+/** The sample books that come with the app. */
+const SAMPLES = path.join(__dirname, '../../app/src/main/assets/samples');
+for (const name of fs.readdirSync(SAMPLES)) BOOKS[`sample-${name}`] = fs.readFileSync(path.join(SAMPLES, name));
 
 /** Registers the init scripts as ReaderWebView does and serves library files. */
 async function setUp(page) {
@@ -396,4 +399,20 @@ test('the book page reports its background and shows the reading position as a b
   const vertical = await page.evaluate(() => getComputedStyle(document.documentElement).writingMode.startsWith('vertical-rl'));
   if (vertical) expect(box.x + box.width).toBeCloseTo(viewport.width, 0);
   else expect(box.x).toBeCloseTo(0, 0);
+});
+
+test('every sample book imports into ttu with its title, and the first one opens', async ({ page }) => {
+  await setUp(page);
+  await page.goto(`${server.url}/manage`);
+  const titles = {};
+  for (const name of Object.keys(BOOKS).filter((key) => key.startsWith('sample-'))) {
+    const reply = await ensure(page, name);
+    expect(reply.type, name).toBe('library.ready');
+    titles[name] = reply;
+  }
+  expect(titles['sample-tebukuro.epub'].title).toBe('手袋を買いに');
+  await page.evaluate((ttuId) => window.honmaniLibrary.open({ ttuId }), titles['sample-tebukuro.epub'].id);
+  await page.waitForURL(/\/b\?id=/);
+  await expect(page.locator('.book-content')).toContainText('寒い冬が北方から');
+  await expect(page.locator('.book-content rt').first()).toHaveText('きつね');
 });

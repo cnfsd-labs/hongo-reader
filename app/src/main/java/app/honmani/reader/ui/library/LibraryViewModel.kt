@@ -17,6 +17,7 @@ import app.honmani.reader.data.library.BookEntity
 import app.honmani.reader.data.library.BookImporter
 import app.honmani.reader.data.library.BookSource
 import app.honmani.reader.data.library.RemovedBookEntity
+import app.honmani.reader.data.library.SampleBook
 import app.honmani.reader.data.opds.AutoImportStatus
 import app.honmani.reader.lookup.Romaji
 import app.honmani.reader.lookup.TextReading
@@ -122,8 +123,8 @@ class LibraryViewModel(
     val autoImport: StateFlow<AutoImportStatus?> = MutableStateFlow(null),
     /** How a title reads in kana (with the dictionary), for romaji search. */
     private val reading: suspend (String) -> String = { it },
-    /** The sample book offered on the first-start screen. */
-    private val openSample: () -> PickedFile? = { null },
+    /** A sample book that comes with the app. */
+    private val openSample: (SampleBook) -> PickedFile? = { null },
     /** Takes a newer reading position from progress sync before the book (ttu id) opens. */
     private val syncPosition: suspend (BookEntity, Long) -> Unit = { _, _ -> },
     /** Book grades by content hash, for sorting by difficulty. */
@@ -216,11 +217,11 @@ class LibraryViewModel(
         }
     }
 
-    /** Adds the sample book and opens it (also if it is in the library already). */
-    fun addSample() {
+    /** Adds a sample book and opens it (also if it is in the library already). */
+    fun addSample(sample: SampleBook = SampleBook.FIRST) {
         viewModelScope.launch {
             val book = addMutex.withLock {
-                val picked = withContext(Dispatchers.IO) { openSample() } ?: return@launch
+                val picked = withContext(Dispatchers.IO) { openSample(sample) } ?: return@launch
                 add(picked)
             }
             book?.let { open(it.id) }
@@ -403,8 +404,8 @@ class LibraryViewModel(
                     importer = container.bookImporter,
                     ttu = container.ttuLibrary,
                     openFile = { uri -> openPickedFile(application.contentResolver, uri) },
-                    openSample = {
-                        runCatching { PickedFile(SAMPLE_FILE_NAME, application.assets.open(SAMPLE_ASSET)) }.getOrNull()
+                    openSample = { sample ->
+                        runCatching { PickedFile(sample.fileName, application.assets.open(sample.asset)) }.getOrNull()
                     },
                     autoImport = container.opdsAutoImport.status,
                     grades = container.difficultyStore.grades,
@@ -450,9 +451,6 @@ class LibraryViewModel(
                 )
             }
         }
-
-        private const val SAMPLE_ASSET = "samples/wagahai-neko-1.epub"
-        private const val SAMPLE_FILE_NAME = "wagahai-neko-1.epub"
 
         /** Opens a file the user picked; null if its app won't give it (its errors must not close Honmani). */
         internal fun openPickedFile(resolver: ContentResolver, uri: Uri): PickedFile? = try {

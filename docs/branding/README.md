@@ -13,6 +13,7 @@ License 1.1, © The Shippori Mincho Project Authors) on a deep purple gradient.
 Colours: gradient #7457B0 → #4B3C8C → #2F2766 with a #8E6CC4 glow at the top, character
 #FBF6EC.
 
-The built-in sample book (`app/src/main/assets/samples/wagahai-neko-1.epub`, also
-`docs/samples/`) has a cover in the same type: 吾輩は猫である in Shippori Mincho ExtraBold, vertical,
-on indigo #2E3A59 with a thin double frame and a gold 猫 seal (800 × 1200 PNG, `OEBPS/cover.png`).
+The built-in sample books (`app/src/main/assets/samples/`, built by `scripts/sample-books/`) have
+covers in the same type: the title in Shippori Mincho ExtraBold, vertical, on a colour of its own
+with a thin double frame and a one-kanji seal (800 × 1200 PNG, `OEBPS/cover.png`); for 吾輩は猫である
+indigo #2E3A59 with a gold 猫.
