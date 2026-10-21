@@ -348,7 +348,6 @@
     <!-- Reading statistics -->
     <string name="stats_title">Reading statistics</string>
     <string name="action_statistics">Reading statistics</string>
-    <string name="action_book_statistics">Statistics</string>
     <string name="stats_empty">Nothing counted yet. Reading time and characters are counted from now on while you read.</string>
     <string name="stats_today">Today</string>
     <string name="stats_week">Last 7 days</string>
@@ -386,13 +385,21 @@
     <string name="stats_under_a_minute">under a minute</string>
     <string name="stats_minutes">%1$d min</string>
     <string name="stats_hours_minutes">%1$d h %2$d min</string>
-    <string name="stats_position">%1$s of %2$s (%3$d%%)</string>
     <string name="stats_book_time">Time spent</string>
-    <string name="stats_book_position">Characters read so far</string>
-    <string name="stats_book_counted">Counted while reading</string>
-    <string name="stats_book_days">Days read</string>
-    <string name="stats_book_first_day">First read</string>
-    <string name="stats_book_finished">Finished</string>
+    <!-- A book's sheet (long press on its cover) -->
+    <string name="book_start_reading">Start reading</string>
+    <string name="book_open_again">Open again</string>
+    <string name="book_hidden">Hidden from the library</string>
+    <string name="book_nothing_counted">No reading counted in this book yet.</string>
+    <string name="book_read_so_far">Read so far</string>
+    <string name="book_of_characters">of %1$s characters</string>
+    <string name="book_per_hour">characters/hour</string>
+    <string name="book_first_read">First read %1$s</string>
+    <string name="book_finished_on">finished %1$s</string>
+    <plurals name="book_on_days">
+        <item quantity="one">on %1$d day</item>
+        <item quantity="other">on %1$d days</item>
+    </plurals>
     <!-- First-start screen -->
     <string name="onboarding_title">Welcome to Honmani</string>
     <string name="onboarding_message">Read Japanese books and tap any word to look it up.</string>

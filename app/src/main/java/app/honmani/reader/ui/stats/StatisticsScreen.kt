@@ -1,6 +1,5 @@
 package app.honmani.reader.ui.stats
 
-import android.text.format.DateUtils
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -19,9 +18,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -43,7 +40,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -436,71 +432,9 @@ private fun DrawScope.roundedTopBar(left: Float, width: Float, height: Float, co
     drawPath(path, color)
 }
 
-/** A book's statistics, from its long-press menu in the library. */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun BookStatisticsSheet(
-    bookId: Long,
-    title: String,
-    onDismiss: () -> Unit,
-    viewModel: StatisticsViewModel = viewModel(factory = StatisticsViewModel.Factory),
-) {
-    val flow = remember(bookId) { viewModel.book(bookId) }
-    val stats by flow.collectAsStateWithLifecycle(null)
-    val context = LocalContext.current
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 24.dp, end = 24.dp, bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            Text(title, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            val current = stats ?: return@Column
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            val reading = current.reading
-            val position = current.bookCharacters?.let {
-                stringResource(
-                    R.string.stats_position,
-                    number(current.position),
-                    number(it),
-                    (current.progress * 100).roundToInt(),
-                )
-            } ?: number(current.position)
-            SheetFact(stringResource(R.string.stats_book_time), duration(reading.seconds))
-            SheetFact(stringResource(R.string.stats_book_position), position)
-            SheetFact(stringResource(R.string.stats_book_counted), characters(reading.characters))
-            SheetFact(stringResource(R.string.stats_speed), reading.charactersPerHour?.let { speed(it) } ?: "–")
-            SheetFact(stringResource(R.string.stats_lookups), number(current.lookups.toLong()))
-            SheetFact(
-                stringResource(R.string.stats_book_days),
-                pluralStringResource(R.plurals.stats_days, reading.daysRead, reading.daysRead),
-            )
-            reading.firstDay?.let {
-                val dateFormat = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
-                SheetFact(stringResource(R.string.stats_book_first_day), it.format(dateFormat))
-            }
-            current.finishedAt?.let {
-                SheetFact(
-                    stringResource(R.string.stats_book_finished),
-                    DateUtils.formatDateTime(context, it, DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_YEAR),
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun SheetFact(label: String, value: String) {
-    Row(modifier = Modifier.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-        Text(value, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-}
-
 /** "2 h 15 min", "45 min", "under a minute". */
 @Composable
-private fun duration(seconds: Long): String {
+internal fun duration(seconds: Long): String {
     val minutes = seconds / 60
     return when {
         seconds == 0L -> stringResource(R.string.stats_no_time)
@@ -511,10 +445,10 @@ private fun duration(seconds: Long): String {
 }
 
 @Composable
-private fun characters(count: Long): String =
+internal fun characters(count: Long): String =
     pluralStringResource(R.plurals.stats_characters, count.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(), number(count))
 
 @Composable
-private fun speed(charactersPerHour: Long): String = stringResource(R.string.stats_speed_value, number(charactersPerHour))
+internal fun speed(charactersPerHour: Long): String = stringResource(R.string.stats_speed_value, number(charactersPerHour))
 
-private fun number(value: Long): String = NumberFormat.getIntegerInstance().format(value)
+internal fun number(value: Long): String = NumberFormat.getIntegerInstance().format(value)

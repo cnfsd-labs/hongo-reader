@@ -1,5 +1,6 @@
 package app.honmani.reader.ui.library
 
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.LruCache
 import androidx.activity.compose.BackHandler
@@ -50,8 +51,6 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -85,6 +84,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
@@ -107,7 +107,6 @@ import app.honmani.reader.data.opds.AutoImportStatus
 import app.honmani.reader.ui.opds.CatalogBrowser
 import app.honmani.reader.ui.opds.CatalogDialog
 import app.honmani.reader.ui.opds.OpdsViewModel
-import app.honmani.reader.ui.stats.BookStatisticsSheet
 import app.honmani.reader.ui.stats.StatisticsScreen
 import app.honmani.reader.ui.theme.HonmaniTheme
 import java.io.File
@@ -264,7 +263,7 @@ private fun LibraryContent(
 ) {
     var pendingRemove by remember { mutableStateOf<LibraryBook?>(null) }
     var pendingReset by remember { mutableStateOf<LibraryBook?>(null) }
-    var statisticsFor by remember { mutableStateOf<LibraryBook?>(null) }
+    var detailsFor by rememberSaveable { mutableStateOf<Long?>(null) }
     var searching by rememberSaveable { mutableStateOf(false) }
     val books = uiState.books
     BackHandler(enabled = searching) {
@@ -382,11 +381,7 @@ private fun LibraryContent(
                             book = book,
                             opening = book.id == uiState.opening,
                             onOpen = { onOpen(book.id) },
-                            onRemove = { pendingRemove = book },
-                            onResetProgress = { pendingReset = book },
-                            onMarkFinished = { onMarkFinished(book.id) },
-                            onSetHidden = { onSetHidden(book.id, it) },
-                            onShowStatistics = { statisticsFor = book },
+                            onShowDetails = { detailsFor = book.id },
                         )
                     }
                     if (showHiddenLink) {
@@ -399,8 +394,24 @@ private fun LibraryContent(
         }
     }
 
-    statisticsFor?.let { book ->
-        BookStatisticsSheet(bookId = book.id, title = book.title, onDismiss = { statisticsFor = null })
+    // The book as the library has it now, so the sheet follows its changes (finished, hidden).
+    detailsFor?.let { id -> books?.firstOrNull { it.id == id } }?.let { book ->
+        BookSheet(
+            book = book,
+            onDismiss = { detailsFor = null },
+            onOpen = {
+                detailsFor = null
+                onOpen(book.id)
+            },
+            onMarkFinished = { onMarkFinished(book.id) },
+            onResetProgress = { pendingReset = book },
+            onSetHidden = {
+                // Hiding takes the book off this shelf: the sheet goes with it.
+                detailsFor = null
+                onSetHidden(book.id, it)
+            },
+            onRemove = { pendingRemove = book },
+        )
     }
 
     pendingReset?.let { book ->
@@ -434,6 +445,7 @@ private fun LibraryContent(
                     onClick = {
                         onRemove(book.id)
                         pendingRemove = null
+                        detailsFor = null
                     },
                 ) { Text(stringResource(R.string.action_remove)) }
             },
@@ -695,13 +707,13 @@ private fun ContinueBubble(book: LibraryBook, onOpen: () -> Unit) {
 }
 
 @Composable
-private fun statusIcon(status: ReadingStatus): Painter = when (status) {
+internal fun statusIcon(status: ReadingStatus): Painter = when (status) {
     ReadingStatus.NOT_STARTED -> painterResource(R.drawable.ic_not_started)
     ReadingStatus.READING -> painterResource(R.drawable.ic_reading)
     ReadingStatus.FINISHED -> rememberVectorPainter(Icons.Filled.CheckCircle)
 }
 
-private fun statusLabel(status: ReadingStatus): Int = when (status) {
+internal fun statusLabel(status: ReadingStatus): Int = when (status) {
     ReadingStatus.NOT_STARTED -> R.string.library_filter_not_started
     ReadingStatus.READING -> R.string.library_filter_reading
     ReadingStatus.FINISHED -> R.string.library_filter_finished
@@ -766,18 +778,13 @@ private fun BookCard(
     book: LibraryBook,
     opening: Boolean,
     onOpen: () -> Unit,
-    onRemove: () -> Unit,
-    onResetProgress: () -> Unit,
-    onMarkFinished: () -> Unit,
-    onSetHidden: (Boolean) -> Unit,
-    onShowStatistics: () -> Unit = {},
+    onShowDetails: () -> Unit,
 ) {
-    var menuOpen by remember { mutableStateOf(false) }
     Column(
         modifier = Modifier.combinedClickable(
             role = Role.Button,
             onClick = onOpen,
-            onLongClick = { menuOpen = true },
+            onLongClick = onShowDetails,
         ),
     ) {
         Box {
@@ -796,47 +803,6 @@ private fun BookCard(
             }
             if (opening) {
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-            }
-            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.action_book_statistics)) },
-                    onClick = {
-                        menuOpen = false
-                        onShowStatistics()
-                    },
-                )
-                if (book.status != ReadingStatus.FINISHED) {
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.action_mark_finished)) },
-                        onClick = {
-                            menuOpen = false
-                            onMarkFinished()
-                        },
-                    )
-                }
-                if (book.status != ReadingStatus.NOT_STARTED) {
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.action_reset_progress)) },
-                        onClick = {
-                            menuOpen = false
-                            onResetProgress()
-                        },
-                    )
-                }
-                DropdownMenuItem(
-                    text = { Text(stringResource(if (book.hidden) R.string.action_unhide_book else R.string.action_hide_book)) },
-                    onClick = {
-                        menuOpen = false
-                        onSetHidden(!book.hidden)
-                    },
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.action_remove_book)) },
-                    onClick = {
-                        menuOpen = false
-                        onRemove()
-                    },
-                )
             }
         }
         if (book.progress > 0f || book.status == ReadingStatus.FINISHED) {
@@ -877,7 +843,7 @@ private fun BookCard(
 }
 
 @Composable
-private fun Cover(book: LibraryBook) {
+internal fun Cover(book: LibraryBook) {
     val shape = RoundedCornerShape(6.dp)
     val modifier = Modifier
         .fillMaxWidth()
@@ -895,25 +861,15 @@ private fun Cover(book: LibraryBook) {
             modifier = modifier,
         )
     } else {
-        // Books without a cover show their title, like a plain binding.
-        Surface(modifier = modifier, color = MaterialTheme.colorScheme.secondaryContainer) {
-            Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(10.dp)) {
-                Text(
-                    text = book.title,
-                    style = MaterialTheme.typography.titleSmall,
-                    textAlign = TextAlign.Center,
-                    maxLines = 6,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
+        // Books without a cover get a stitched binding with their title on a slip.
+        PlaceholderCover(book.title, modifier)
     }
 }
 
 private const val COVER_ASPECT_RATIO = 2f / 3f
 
 /** Decoded covers, downsampled to grid size, kept while the process lives. */
-private object CoverCache {
+internal object CoverCache {
     private const val TARGET_WIDTH_PX = 360
     private val cache = LruCache<String, ImageBitmap>(64)
 
@@ -930,6 +886,14 @@ private object CoverCache {
             val options = BitmapFactory.Options().apply { inSampleSize = sample }
             BitmapFactory.decodeFile(file.path, options)?.asImageBitmap()
         }?.also { cache.put(file.path, it) }
+    }
+
+    /** The cover's average colour (null without a cover), for a wash behind it. */
+    suspend fun averageColor(file: File?): Color? {
+        val bitmap = get(file) ?: load(file) ?: return null
+        return withContext(Dispatchers.Default) {
+            Color(Bitmap.createScaledBitmap(bitmap.asAndroidBitmap(), 1, 1, true).getPixel(0, 0))
+        }
     }
 }
 
