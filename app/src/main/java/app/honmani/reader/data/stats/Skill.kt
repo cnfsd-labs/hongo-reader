@@ -79,13 +79,16 @@ object Skill {
         )
     }
 
+    /** The best fit is this much harder than the reader's skill: a little stretch. */
+    const val STRETCH = 2
+
     /**
      * Up to [count] of [books] (id to difficulty) that fit a reader of [skill]: from a little
      * easier to a little harder, the best stretch first.
      */
     fun fitting(books: List<Pair<Long, Int>>, skill: Int, count: Int = 3): List<Long> =
         books.filter { (_, score) -> score in skill - 5..skill + 8 }
-            .sortedBy { (_, score) -> kotlin.math.abs(score - (skill + 2)) }
+            .sortedBy { (_, score) -> kotlin.math.abs(score - (skill + STRETCH)) }
             .take(count)
             .map { it.first }
 }

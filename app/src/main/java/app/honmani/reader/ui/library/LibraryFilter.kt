@@ -1,7 +1,9 @@
 package app.honmani.reader.ui.library
 
+import app.honmani.reader.data.stats.Skill
 import app.honmani.reader.lookup.JapaneseText
 import app.honmani.reader.lookup.Romaji
+import kotlin.math.abs
 
 /** Where the reader is with a book, for the library's quick filters. */
 enum class ReadingStatus {
@@ -29,14 +31,25 @@ enum class ReadingStatus {
 enum class LibrarySort {
     /** Last opened first, then last added: the order the database gives. */
     RECENT,
+
+    /** Closest to a little above the reader's skill first, as "Books that fit you" in Progress. */
+    BEST_FIT,
     EASIEST,
     HARDEST,
     TITLE,
     ;
 
-    /** [books] in this order; by difficulty, books without one come last, in their recent order. */
-    fun apply(books: List<LibraryBook>, difficulty: (LibraryBook) -> Int?): List<LibraryBook> = when (this) {
+    /**
+     * [books] in this order; by difficulty, books without one come last, in their recent order.
+     * Without a [skill] yet, [BEST_FIT] is [EASIEST].
+     */
+    fun apply(books: List<LibraryBook>, skill: Int? = null, difficulty: (LibraryBook) -> Int?): List<LibraryBook> = when (this) {
         RECENT -> books
+        BEST_FIT -> if (skill == null) {
+            EASIEST.apply(books, null, difficulty)
+        } else {
+            books.sortedWith(compareBy(nullsLast()) { book -> difficulty(book)?.let { abs(it - (skill + Skill.STRETCH)) } })
+        }
         EASIEST -> books.sortedWith(compareBy(nullsLast()) { difficulty(it) })
         HARDEST -> books.sortedWith(compareBy(nullsLast(reverseOrder())) { difficulty(it) })
         TITLE -> books.sortedBy { it.title }

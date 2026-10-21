@@ -37,6 +37,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
@@ -44,6 +45,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayArrow
@@ -60,9 +62,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
@@ -305,6 +307,16 @@ private fun LibraryContent(
     var detailsFor by rememberSaveable { mutableStateOf<Long?>(null) }
     var searching by rememberSaveable { mutableStateOf(false) }
     val books = uiState.books
+    val gridState = rememberLazyGridState()
+    // A new order or filter starts at the top; coming back from a book keeps the place.
+    var shownOrder by rememberSaveable { mutableStateOf(uiState.sort to uiState.filter) }
+    LaunchedEffect(uiState.sort, uiState.filter) {
+        val order = uiState.sort to uiState.filter
+        if (order != shownOrder) {
+            shownOrder = order
+            gridState.scrollToItem(0)
+        }
+    }
     BackHandler(enabled = searching) {
         searching = false
         onSearch("")
@@ -410,6 +422,7 @@ private fun LibraryContent(
                 }
                 else -> LazyVerticalGrid(
                     columns = CoverColumns,
+                    state = gridState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = bottomInset + 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -593,7 +606,7 @@ private fun LibraryToolbar(
                 }
                 // 48 dp touch targets already keep 8 dp between the 40 dp buttons.
                 Row {
-                    SortButton(uiState.sort, onSort)
+                    SortButton(uiState.sort, uiState.skill, onSort)
                     FilledTonalIconButton(onClick = onStartSearch) {
                         Icon(Icons.Filled.Search, contentDescription = stringResource(R.string.action_search))
                     }
@@ -606,36 +619,70 @@ private fun LibraryToolbar(
     }
 }
 
-/** The library's order, from a small menu. */
+/** The library's order, from a small rounded menu; the chosen order is marked and tinted. */
 @Composable
-private fun SortButton(sort: LibrarySort, onSort: (LibrarySort) -> Unit) {
+private fun SortButton(sort: LibrarySort, skill: Int?, onSort: (LibrarySort) -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box {
         FilledTonalIconButton(onClick = { open = true }) {
             Icon(painter = painterResource(R.drawable.ic_sort), contentDescription = stringResource(R.string.action_sort))
         }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            for (entry in LibrarySort.entries) {
+        DropdownMenu(
+            expanded = open,
+            onDismissRequest = { open = false },
+            shape = RoundedCornerShape(24.dp),
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        ) {
+            Text(
+                text = stringResource(R.string.action_sort),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 8.dp),
+            )
+            // Best fit needs a skill; until there is one it is left out.
+            for (entry in LibrarySort.entries.filter { it != LibrarySort.BEST_FIT || skill != null }) {
+                val selected = entry == sort
                 DropdownMenuItem(
                     text = {
-                        Text(
-                            stringResource(
-                                when (entry) {
-                                    LibrarySort.RECENT -> R.string.sort_recent
-                                    LibrarySort.EASIEST -> R.string.sort_easiest
-                                    LibrarySort.HARDEST -> R.string.sort_hardest
-                                    LibrarySort.TITLE -> R.string.sort_title
-                                },
-                            ),
-                        )
+                        Column {
+                            Text(
+                                text = stringResource(
+                                    when (entry) {
+                                        LibrarySort.RECENT -> R.string.sort_recent
+                                        LibrarySort.BEST_FIT -> R.string.sort_best_fit
+                                        LibrarySort.EASIEST -> R.string.sort_easiest
+                                        LibrarySort.HARDEST -> R.string.sort_hardest
+                                        LibrarySort.TITLE -> R.string.sort_title
+                                    },
+                                ),
+                                style = MaterialTheme.typography.bodyLarge,
+                            )
+                            if (entry == LibrarySort.BEST_FIT && skill != null) {
+                                Text(
+                                    text = stringResource(R.string.sort_best_fit_detail, skill),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
                     },
                     leadingIcon = {
-                        RadioButton(selected = entry == sort, onClick = null)
+                        Box(modifier = Modifier.size(24.dp)) {
+                            if (selected) Icon(Icons.Filled.Check, contentDescription = null)
+                        }
                     },
+                    colors = MenuDefaults.itemColors(
+                        textColor = if (selected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface,
+                        leadingIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    ),
                     onClick = {
                         open = false
                         onSort(entry)
                     },
+                    modifier = Modifier
+                        .padding(horizontal = 8.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .then(if (selected) Modifier.background(MaterialTheme.colorScheme.secondaryContainer) else Modifier),
                 )
             }
         }

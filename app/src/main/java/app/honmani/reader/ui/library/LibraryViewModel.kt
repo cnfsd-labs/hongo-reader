@@ -20,6 +20,7 @@ import app.honmani.reader.data.library.RemovedBookEntity
 import app.honmani.reader.data.opds.AutoImportStatus
 import app.honmani.reader.lookup.Romaji
 import app.honmani.reader.lookup.TextReading
+import app.honmani.reader.ui.progress.ProgressViewModel
 import app.honmani.reader.ui.reader.TtuBook
 import app.honmani.reader.ui.reader.TtuLibrary
 import app.honmani.reader.ui.reader.TtuLibraryException
@@ -73,6 +74,8 @@ data class LibraryUiState(
     val continueBook: LibraryBook? = null,
     val query: String = "",
     val sort: LibrarySort = LibrarySort.RECENT,
+    /** The reader's skill, once there is one: for [LibrarySort.BEST_FIT]. */
+    val skill: Int? = null,
     /** Name of the file being added, if any. */
     val adding: String? = null,
     /** The book being opened, if any. */
@@ -92,6 +95,14 @@ sealed interface LibraryNotice {
     /** ッツ Ebook Reader could not import or open the book. */
     data class ReaderFailed(val title: String) : LibraryNotice
 }
+
+/** The books and what their order depends on. */
+private data class Ordering(
+    val entities: List<BookEntity>,
+    val grades: Map<String, StoredDifficulty>,
+    val sort: LibrarySort,
+    val skill: Int?,
+)
 
 /** Which books the library shows: one reading status (or all), or the hidden ones. */
 private data class Shelf(val status: ReadingStatus? = null, val hidden: Boolean = false)
@@ -118,6 +129,8 @@ class LibraryViewModel(
     /** The chosen order (a [LibrarySort] name) and where a new choice is kept. */
     private val sortName: Flow<String?> = flowOf(null),
     private val saveSort: (String) -> Unit = {},
+    /** The reader's skill (`Skill.estimate`), for [LibrarySort.BEST_FIT]. */
+    private val skill: Flow<Int?> = flowOf(null),
 ) : ViewModel() {
     private val adding = MutableStateFlow<String?>(null)
     private val opening = MutableStateFlow<Long?>(null)
@@ -135,14 +148,16 @@ class LibraryViewModel(
 
     val uiState: StateFlow<LibraryUiState> =
         combine(
-            combine(dao.observeAll(), grades, sortName) { entities, grades, sort -> Triple(entities, grades, LibrarySort.fromName(sort)) },
+            combine(dao.observeAll(), grades, sortName, skill) { entities, grades, sort, skill ->
+                Ordering(entities, grades, LibrarySort.fromName(sort), skill)
+            },
             adding,
             opening,
             shelf,
             searchTerms,
-        ) { (entities, grades, sort), adding, opening, shelf, terms ->
+        ) { (entities, grades, sort, skill), adding, opening, shelf, terms ->
             val (query, readings) = terms
-            val books = sort.apply(entities.map(::toLibraryBook)) { book ->
+            val books = sort.apply(entities.map(::toLibraryBook), skill) { book ->
                 grades[book.contentHash]?.difficulty?.score?.takeIf { it > 0 }
             }
             val (hidden, shown) = books.partition { it.hidden }
@@ -165,6 +180,7 @@ class LibraryViewModel(
                     ?.takeIf { it.status == ReadingStatus.READING },
                 query = query,
                 sort = sort,
+                skill = skill,
                 adding = adding,
                 opening = opening,
             )
@@ -377,6 +393,7 @@ class LibraryViewModel(
                     grades = container.difficultyStore.grades,
                     sortName = container.appearanceSettings.librarySort,
                     saveSort = container.appearanceSettings::setLibrarySort,
+                    skill = ProgressViewModel.skill(container),
                     syncPosition = { book, ttuId ->
                         val ttu = container.ttuLibrary
                         // Sync is a bonus: the book opens where it was if the reader page can't answer.

@@ -52,11 +52,14 @@ class LibraryFilterTest {
     fun sortsByDifficulty_ungradedBooksLast() {
         val books = listOf(book("A"), book("B"), book("C"), book("D")).mapIndexed { i, it -> it.copy(id = i.toLong()) }
         val scores = mapOf(0L to 60, 1L to 30, 3L to 45)
-        fun order(sort: LibrarySort) = sort.apply(books) { scores[it.id] }.map { it.title }
+        fun order(sort: LibrarySort, skill: Int? = null) = sort.apply(books, skill) { scores[it.id] }.map { it.title }
 
         assertEquals(listOf("A", "B", "C", "D"), order(LibrarySort.RECENT))
         assertEquals(listOf("B", "D", "A", "C"), order(LibrarySort.EASIEST))
         assertEquals(listOf("A", "D", "B", "C"), order(LibrarySort.HARDEST))
+        // Nearest to skill + 2 first: 45 (3 away from 42), 30, 60.
+        assertEquals(listOf("D", "B", "A", "C"), order(LibrarySort.BEST_FIT, skill = 40))
+        assertEquals(order(LibrarySort.EASIEST), order(LibrarySort.BEST_FIT))
         assertEquals(LibrarySort.RECENT, LibrarySort.fromName("nonsense"))
     }
 }

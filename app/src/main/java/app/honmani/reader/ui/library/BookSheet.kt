@@ -4,12 +4,14 @@ import android.text.format.DateUtils
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -96,45 +98,66 @@ fun BookSheet(
         // The handle is drawn inside the header, so the cover's colour reaches the sheet's top.
         dragHandle = null,
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Header(book)
-            Button(
-                onClick = onOpen,
+        // Kept below the status bar and without overscroll: on a OnePlus 12 the sheet bounced up
+        // and down when scrolled, between its own drag and the content's overscroll.
+        BoxWithConstraints {
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 24.dp)
-                    .height(52.dp),
+                    .heightIn(max = maxHeight * MAX_HEIGHT_FRACTION)
+                    .verticalScroll(rememberScrollState(), overscrollEffect = null)
+                    .padding(bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                Icon(Icons.Filled.PlayArrow, contentDescription = null)
-                Text(
-                    text = stringResource(
-                        when (book.status) {
-                            ReadingStatus.NOT_STARTED -> R.string.book_start_reading
-                            ReadingStatus.READING -> R.string.library_continue_reading
-                            ReadingStatus.FINISHED -> R.string.book_open_again
-                        },
-                    ),
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(start = 8.dp),
+                Header(book, stats?.let { timeToRead(it, book) })
+                Button(
+                    onClick = onOpen,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp)
+                        .height(52.dp),
+                ) {
+                    Icon(Icons.Filled.PlayArrow, contentDescription = null)
+                    Text(
+                        text = stringResource(
+                            when (book.status) {
+                                ReadingStatus.NOT_STARTED -> R.string.book_start_reading
+                                ReadingStatus.READING -> R.string.library_continue_reading
+                                ReadingStatus.FINISHED -> R.string.book_open_again
+                            },
+                        ),
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(start = 8.dp),
+                    )
+                }
+                stats?.let { DifficultyCard(it, book, skill) }
+                stats?.let { Statistics(it) }
+                Actions(
+                    book = book,
+                    onMarkFinished = onMarkFinished,
+                    onResetProgress = onResetProgress,
+                    onSetHidden = onSetHidden,
+                    onRemove = onRemove,
                 )
             }
-            stats?.let { DifficultyCard(it, book, skill) }
-            stats?.let { Statistics(it) }
-            Actions(
-                book = book,
-                onMarkFinished = onMarkFinished,
-                onResetProgress = onResetProgress,
-                onSetHidden = onSetHidden,
-                onRemove = onRemove,
-            )
         }
     }
+}
+
+private const val MAX_HEIGHT_FRACTION = 0.92f
+
+/** Reading time left (or for the whole book) at the reader's recent speed, as text; null without one. */
+@Composable
+private fun timeToRead(stats: BookStatistics, book: LibraryBook): String? {
+    val speed = stats.readerSpeed ?: return null
+    val characters = stats.difficulty?.characters?.takeIf { it > 0 } ?: return null
+    val reading = book.status == ReadingStatus.READING
+    if (!reading && book.status != ReadingStatus.NOT_STARTED) return null
+    val share = if (reading) (1f - book.progress).coerceIn(0f, 1f) else 1f
+    return stringResource(
+        if (reading) R.string.book_time_left else R.string.book_time_whole,
+        duration((characters * share * 3_600 / speed).toLong()),
+    )
 }
 
 /**
@@ -143,7 +166,7 @@ fun BookSheet(
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun Header(book: LibraryBook) {
+private fun Header(book: LibraryBook, timeToRead: String?) {
     val tint by produceState<Color?>(null, book.cover) { value = CoverCache.averageColor(book.cover) }
     // Without a cover, the placeholder's binding; with one, nothing until it is loaded.
     val wash = tint ?: if (book.cover == null) CoverTitle.binding(book.title) else Color.Transparent
@@ -154,12 +177,12 @@ private fun Header(book: LibraryBook) {
             .background(Brush.verticalGradient(listOf(wash.copy(alpha = 0.32f), Color.Transparent))),
     ) {
         BottomSheetDefaults.DragHandle()
-        HeaderRow(book)
+        HeaderRow(book, timeToRead)
     }
 }
 
 @Composable
-private fun HeaderRow(book: LibraryBook) {
+private fun HeaderRow(book: LibraryBook, timeToRead: String?) {
     Row(
         horizontalArrangement = Arrangement.spacedBy(20.dp),
         modifier = Modifier
@@ -206,6 +229,13 @@ private fun HeaderRow(book: LibraryBook) {
                     )
                 }
             }
+            timeToRead?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             if (book.hidden) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Icon(
@@ -245,8 +275,7 @@ private fun StatusPill(book: LibraryBook) {
 
 /**
  * How hard the book is: the score, how it fits the reader's skill, and its band with about which
- * JLPT level that is. A tap shows the rest: reading time at the reader's speed and the measures
- * behind the score. Without a grade: that it is being worked out, or what is missing.
+ * JLPT level that is. A tap shows the measures behind the score. Without a grade: that it is being worked out, or what is missing.
  */
 @Composable
 private fun DifficultyCard(stats: BookStatistics, book: LibraryBook, skill: Int?) {
@@ -297,19 +326,6 @@ private fun DifficultyCard(stats: BookStatistics, book: LibraryBook, skill: Int?
             )
             ProgressBar(progress = { difficulty.score / 100f }, modifier = Modifier.fillMaxWidth())
             if (expanded) {
-                val speed = stats.readerSpeed
-                if (speed != null && difficulty.characters > 0) {
-                    val reading = book.status == ReadingStatus.READING
-                    val share = if (reading) (1f - book.progress).coerceIn(0f, 1f) else 1f
-                    Text(
-                        text = stringResource(
-                            if (reading) R.string.book_time_left else R.string.book_time_whole,
-                            duration((difficulty.characters * share * 3_600 / speed).toLong()),
-                            number(speed),
-                        ),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
                 Text(
                     text = stringResource(
                         R.string.book_difficulty_detail,

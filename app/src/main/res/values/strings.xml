@@ -37,6 +37,8 @@
     </plurals>
     <string name="action_sort">Order</string>
     <string name="sort_recent">Recently opened</string>
+    <string name="sort_best_fit">Best fit for you</string>
+    <string name="sort_best_fit_detail">Nearest to your skill of %1$d</string>
     <string name="sort_easiest">Easiest first</string>
     <string name="sort_hardest">Hardest first</string>
     <string name="sort_title">Title</string>
@@ -470,8 +472,8 @@
     <string name="book_difficulty_detail">95%% of its words are among the %1$s most common. Kanji in %2$d%% of the words, %3$d characters per sentence.</string>
     <string name="book_difficulty_grading">Working out how hard this book is…</string>
     <string name="book_difficulty_no_dictionaries">The difficulty needs a dictionary and a frequency list, such as Jiten. Get them in Settings → Dictionaries.</string>
-    <string name="book_time_whole">About %1$s to read at your speed (%2$s characters an hour).</string>
-    <string name="book_time_left">About %1$s left at your speed (%2$s characters an hour).</string>
+    <string name="book_time_whole">About %1$s to read</string>
+    <string name="book_time_left">About %1$s left</string>
     <string name="book_fit_easy">Easy read</string>
     <string name="book_fit_fits">Fits you</string>
     <string name="book_fit_challenge">A challenge</string>

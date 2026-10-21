@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.AP
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import app.honmani.reader.AppContainer
 import app.honmani.reader.HonmaniApplication
 import app.honmani.reader.data.difficulty.StoredDifficulty
 import app.honmani.reader.data.library.BookEntity
@@ -26,6 +27,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
@@ -76,9 +78,7 @@ class ProgressViewModel(
             )
             val milestones = Progression.milestones(data, seen, today)
             val week = ReadingStats.period(rows, today, StatsPeriod.WEEK)
-            val scores = books.mapNotNull { book ->
-                grades[book.contentHash]?.difficulty?.score?.takeIf { it > 0 }?.let { book to it }
-            }
+            val scores = scores(books, grades)
             val byId = scores.associate { (book, score) -> book.id to score }
             val skill = Skill.estimate(rows, byId::get, today)
             val unfinished = scores.filter { (book, _) -> book.finishedAt == null && book.progress < 1f && !book.hidden }
@@ -111,6 +111,17 @@ class ProgressViewModel(
     fun shown(milestones: List<Milestone>) = store.shown(milestones.map { it.id })
 
     companion object {
+        /** The graded books with their scores. */
+        private fun scores(books: List<BookEntity>, grades: Map<String, StoredDifficulty>): List<Pair<BookEntity, Int>> =
+            books.mapNotNull { book -> grades[book.contentHash]?.difficulty?.score?.takeIf { it > 0 }?.let { book to it } }
+
+        /** The reader's current skill, for screens that only need the number. */
+        fun skill(container: AppContainer, today: () -> LocalDate = LocalDate::now): Flow<Int?> =
+            combine(container.readingDao.observeAll(), container.bookDao.observeAll(), container.difficultyStore.grades) { rows, books, grades ->
+                val scores = scores(books, grades).associate { (book, score) -> book.id to score }
+                Skill.estimate(rows, scores::get, today()).current
+            }.distinctUntilChanged()
+
         val Factory = viewModelFactory {
             initializer {
                 val container = (this[APPLICATION_KEY] as HonmaniApplication).container
