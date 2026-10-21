@@ -477,7 +477,7 @@
     <string name="book_open_again">Open again</string>
     <string name="book_hidden">Hidden from the library</string>
     <string name="book_difficulty">Difficulty %1$d</string>
-    <string name="book_difficulty_detail">95%% of its words are among the %1$s most common. Kanji in %2$d%% of the words, %3$d characters per sentence.</string>
+    <string name="book_difficulty_detail">Counting a word\'s first few uses: 95%% of its words are among the %1$s most common, kanji in %2$d%% of the words. %3$d characters per sentence.</string>
     <string name="book_difficulty_grading">Working out how hard this book is…</string>
     <string name="book_difficulty_no_dictionaries">The difficulty needs a dictionary and a frequency list, such as Jiten. Get them in Settings → Dictionaries.</string>
     <string name="book_time_whole">About %1$s to read</string>

@@ -15,9 +15,25 @@ class DifficultyTest {
     @Test
     fun r95IsTheRankCoveringNinetyFivePercent() {
         val ranks = IntArray(100) { if (it < 95) it + 1 else 10_000 + it }
-        assertEquals(95, Difficulty.r95(ranks))
-        assertEquals(10_095, Difficulty.r95(ranks.copyOf(100).also { it[0] = 20_000 }))
-        assertEquals(0, Difficulty.r95(IntArray(0)))
+        val once = IntArray(100) { 1 }
+        assertEquals(95, Difficulty.r95(ranks, once))
+        assertEquals(10_095, Difficulty.r95(ranks.copyOf().also { it[0] = 20_000 }, once))
+        assertEquals(0, Difficulty.r95(IntArray(0), IntArray(0)))
+    }
+
+    @Test
+    fun aWordsLaterUsesCountLess() {
+        assertEquals(1.0, Difficulty.weightOfUses(1), 0.001)
+        assertEquals(2.5, Difficulty.weightOfUses(4), 0.001)
+        assertTrue(Difficulty.weightOfUses(10) < 4.0)
+        // 95 common words once each and a rare one ten times (子狐 in a short story): counted
+        // every time, the rare word would be 10% of the words and set the rank; it counts 2.5.
+        val ranks = IntArray(96) { if (it < 95) it + 1 else 50_000 }
+        val uses = IntArray(96) { if (it < 95) 1 else 10 }
+        assertEquals(93, Difficulty.r95(ranks, uses))
+        // Ten different rare words are ten words to learn.
+        val rare = IntArray(105) { if (it < 95) it + 1 else 50_000 + it }
+        assertEquals(50_099, Difficulty.r95(rare, IntArray(105) { 1 }))
     }
 
     @Test
@@ -27,16 +43,17 @@ class DifficultyTest {
         assertTrue(Difficulty.score(40_000, 0.45, 25.0) > base)
         assertTrue(Difficulty.score(40_000, 0.35, 35.0) > base)
         assertEquals(1, Difficulty.score(1_000, 0.0, 5.0))
-        assertEquals(100, Difficulty.score(500_000, 0.6, 80.0))
+        assertEquals(100, Difficulty.score(500_000, 0.9, 80.0))
     }
 
     @Test
     fun theScaleFollowsTheBooksItWasFittedOn() {
         // Measured with Honmani's splitting on the Aozora Bunko texts (2026-10-21); learnnatively.com
-        // grades 走れメロス 34 and 人間失格 41, children's books with furigana about 12.
-        assertEquals(34.0, Difficulty.nativelyLevel(44_168, 0.441, 18.1), 3.0)
-        assertEquals(41.0, Difficulty.nativelyLevel(46_578, 0.398, 39.6), 3.0)
-        assertEquals(DifficultyBand.N2, DifficultyBand.of(Difficulty.score(44_168, 0.441, 18.1)))
+        // grades 走れメロス 34 and 人間失格 41, editions of 手袋を買いに for learners 18 to 22.
+        assertEquals(34.0, Difficulty.nativelyLevel(79_756, 0.667, 18.1), 3.0)
+        assertEquals(41.0, Difficulty.nativelyLevel(101_177, 0.689, 39.6), 3.0)
+        assertTrue(Difficulty.nativelyLevel(53_640, 0.516, 32.0) < 28.0)
+        assertEquals(DifficultyBand.N2, DifficultyBand.of(Difficulty.score(79_756, 0.667, 18.1)))
     }
 
     @Test
@@ -112,6 +129,26 @@ class DifficultyTest {
         // 猫 (with furigana) counts half, 好き (without) whole: 1.5 of 4 words.
         assertEquals(0.375f, withFurigana.kanjiShare, 0.001f)
         assertEquals(0.5f, Difficulty.of(sequenceOf(RubyText(text)), Segmenter(lexicon))!!.kanjiShare, 0.001f)
+    }
+
+    @Test
+    fun aWordsLaterUsesCountLessInTheKanjiShareToo() {
+        // 猫 once among kana words used 200 times each: 1 of 802 uses, but 1 of 8.5 weighted.
+        val text = "猫です。" + "ねこがねこです。".repeat(200)
+        val difficulty = Difficulty.of(sequenceOf(RubyText(text)), Segmenter(lexicon))!!
+        assertEquals(802, difficulty.words)
+        assertEquals((1 / 8.5).toFloat(), difficulty.kanjiShare, 0.001f)
+    }
+
+    @Test
+    fun aozoraBunkosColophonIsNotPartOfTheBook() {
+        val story = "猫が好きです。".repeat(130)
+        val colophon = "\n底本：「ねこ」ねこ\n入力：ねこ"
+        assertEquals(story.length + 1, Difficulty.storyEnd(story + colophon))
+        assertEquals(0, Difficulty.storyEnd(colophon.drop(1)))
+        assertEquals(story.length, Difficulty.storyEnd(story))
+        val words = Difficulty.measure(sequenceOf(RubyText(story + colophon), RubyText(story)), Segmenter(lexicon))!!.words
+        assertEquals(listOf("猫", "が", "好き", "です"), words.keys)
     }
 
     @Test

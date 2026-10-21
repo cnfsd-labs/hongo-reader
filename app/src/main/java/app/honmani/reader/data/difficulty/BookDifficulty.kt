@@ -2,7 +2,6 @@ package app.honmani.reader.data.difficulty
 
 import app.honmani.reader.data.sync.RubyText
 import app.honmani.reader.lookup.JapaneseText
-import kotlin.math.ceil
 import kotlin.math.ln
 import kotlin.math.roundToInt
 
@@ -12,9 +11,15 @@ data class BookDifficulty(
     val version: Int,
     /** 1 (picture books) to 100 (the hardest literature); 0 for text too short to grade. */
     val score: Int,
-    /** The frequency rank that covers 95% of the book's words. */
+    /**
+     * The frequency rank that covers 95% of the book's words, a word's later uses counting less
+     * ([Difficulty.r95]).
+     */
     val r95: Int,
-    /** Share of the words written with kanji, 0 to 1; a word whose kanji all have furigana counts half. */
+    /**
+     * Share of the words written with kanji, 0 to 1, a word's later uses counting less like in
+     * [r95]; a word whose kanji all have furigana counts half.
+     */
     val kanjiShare: Float,
     /** Characters per sentence, on average. */
     val sentenceLength: Float,
@@ -93,20 +98,23 @@ enum class DifficultyBand(val highest: Int) {
 
 /**
  * Book difficulty from three measures of the text, weighted as fitted to how readers grade books
- * on learnnatively.com and to jiten.moe's difficulty: how rare its vocabulary is (the frequency
- * rank that covers 95% of the words), how much of it is written in kanji, and how long its
- * sentences are. Kanji and sentence length tell more than vocabulary alone: on the books
- * compared, each followed the readers' grades better than rarity did. Kanji with furigana count
- * half, as children's books with furigana throughout are graded about that much easier.
+ * on learnnatively.com: how rare its vocabulary is (the frequency rank that covers 95% of the
+ * words), how much of it is written in kanji, and how long its sentences are. In the first two a
+ * word's later uses count less ([weightOfUses]), as a reader learns a word from its first few
+ * uses; counting every use, a short story that keeps coming back to a few words in kanji (子狐,
+ * 手袋, 人間 in 手袋を買いに) was graded like a hard novel, and on the books compared both
+ * measures followed the readers' grades much better weighted. Kanji with furigana count half,
+ * as children's books with furigana throughout are graded about that much easier.
  */
 object Difficulty {
     /**
      * Raise when the scale or the word splitting changes, so stored results are redone. 2: EPUB
      * paragraphs end sentences (dialogue without 。 had made sentences far too long). 3: the
      * book's characters are kept. 4: the book's words are kept ([BookWords]). 5: names left out
-     * ([isName]); every place a word occurs is kept.
+     * ([isName]); every place a word occurs is kept. 6: a word's later uses count less
+     * ([weightOfUses]), refitted; Aozora Bunko's colophon left out ([storyEnd]).
      */
-    const val VERSION = 5
+    const val VERSION = 6
 
     const val COVERAGE = 0.95
 
@@ -127,12 +135,35 @@ object Difficulty {
 
     private const val GRAMMAR_RANK = 10
 
-    /** The smallest rank N such that words ranked N or better make up [COVERAGE] of [ranks]. */
-    fun r95(ranks: IntArray): Int {
+    /**
+     * The smallest rank N such that words ranked N or better make up [COVERAGE] of a text's
+     * words, a word's later uses counting less ([weightOfUses]). [ranks] and [uses] give each
+     * distinct word's rank and how often the text uses it.
+     */
+    fun r95(ranks: IntArray, uses: IntArray): Int {
         if (ranks.isEmpty()) return 0
-        val sorted = ranks.sortedArray()
-        val needed = ceil(sorted.size * COVERAGE).toInt().coerceIn(1, sorted.size)
-        return sorted[needed - 1]
+        val order = ranks.indices.sortedBy { ranks[it] }
+        var total = 0.0
+        for (count in uses) total += weightOfUses(count)
+        val needed = total * COVERAGE - 1e-9
+        var covered = 0.0
+        for (i in order) {
+            covered += weightOfUses(uses[i])
+            if (covered >= needed) return ranks[i]
+        }
+        return ranks[order.last()]
+    }
+
+    /**
+     * How much a word used [count] times counts towards [r95] and the kanji share: its first
+     * uses 1, 0.75, 0.5 and 0.25, later ones [LATER_USE]. A reader looks a word up the first few
+     * times and then knows it. Later uses counting 0 followed the readers' grades best (0.1 and
+     * 0.25 were tried).
+     */
+    fun weightOfUses(count: Int): Double {
+        var weight = 0.0
+        for (i in 0 until minOf(count, FIRST_USES.size)) weight += FIRST_USES[i]
+        return weight + (count - FIRST_USES.size).coerceAtLeast(0) * LATER_USE
     }
 
     /**
@@ -140,7 +171,7 @@ object Difficulty {
      * from the fit.
      */
     fun nativelyLevel(r95: Int, kanjiShare: Double, sentenceLength: Double): Double {
-        // Honmani splits text a little more coarsely than jiten.moe, which the fit's ranks are from.
+        // The fit's ranks are jiten.moe's; on the same texts Honmani's split gives somewhat lower ones.
         val rank = (r95 / SPLIT_RATIO).coerceIn(MIN_R95, MAX_R95)
         val length = sentenceLength.coerceIn(MIN_SENTENCE, MAX_SENTENCE)
         return INTERCEPT + RANK_WEIGHT * ln(rank) + KANJI_WEIGHT * kanjiShare + SENTENCE_WEIGHT * length
@@ -155,19 +186,19 @@ object Difficulty {
 
     /** [of], with the book's words. */
     fun measure(text: Sequence<RubyText>, segmenter: Segmenter): Measured? {
-        // First the words, in order: which word each is (an index into keys), and how much it
-        // counts as written in kanji. Names are only known once the whole book is counted.
+        // First the words: how often each is used and how much in kanji (in halves, see
+        // WHOLE_KANJI). Names are only known once the whole book is counted.
         val keys = LinkedHashMap<String, Int>()
         val keyRanks = IntList()
         val occurrences = ArrayList<IntList>()
-        val tokens = IntList()
-        val kanji = ByteList()
+        val kanjiHalves = IntList()
+        var counted = 0
         var offset = 0L
         var unknown = 0
         var characters = 0L
         var sentences = 0L
         for (chapter in text) {
-            val part = chapter.text
+            val part = chapter.text.substring(0, storyEnd(chapter.text))
             segmenter.segment(part) { token ->
                 if (token.rank == Token.UNKNOWN) {
                     unknown++
@@ -176,18 +207,17 @@ object Difficulty {
                 val index = keys.getOrPut(token.key) {
                     keyRanks.add(token.rank)
                     occurrences += IntList(4)
+                    kanjiHalves.add(0)
                     keys.size
                 }
-                tokens.add(index)
+                counted++
                 occurrences[index].add((offset + token.start).coerceAtMost(Int.MAX_VALUE.toLong()).toInt())
                 val inKanji = (token.start until token.start + token.length).filter { JapaneseText.isKanji(part[it].code) }
-                kanji.add(
-                    when {
-                        inKanji.isEmpty() -> NO_KANJI
-                        inKanji.all { chapter.ruby[it] } -> FURIGANA_KANJI
-                        else -> WHOLE_KANJI
-                    },
-                )
+                kanjiHalves[index] += when {
+                    inKanji.isEmpty() -> NO_KANJI
+                    inKanji.all { chapter.ruby[it] } -> FURIGANA_KANJI
+                    else -> WHOLE_KANJI
+                }
             }
             var inSentence = false
             for (c in part) {
@@ -200,30 +230,31 @@ object Difficulty {
                 }
             }
             if (inSentence) sentences++
-            offset += part.length
+            offset += chapter.text.length
         }
-        val names = BooleanArray(keys.size) { isName(keyRanks[it], occurrences[it].size, tokens.size) }
-        val ranks = IntList()
-        var kanjiWords = 0.0
-        for (i in 0 until tokens.size) {
-            val index = tokens[i]
-            if (names[index]) {
-                unknown++
-                continue
-            }
-            ranks.add(keyRanks[index])
-            kanjiWords += kanji[i] / WHOLE_KANJI.toDouble()
+        val names = BooleanArray(keys.size) { isName(keyRanks[it], occurrences[it].size, counted) }
+        val keptIndices = (0 until keys.size).filter { !names[it] }
+        val uses = IntArray(keptIndices.size) { occurrences[keptIndices[it]].size }
+        val wordCount = uses.sum()
+        unknown += counted - wordCount
+        if (wordCount < MIN_WORDS || sentences == 0L) return null
+        val ranks = IntArray(keptIndices.size) { keyRanks[keptIndices[it]] }
+        val r95 = r95(ranks, uses)
+        // Weighted like r95: a word's share of kanji counts as much as the word does.
+        var kanjiWeight = 0.0
+        var allWeight = 0.0
+        for (i in keptIndices.indices) {
+            val weight = weightOfUses(uses[i])
+            kanjiWeight += weight * kanjiHalves[keptIndices[i]] / (WHOLE_KANJI * uses[i])
+            allWeight += weight
         }
-        if (ranks.size < MIN_WORDS || sentences == 0L) return null
-        val r95 = r95(ranks.toArray())
-        val kanjiShare = kanjiWords / ranks.size
+        val kanjiShare = kanjiWeight / allWeight
         val sentenceLength = characters.toDouble() / sentences
         val length = offset.coerceAtLeast(1).toDouble()
         val kept = keys.keys.filterIndexed { index, _ -> !names[index] }
-        val keptIndices = (0 until keys.size).filter { !names[it] }
         val words = BookWords(
             keys = kept,
-            ranks = IntArray(keptIndices.size) { keyRanks[keptIndices[it]] },
+            ranks = ranks,
             positions = keptIndices.map { index ->
                 val at = occurrences[index]
                 ShortArray(at.size) { (at[it] / length * BookWords.POSITIONS).toInt().coerceAtMost(BookWords.POSITIONS).toShort() }
@@ -236,9 +267,9 @@ object Difficulty {
             kanjiShare = kanjiShare.toFloat(),
             sentenceLength = sentenceLength.toFloat(),
             characters = characters,
-            words = ranks.size,
+            words = wordCount,
             distinctWords = kept.size,
-            unknownShare = unknown.toFloat() / (unknown + ranks.size),
+            unknownShare = unknown.toFloat() / (unknown + wordCount),
         )
         return Measured(difficulty, words)
     }
@@ -256,44 +287,48 @@ object Difficulty {
         return count >= NAME_EXCESS * expected
     }
 
+    /**
+     * Where the text of [chapter] ends: before Aozora Bunko's notes on the source edition and
+     * the volunteers who typed it (底本：…), which close its books but aren't the story; in a
+     * short story their publishers and names were a few percent of the words.
+     */
+    internal fun storyEnd(chapter: String): Int {
+        if (chapter.startsWith(COLOPHON)) return 0
+        val at = chapter.indexOf("\n" + COLOPHON)
+        return if (at < 0) chapter.length else at + 1
+    }
+
+    private const val COLOPHON = "底本："
+
     /** Short stories count; a page or two doesn't. */
     private const val MIN_WORDS = 500
 
     private const val SENTENCE_ENDS = "。！？!?\n"
 
     // A word written in kanji counts 1, with furigana over all its kanji 0.5 (stored in halves).
-    private const val NO_KANJI: Byte = 0
-    private const val WHOLE_KANJI: Byte = 2
-    private const val FURIGANA_KANJI: Byte = 1
+    private const val NO_KANJI = 0
+    private const val WHOLE_KANJI = 2
+    private const val FURIGANA_KANJI = 1
+
+    private val FIRST_USES = doubleArrayOf(1.0, 0.75, 0.5, 0.25)
+    private const val LATER_USE = 0.0
 
     private const val NAME_MIN_COUNT = 20
     private const val NAME_MIN_RANK = 5_000
     private const val NAME_EXCESS = 1_000.0
 
-    // The fit (see the class comment); refit and raise VERSION together.
-    private const val INTERCEPT = -41.56
-    private const val RANK_WEIGHT = 3.071
-    private const val KANJI_WEIGHT = 78.49
-    private const val SENTENCE_WEIGHT = 0.465
-    private const val SPLIT_RATIO = 1.6
+    // Fitted on jiten.moe's word lists of the books learnnatively.com grades (2026-10-21); refit
+    // and raise VERSION together.
+    private const val INTERCEPT = -78.63
+    private const val RANK_WEIGHT = 7.254
+    private const val KANJI_WEIGHT = 37.75
+    private const val SENTENCE_WEIGHT = 0.159
+    private const val SPLIT_RATIO = 0.86
     private const val MIN_R95 = 3_000.0
-    private const val MAX_R95 = 150_000.0
+    private const val MAX_R95 = 300_000.0
     private const val MIN_SENTENCE = 6.0
     private const val MAX_SENTENCE = 50.0
     private const val TOP_LEVEL = 45.0
-
-    private class ByteList {
-        private var values = ByteArray(4096)
-        var size = 0
-            private set
-
-        fun add(value: Byte) {
-            if (size == values.size) values = values.copyOf(size * 2)
-            values[size++] = value
-        }
-
-        operator fun get(index: Int): Byte = values[index]
-    }
 
     private class IntList(capacity: Int = 4096) {
         private var values = IntArray(capacity)
@@ -307,6 +342,8 @@ object Difficulty {
 
         operator fun get(index: Int): Int = values[index]
 
-        fun toArray(): IntArray = values.copyOf(size)
+        operator fun set(index: Int, value: Int) {
+            values[index] = value
+        }
     }
 }
