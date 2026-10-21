@@ -24,6 +24,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
@@ -39,6 +40,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
@@ -59,6 +61,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
@@ -406,7 +409,10 @@ private fun StepsBar(steps: Int) {
     }
 }
 
-/** Exports the list shown as a file for Anki on a computer: a package with audio, or text. */
+/**
+ * Exports the list shown as a file for Anki on a computer, from a small rounded menu like the
+ * library's order: a package with audio, or text.
+ */
 @Composable
 private fun ExportMenu(onExport: () -> Unit, onExportPackage: () -> Unit, enabled: Boolean) {
     var open by remember { mutableStateOf(false) }
@@ -414,16 +420,31 @@ private fun ExportMenu(onExport: () -> Unit, onExportPackage: () -> Unit, enable
         IconButton(onClick = { open = true }, enabled = enabled) {
             Icon(painterResource(R.drawable.ic_export), contentDescription = stringResource(R.string.words_export))
         }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.action_export_anki_package)) },
+        DropdownMenu(
+            expanded = open,
+            onDismissRequest = { open = false },
+            shape = RoundedCornerShape(24.dp),
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        ) {
+            Text(
+                text = stringResource(R.string.words_export),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 8.dp),
+            )
+            ExportItem(
+                title = R.string.export_package,
+                detail = R.string.export_package_detail,
+                icon = R.drawable.ic_add_card,
                 onClick = {
                     open = false
                     onExportPackage()
                 },
             )
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.action_export_anki_file)) },
+            ExportItem(
+                title = R.string.export_text,
+                detail = R.string.export_text_detail,
+                icon = R.drawable.ic_export,
                 onClick = {
                     open = false
                     onExport()
@@ -431,6 +452,28 @@ private fun ExportMenu(onExport: () -> Unit, onExportPackage: () -> Unit, enable
             )
         }
     }
+}
+
+@Composable
+private fun ExportItem(title: Int, detail: Int, icon: Int, onClick: () -> Unit) {
+    DropdownMenuItem(
+        text = {
+            Column {
+                Text(stringResource(title), style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    text = stringResource(detail),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        leadingIcon = { Icon(painterResource(icon), contentDescription = null) },
+        colors = MenuDefaults.itemColors(leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant),
+        onClick = onClick,
+        modifier = Modifier
+            .padding(horizontal = 8.dp)
+            .clip(RoundedCornerShape(16.dp)),
+    )
 }
 
 private fun filterLabel(filter: WordFilter) = when (filter) {
