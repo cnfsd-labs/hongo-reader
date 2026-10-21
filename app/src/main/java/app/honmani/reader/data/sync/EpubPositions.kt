@@ -4,7 +4,11 @@ import java.io.File
 import java.io.IOException
 import java.net.URLDecoder
 import java.nio.charset.Charset
+import java.util.BitSet
 import java.util.zip.ZipFile
+
+/** Text with the characters that have furigana (ruby) over them. */
+class RubyText(val text: String, val ruby: BitSet = BitSet())
 
 /**
  * Reading positions in an EPUB, translated between KOReader and ッツ Ebook Reader (ttu):
@@ -123,24 +127,13 @@ class EpubPositions private constructor(
         /** Reads the book's spine and counts its characters; null if it is not a readable EPUB. */
         fun read(file: File): EpubPositions? = try {
             ZipFile(file).use { zip ->
-                fun text(name: String): String? = zip.getEntry(name)?.let { decodeText(zip.getInputStream(it).readBytes()) }
-                val container = text("META-INF/container.xml")?.let(Xhtml::parse) ?: return null
-                val opfPath = container.find("rootfile")?.attributes?.get("full-path") ?: return null
-                val opf = text(opfPath)?.let(Xhtml::parse) ?: return null
-                val base = opfPath.substringBeforeLast('/', "")
-                val manifest = opf.findAll("item").mapNotNull { item ->
-                    val id = item.attributes["id"] ?: return@mapNotNull null
-                    val href = item.attributes["href"] ?: return@mapNotNull null
-                    id to resolve(base, href)
-                }.toMap()
-                val spine = opf.findAll("itemref").mapNotNull { manifest[it.attributes["idref"]] }
-                    .filter { zip.getEntry(it) != null }
+                val spine = spineOf(zip)
                 if (spine.isEmpty()) return null
                 var total = 0
                 val starts = IntArray(spine.size)
                 for ((i, name) in spine.withIndex()) {
                     starts[i] = total
-                    val body = text(name)?.let { bodyOf(Xhtml.parse(it)) } ?: continue
+                    val body = zip.text(name)?.let { bodyOf(Xhtml.parse(it)) } ?: continue
                     walk(body) { node ->
                         total += count(node.text!!)
                         true
@@ -152,6 +145,55 @@ class EpubPositions private constructor(
             null
         } catch (_: IllegalArgumentException) {
             null
+        }
+
+        /**
+         * The text ttu shows, one per spine document in reading order, with the characters that
+         * have furigana marked. Ruby readings are left out, so 漢字 with furigana stays one word.
+         * Null if it is not a readable EPUB.
+         */
+        fun texts(file: File): List<RubyText>? = try {
+            ZipFile(file).use { zip ->
+                val spine = spineOf(zip)
+                if (spine.isEmpty()) return null
+                spine.mapNotNull { name ->
+                    val body = zip.text(name)?.let { bodyOf(Xhtml.parse(it)) } ?: return@mapNotNull null
+                    val text = StringBuilder()
+                    val ruby = BitSet()
+                    fun visit(node: XNode, inRuby: Boolean) {
+                        for (child in node.children) {
+                            if (child.isText) {
+                                if (inRuby) ruby.set(text.length, text.length + child.text!!.length)
+                                text.append(child.text)
+                            } else if (!skipped(child)) {
+                                visit(child, inRuby || child.name == "ruby")
+                            }
+                        }
+                    }
+                    visit(body, inRuby = false)
+                    RubyText(text.toString(), ruby)
+                }
+            }
+        } catch (_: IOException) {
+            null
+        } catch (_: IllegalArgumentException) {
+            null
+        }
+
+        private fun ZipFile.text(name: String): String? = getEntry(name)?.let { decodeText(getInputStream(it).readBytes()) }
+
+        /** The spine's documents in reading order, as paths in the zip; empty if there is none. */
+        private fun spineOf(zip: ZipFile): List<String> {
+            val container = zip.text("META-INF/container.xml")?.let(Xhtml::parse) ?: return emptyList()
+            val opfPath = container.find("rootfile")?.attributes?.get("full-path") ?: return emptyList()
+            val opf = zip.text(opfPath)?.let(Xhtml::parse) ?: return emptyList()
+            val base = opfPath.substringBeforeLast('/', "")
+            val manifest = opf.findAll("item").mapNotNull { item ->
+                val id = item.attributes["id"] ?: return@mapNotNull null
+                val href = item.attributes["href"] ?: return@mapNotNull null
+                id to resolve(base, href)
+            }.toMap()
+            return opf.findAll("itemref").mapNotNull { manifest[it.attributes["idref"]] }.filter { zip.getEntry(it) != null }
         }
 
         private fun bodyOf(document: XNode): XNode = document.find("body") ?: document

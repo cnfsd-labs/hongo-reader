@@ -447,6 +447,13 @@
     <string name="book_start_reading">Start reading</string>
     <string name="book_open_again">Open again</string>
     <string name="book_hidden">Hidden from the library</string>
+    <string name="book_difficulty">Difficulty %1$d</string>
+    <string name="book_difficulty_detail">95%% of its words are among the %1$s most common.</string>
+    <string name="difficulty_beginner">Beginner</string>
+    <string name="difficulty_elementary">Elementary</string>
+    <string name="difficulty_intermediate">Intermediate</string>
+    <string name="difficulty_advanced">Advanced</string>
+    <string name="difficulty_native">Native-level</string>
     <string name="book_nothing_counted">No reading counted in this book yet.</string>
     <string name="book_read_so_far">Read so far</string>
     <string name="book_of_characters">of %1$s characters</string>

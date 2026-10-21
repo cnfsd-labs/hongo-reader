@@ -16,10 +16,12 @@ class MainActivity : ComponentActivity() {
         val container = (application as HonmaniApplication).container
         val appearance = container.appearanceSettings
         // Once per app start (not on rotation): new books from catalogues with automatic import,
-        // and new versions of installed dictionaries (offered in Dictionaries, not installed).
+        // new versions of installed dictionaries (offered in Dictionaries, not installed), and
+        // grading books that have no difficulty yet.
         if (savedInstanceState == null) {
             container.opdsAutoImport.start()
             container.dictionaryUpdateChecker.start()
+            container.startGrading()
         }
         setContent {
             val accent by appearance.accent.collectAsStateWithLifecycle()

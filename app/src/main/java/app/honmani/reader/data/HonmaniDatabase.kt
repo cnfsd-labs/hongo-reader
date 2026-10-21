@@ -6,6 +6,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.room.migration.Migration
+import app.honmani.reader.data.difficulty.DifficultyDao
 import app.honmani.reader.data.dictionary.DictionaryDao
 import app.honmani.reader.data.dictionary.DictionaryEntity
 import app.honmani.reader.data.dictionary.GlossaryConverters
@@ -70,6 +71,9 @@ abstract class HonmaniDatabase : RoomDatabase() {
     abstract fun opdsCatalogDao(): OpdsCatalogDao
 
     abstract fun readingDao(): ReadingDao
+
+    /** Reads the dictionary tables for book grading; no tables of its own. */
+    abstract fun difficultyDao(): DifficultyDao
 
     companion object {
         internal const val NAME = "honmani.db"

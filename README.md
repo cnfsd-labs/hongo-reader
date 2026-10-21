@@ -11,6 +11,7 @@ conjugated: 食べさせられなかった leads straight to 食べる.
 - Every word you look up is saved with its sentence; send words to Anki (AnkiDroid or an
   `.apkg` for Anki on a computer)
 - Reading statistics (time, characters, speed), a reading level and milestones
+- Book difficulty from 1 to 100, worked out on the phone from the text
 - Your own book server (OPDS, such as Calibre-Web): browse, search, download
 - Reading progress sync with KOReader (e-readers, Calibre-Web Automated), to the character
 - No account, no ads, no tracking ([privacy policy](docs/privacy-policy.md))

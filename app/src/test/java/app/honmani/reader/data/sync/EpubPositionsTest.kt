@@ -68,7 +68,21 @@ class EpubPositionsTest {
     }
 
     @Test
+    fun textsComeByDocument_withoutRubyReadings_markingFurigana() {
+        val texts = EpubPositions.texts(folder.root.resolve("book.epub"))!!
+
+        assertEquals(2, texts.size)
+        // The word under furigana stays whole: 未だ, not 未まだ.
+        assertEquals("吾輩は猫である。名前は未だ無い。", texts[0].text.filterNot { it.isWhitespace() || it == '\u00A0' })
+        assertEquals("二どこで生れたかとんと見当がつかぬ。", texts[1].text.filterNot { it.isWhitespace() })
+        // Only 未 has furigana.
+        val first = texts[0]
+        assertEquals(listOf("未"), first.text.indices.filter { first.ruby[it] }.map { first.text[it].toString() })
+    }
+
+    @Test
     fun notAnEpubGivesNull() {
         assertNull(EpubPositions.read(folder.newFile("empty.epub").apply { writeText("not a zip") }))
+        assertNull(EpubPositions.texts(folder.root.resolve("empty.epub")))
     }
 }

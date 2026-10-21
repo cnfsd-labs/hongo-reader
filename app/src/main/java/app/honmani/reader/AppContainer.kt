@@ -10,6 +10,11 @@ import app.honmani.reader.anki.AnkiSettings
 import app.honmani.reader.anki.PhoneVoice
 import app.honmani.reader.anki.WordDetails
 import app.honmani.reader.data.HonmaniDatabase
+import app.honmani.reader.data.difficulty.BookGrader
+import app.honmani.reader.data.difficulty.DifficultyStore
+import app.honmani.reader.data.difficulty.DifficultyWorker
+import app.honmani.reader.data.difficulty.LexiconLoader
+import app.honmani.reader.data.difficulty.LexiconSources
 import app.honmani.reader.data.dictionary.DictionaryDownloader
 import app.honmani.reader.data.fonts.FontStore
 import app.honmani.reader.data.dictionary.DictionaryImportScheduler
@@ -18,6 +23,7 @@ import app.honmani.reader.data.dictionary.DictionaryRepository
 import app.honmani.reader.data.dictionary.DictionaryUpdateChecker
 import app.honmani.reader.data.dictionary.WorkManagerDictionaryImportScheduler
 import app.honmani.reader.data.library.BookDao
+import app.honmani.reader.data.library.BookFormat
 import app.honmani.reader.data.library.BookImporter
 import app.honmani.reader.data.opds.KeystoreCredentialCipher
 import app.honmani.reader.data.opds.OpdsAutoImport
@@ -32,9 +38,11 @@ import app.honmani.reader.data.stats.ReadingDao
 import app.honmani.reader.data.stats.ReadingDayEntity
 import app.honmani.reader.data.stats.ReadingStore
 import app.honmani.reader.data.stats.ReadingTracker
+import app.honmani.reader.data.sync.EpubPositions
 import app.honmani.reader.data.sync.KoSyncClient
 import app.honmani.reader.data.sync.KoSyncSettings
 import app.honmani.reader.data.sync.ProgressSync
+import app.honmani.reader.data.sync.RubyText
 import app.honmani.reader.data.words.WordRepository
 import app.honmani.reader.diagnostics.ReaderDiagnostics
 import app.honmani.reader.lookup.DictionaryLookup
@@ -44,6 +52,10 @@ import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -216,6 +228,43 @@ class AppContainer(context: Context) {
                     tracker.onPositions(books.mapNotNull { book -> book.characters?.let { book.id to it } }.toMap())
                 }
             }
+        }
+    }
+
+    /** Book difficulty, kept per book in app storage (a cache; see [BookGrader]). */
+    val difficultyStore: DifficultyStore by lazy { DifficultyStore(File(appContext.filesDir, "difficulty")) }
+
+    val bookGrader: BookGrader by lazy {
+        BookGrader(
+            store = difficultyStore,
+            books = { bookDao.observeAll().first() },
+            sources = {
+                LexiconSources.of(database.dictionaryDao().enabledReady()) { database.difficultyDao().hasFrequencies(it.id) }
+            },
+            lexicon = { LexiconLoader(database.difficultyDao()).load(it) },
+            texts = { book ->
+                val file = bookImporter.bookFile(book)
+                when (book.format) {
+                    BookFormat.EPUB -> EpubPositions.texts(file)?.asSequence()
+                    // Stored as UTF-8 (see TextEncoding).
+                    BookFormat.TXT -> if (file.exists()) sequenceOf(RubyText(file.readText())) else null
+                }
+            },
+            log = { Log.i("Honmani.difficulty", it) },
+        )
+    }
+
+    /**
+     * Grades books in the background whenever the library or the dictionaries change, once per
+     * app start; the stored grades are read first, for the book sheets.
+     */
+    fun startGrading() {
+        applicationScope.launch {
+            withContext(Dispatchers.IO) { difficultyStore.load() }
+            combine(
+                bookDao.observeAll().map { books -> books.map { it.contentHash }.toSet() }.distinctUntilChanged(),
+                dictionaryRepository.dictionaries.map { all -> all.map { "${it.id}:${it.revision}:${it.enabled}" } }.distinctUntilChanged(),
+            ) { _, _ -> }.collect { DifficultyWorker.schedule(appContext) }
         }
     }
 
