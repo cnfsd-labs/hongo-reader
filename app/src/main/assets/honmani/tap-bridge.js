@@ -49,6 +49,7 @@
   const CLOSING_QUOTES = '」』）〉》】"\'';
   const OPENING_BRACKETS = '「『（(〈《【〔［｛“‘〝"\'';
   const HIGHLIGHT_NAME = 'honmani-lookup';
+  const LOOKED_UP_EVENT = 'honmani-looked-up';
   const OVERLAY_ID = 'honmani-highlight-overlay';
 
   /**
@@ -362,6 +363,11 @@
       offset = 0;
     }
     if (ranges.length === 0) return;
+    // The word is being learned now: word-marks.js marks it at once, so its accent stays when
+    // this mark goes, before the app's fresh word marks arrive.
+    window.dispatchEvent(
+      new CustomEvent(LOOKED_UP_EVENT, { detail: { ranges: ranges.map((range) => range.cloneRange()), color } }),
+    );
     if (hasHighlightApi()) {
       setHighlightStyle(color);
       CSS.highlights.set(HIGHLIGHT_NAME, new Highlight(...ranges));

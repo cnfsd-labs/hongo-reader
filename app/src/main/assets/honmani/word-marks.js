@@ -366,6 +366,48 @@
     mutations.observe(root, { childList: true, subtree: true, characterData: true });
   }
 
+  /**
+   * A word the reader just looked up (tap-bridge.js marks it): it is being learned, so it gets
+   * its mark now rather than when the app's fresh marks arrive, which confirm or correct it.
+   */
+  function onLookedUp(event) {
+    const detail = event.detail || {};
+    const ranges = Array.isArray(detail.ranges) ? detail.ranges : [];
+    if (!root || mode() === 'off' || ranges.length === 0) return;
+    const first = ranges[0];
+    const id = ids.get(blockAncestor(first.startContainer));
+    const nodes = id === undefined ? null : blocks.get(id);
+    if (!nodes) return;
+    let start = -1;
+    let offset = 0;
+    for (const node of nodes) {
+      if (node === first.startContainer) {
+        start = offset + first.startOffset;
+        break;
+      }
+      offset += node.data.length;
+    }
+    if (start < 0) return;
+    const length = ranges.reduce((sum, range) => sum + range.endOffset - range.startOffset, 0);
+    if (rgb === null) setColor(detail.color);
+    const marks = shown.get(id) || new Map();
+    const asNew = marks.get(`${start}:${length}:1`);
+    if (asNew) {
+      for (const range of asNew.ranges) {
+        highlights[1].delete(range);
+        fresh[1].delete(range);
+      }
+      marks.delete(`${start}:${length}:1`);
+    }
+    const key = `${start}:${length}:0`;
+    if (!marks.has(key)) {
+      const own = rangesOf(id, start, length);
+      for (const range of own) highlights[0].add(range);
+      marks.set(key, { kind: 0, ranges: own });
+    }
+    shown.set(id, marks);
+  }
+
   function onAppMessage(event) {
     let message;
     try {
@@ -387,6 +429,7 @@
   }
 
   listen();
+  window.addEventListener('honmani-looked-up', onLookedUp);
   const check = () => {
     listen();
     start();

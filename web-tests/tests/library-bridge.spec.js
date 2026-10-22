@@ -498,6 +498,31 @@ test('word marks: the page asks about the paragraphs on screen and marks what th
   await expect.poll(() => marked(page)).toEqual({ 'honmani-learning': ['吾輩'], 'honmani-new': ['名前'] });
 });
 
+test('a word just looked up is marked as being learned at once, before the app answers again', async ({ page }) => {
+  await openWithMarks(page, 'neko.epub', 'new');
+  await expect.poll(async () => (await markRequests(page)).flatMap((m) => m.blocks.map((b) => b.text))).toContain('吾輩は猫である。名前はまだ無い。');
+  const request = (await markRequests(page)).find((m) => m.blocks.some((b) => b.text.startsWith('吾輩')));
+  const block = request.blocks.find((b) => b.text.startsWith('吾輩'));
+  await page.evaluate(
+    ([requestId, id]) => window.__reply({ type: 'marks', requestId, color: '#e91e63', blocks: [{ id, marks: [[3, 1, 1]] }] }),
+    [request.requestId, block.id],
+  );
+  await expect.poll(() => marked(page)).toEqual({ 'honmani-learning': [], 'honmani-new': ['猫'] });
+
+  // tap-bridge.js announces the lookup's mark over 猫.
+  await page.evaluate(() => {
+    const walker = document.createTreeWalker(document.querySelector('.book-content'), NodeFilter.SHOW_TEXT);
+    let node = walker.nextNode();
+    while (node && !node.data.includes('吾輩は猫')) node = walker.nextNode();
+    const range = document.createRange();
+    const at = node.data.indexOf('猫');
+    range.setStart(node, at);
+    range.setEnd(node, at + 1);
+    window.dispatchEvent(new CustomEvent('honmani-looked-up', { detail: { ranges: [range], color: '#e91e63' } }));
+  });
+  expect(await marked(page)).toEqual({ 'honmani-learning': ['猫'], 'honmani-new': [] });
+});
+
 test('word marks leave furigana out of the text and the marks', async ({ page }) => {
   await openWithMarks(page, 'ruby.epub', 'new');
 

@@ -268,6 +268,19 @@ test('the app can highlight the matched text, skipping furigana, and clear it', 
   expect(await highlighted(page)).toBeNull();
 });
 
+test('the highlighted word is announced to the word marks, with its colour', async ({ page }) => {
+  await page.evaluate(() => {
+    window.__lookedUp = [];
+    window.addEventListener('honmani-looked-up', (event) =>
+      window.__lookedUp.push({ text: event.detail.ranges.map((range) => range.toString()), color: event.detail.color }),
+    );
+  });
+  await tapChar(page, '#v1', '猫');
+  await reply(page, { type: 'highlight', length: 3, color: '#8A5CF5' });
+
+  expect(await page.evaluate(() => window.__lookedUp)).toEqual([{ text: ['猫', 'であ'], color: '#8A5CF5' }]);
+});
+
 test('the highlight takes the app\'s accent colour', async ({ page }) => {
   await tapChar(page, '#v2', 'ど');
   await reply(page, { type: 'highlight', length: 2, color: '#8A5CF5' });
