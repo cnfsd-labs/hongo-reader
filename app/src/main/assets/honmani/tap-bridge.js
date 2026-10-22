@@ -12,7 +12,8 @@
  * left out when there are none.
  *   { "type": "dismiss" }   (a tap on book content that is not on text)
  *
- * Furigana (<rt>, <rp>) is not part of the scanned text. Scanning stops at the end of the
+ * Furigana (<rt>, <rp>) is not part of the scanned text; a tap on furigana scans from the start
+ * of the base text it reads. Scanning stops at the end of the
  * tapped paragraph and at a line break (<br>). A tap on an opening bracket or quote scans from
  * the character after it.
  *
@@ -217,17 +218,44 @@
     return target.closest(BOOK_ROOT_SELECTOR) !== null && target.closest(INTERACTIVE_SELECTOR) === null;
   }
 
+  /** The text node and index of the character under (x, y), or null. */
+  function charAt(x, y) {
+    const caret = caretAt(x, y);
+    if (!caret) return null;
+    const index = hitCharIndex(caret.node, caret.offset, x, y);
+    return index < 0 ? null : { node: caret.node, index };
+  }
+
+  /**
+   * For a tap on furigana, the start of the base text it reads: furigana sits right beside its
+   * kanji (above them in vertical text), and a tap there means the word. Null for other taps.
+   */
+  function rubyBaseOf(target) {
+    const rt = target.closest('rt');
+    const ruby = rt && rt.closest('ruby');
+    if (!ruby) return null;
+    // The base is the text since the furigana before this one (東<rt>とう</rt>京<rt>きょう</rt>).
+    let first = null;
+    const walker = textWalker(ruby);
+    for (let current = walker.nextNode(); current; current = walker.nextNode()) {
+      if (current.compareDocumentPosition(rt) & Node.DOCUMENT_POSITION_PRECEDING) break;
+      const previous = rubyTextFor(current, ruby);
+      if (previous !== rt) continue;
+      if (!first) first = current;
+    }
+    return first ? { node: first, index: 0 } : null;
+  }
+
   function lookupAt(x, y, target) {
     const root = target.closest(BOOK_ROOT_SELECTOR);
     if (!root || target.closest(INTERACTIVE_SELECTOR)) return null;
 
-    const caret = caretAt(x, y);
-    if (!caret || !root.contains(caret.node)) return null;
-    const index = hitCharIndex(caret.node, caret.offset, x, y);
-    if (index < 0) return null;
+    const hit = rubyBaseOf(target) || charAt(x, y);
+    if (!hit || !root.contains(hit.node)) return null;
+    const { node, index } = hit;
 
-    const block = blockAncestor(caret.node, root);
-    const { text: paragraph, position, ruby: paragraphRuby } = blockText(block, caret.node, index);
+    const block = blockAncestor(node, root);
+    const { text: paragraph, position, ruby: paragraphRuby } = blockText(block, node, index);
     if (position < 0) return null;
 
     let start = position;
@@ -236,7 +264,7 @@
     if (!text.trim() || /^\s/.test(text)) return null;
 
     const { sentence, offset } = sentenceAround(paragraph, start);
-    lastTap = { block, node: caret.node, index, skip: start - position };
+    lastTap = { block, node, index, skip: start - position };
     const message = { type: 'lookup', text, sentence, sentenceOffset: offset };
     const ruby = rubyWithin(paragraphRuby, start, text.length);
     if (ruby.length > 0) message.ruby = ruby;

@@ -127,15 +127,16 @@ class ReaderViewModel(
                 else -> {
                     val groups = withContext(compute) { LookupGroups.from(result) }
                     record(tap, groups.first())
-                    LookupPanelState.Results(
-                        tap = tap,
-                        groups = groups,
-                        highlight = Highlight(lookupId, result.matchedLength),
-                        inAnki = wordsInAnki(groups),
-                        kanji = kanjiOf(groups),
-                    )
+                    LookupPanelState.Results(tap = tap, groups = groups, highlight = Highlight(lookupId, result.matchedLength))
                 }
             }
+            log("Panel shown ${start.elapsedNow()} after the tap's message")
+            // Which words are in Anki (another app's content provider) and the kanji come a moment
+            // later, while the panel slides in: waiting for them made every lookup slower.
+            val groups = (_panel.value as? LookupPanelState.Results)?.takeIf { it.tap == tap }?.groups ?: return@launch
+            val inAnki = wordsInAnki(groups)
+            val kanji = kanjiOf(groups)
+            updateResults(tap) { it.copy(inAnki = inAnki, kanji = kanji) }
         }
     }
 

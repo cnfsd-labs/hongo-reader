@@ -4,6 +4,7 @@ import app.honmani.reader.data.dictionary.DictionaryEntity
 import app.honmani.reader.data.dictionary.Glossary
 import app.honmani.reader.data.dictionary.TermEntity
 import app.honmani.reader.data.words.LookedUpWord
+import app.honmani.reader.data.words.WordRepository
 import app.honmani.reader.lookup.Inflection
 import app.honmani.reader.lookup.KanjiInfo
 import app.honmani.reader.lookup.LookupEntry
@@ -117,6 +118,30 @@ class ReaderViewModelTest {
         assertEquals(results.highlight, panel.highlight)
         assertTrue(viewModel.back())
         assertEquals(results, viewModel.panel.value)
+    }
+
+    @Test
+    fun thePanelShowsBeforeTheAnkiCheckAndTheKanji_whichFollow() {
+        val anki = CompletableDeferred<Set<String>>()
+        val model = ReaderViewModel(
+            lookup = { text, _ -> pending.getOrPut(text) { CompletableDeferred() }.await() },
+            compute = Dispatchers.Unconfined,
+            recordLookup = { recorded += it },
+            findBook = { null },
+            lookupKanji = { text -> kanji.filterKeys { it in text } },
+            inAnki = { anki.await() },
+        )
+        model.onTap(tap("食べました。"))
+        pending.getValue("食べました。").complete(LookupResult(listOf(entry("食べる", "食べました"))))
+
+        val first = model.panel.value as LookupPanelState.Results
+        assertEquals("食べる", first.groups.single().expression)
+        assertEquals(emptySet<String>(), first.inAnki)
+
+        anki.complete(setOf(WordRepository.key("食べる", "食べる")))
+        val filled = model.panel.value as LookupPanelState.Results
+        assertEquals(setOf(WordRepository.key("食べる", "食べる")), filled.inAnki)
+        assertEquals(setOf("食"), filled.kanji.keys)
     }
 
     @Test

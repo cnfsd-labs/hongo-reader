@@ -204,6 +204,20 @@ test('a tap with its click is looked up once; a swipe is no tap', async ({ page 
   expect(await messages(page)).toHaveLength(1);
 });
 
+test('a tap on furigana looks up the word it reads, from the start of its base', async ({ page }) => {
+  await page.click('#v1 rt');
+  await page.click('#h3 rt >> nth=2');
+
+  const [cat, tomorrow] = await messages(page);
+  expect(cat.text).toBe('猫である。名前はまだ無い。」');
+  expect(cat.ruby).toEqual([{ start: 0, end: 1, reading: 'ねこ' }]);
+  // Per-character furigana: きょう reads 京 only.
+  expect(tomorrow.text).toBe('京と明日。');
+
+  await reply(page, { type: 'highlight', length: 1 });
+  expect(await highlighted(page)).toEqual(['京']);
+});
+
 test('characters outside the BMP are kept whole', async ({ page }) => {
   await tapChar(page, '#h2', '𠮟');
 
@@ -211,9 +225,9 @@ test('characters outside the BMP are kept whole', async ({ page }) => {
   expect(message.text).toBe('𠮟られた。');
 });
 
-test('taps on links, furigana, empty space and non-book text start no lookup', async ({ page }) => {
+test('taps on links, empty space and non-book text start no lookup', async ({ page }) => {
   await tapChar(page, '#h1', 'リ');
-  await page.click('#v1 rt');
+  await page.click('#blank');
   await page.mouse.click(5, 5);
   await tapChar(page, '#outside', '本');
 
@@ -222,11 +236,11 @@ test('taps on links, furigana, empty space and non-book text start no lookup', a
 });
 
 test('a tap on book content that is not text asks the app to close the panel', async ({ page }) => {
-  await page.click('#v1 rt');
+  await page.click('#blank');
   await tapChar(page, '#outside', '本');
   await tapChar(page, '#h1', 'リ');
 
-  // Furigana is book content but not lookup text; outside text and links are neither.
+  // Blank space is book content but no text; outside text and links are neither.
   expect(await messages(page)).toEqual([{ type: 'dismiss' }]);
 });
 
