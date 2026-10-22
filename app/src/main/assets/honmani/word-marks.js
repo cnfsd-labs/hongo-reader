@@ -20,6 +20,11 @@
  * Marks use the CSS Custom Highlight API (Chromium 105+), so ttu's DOM, its character counts
  * and layout are never touched; older WebViews show no marks. The lookup mark (tap-bridge.js)
  * is drawn above them.
+ *
+ * In page mode the book scrolls inside its own box, which clips what lies beyond the page: the
+ * paragraphs are watched within that box, so the pages before and after the one on screen are
+ * asked about ahead of time and their marks are there when the page turns. Marks that arrive
+ * for the page on screen (when a book opens, after a lookup) fade in rather than pop up.
  */
 (() => {
   'use strict';
@@ -31,8 +36,11 @@
   const BOOK_ROOT_SELECTOR = '.book-content';
   const SKIPPED_SELECTOR = 'rt, rp, script, style';
   const NAMES = ['honmani-learning', 'honmani-new'];
-  /** Paragraphs this far from the screen (in screens) are asked about before they show. */
+  /** New marks, while they fade in; then they move to NAMES. */
+  const FRESH_NAMES = ['honmani-learning-fresh', 'honmani-new-fresh'];
+  /** Paragraphs this far from the page (in pages) are asked about before they show. */
   const AHEAD = '100%';
+  const FADE_MS = 250;
   const MAX_BATCH_TEXT = 6_000;
   const MAX_BLOCK_TEXT = 4_000;
   const BATCH_DELAY_MS = 80;
@@ -68,13 +76,24 @@
   let generation = 0;
   const pending = new Map();
   const highlights = NAMES.map(() => new Highlight());
+  const fresh = FRESH_NAMES.map(() => new Highlight());
   // Below the lookup mark.
-  for (const highlight of highlights) highlight.priority = -1;
+  for (const highlight of [...highlights, ...fresh]) highlight.priority = -1;
+  let rgb = null;
+  /** The fade of the fresh marks: when it started, and its animation frame. */
+  let fadeStart = 0;
+  let fadeFrame = 0;
 
   function setColor(color) {
     const hex = /^#([0-9a-fA-F]{6})$/.exec(color || '');
     const value = hex ? parseInt(hex[1], 16) : 0xffc400;
-    const rgb = `${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255}`;
+    rgb = `${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255}`;
+    writeStyle(fadeFrame ? (performance.now() - fadeStart) / FADE_MS : 1);
+  }
+
+  /** The marks' tints; `fade` (0 to 1): how far the fresh marks have faded in. */
+  function writeStyle(fade) {
+    if (rgb === null) return;
     let style = document.getElementById('honmani-marks-style');
     if (!style) {
       // Only with the first answer: at document start there is no document element yet.
@@ -84,9 +103,47 @@
       style.id = 'honmani-marks-style';
       parent.appendChild(style);
     }
-    style.textContent =
-      `::highlight(${NAMES[0]}) { background-color: rgba(${rgb}, 0.28); }\n` +
-      `::highlight(${NAMES[1]}) { background-color: rgba(128, 128, 128, 0.2); }`;
+    const alpha = Math.min(1, Math.max(0, fade));
+    const tints = (names, share) =>
+      `::highlight(${names[0]}) { background-color: rgba(${rgb}, ${(0.28 * share).toFixed(3)}); }\n` +
+      `::highlight(${names[1]}) { background-color: rgba(128, 128, 128, ${(0.2 * share).toFixed(3)}); }\n`;
+    style.textContent = tints(NAMES, 1) + tints(FRESH_NAMES, alpha);
+  }
+
+  function reducedMotion() {
+    return !!window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }
+
+  /** Moves the fresh marks to the others, at full tint. */
+  function settle() {
+    if (fadeFrame) cancelAnimationFrame(fadeFrame);
+    fadeFrame = 0;
+    for (let i = 0; i < fresh.length; i++) {
+      for (const range of fresh[i]) highlights[i].add(range);
+      fresh[i].clear();
+    }
+    writeStyle(1);
+  }
+
+  /** Fades the fresh marks in; marks added while it runs join the fade. */
+  function fadeIn() {
+    if (fadeFrame) return;
+    if (reducedMotion()) {
+      settle();
+      return;
+    }
+    fadeStart = performance.now();
+    writeStyle(0);
+    const step = (now) => {
+      const fade = (now - fadeStart) / FADE_MS;
+      if (fade >= 1) {
+        settle();
+        return;
+      }
+      writeStyle(fade);
+      fadeFrame = requestAnimationFrame(step);
+    };
+    fadeFrame = requestAnimationFrame(step);
   }
 
   function isSkipped(node) {
@@ -110,6 +167,11 @@
       if (isBlock(element)) return element;
     }
     return root;
+  }
+
+  function clips(element) {
+    const style = getComputedStyle(element);
+    return style.overflowX !== 'visible' || style.overflowY !== 'visible';
   }
 
   /** Groups the book's text into paragraphs and watches which come near the screen. */
@@ -204,15 +266,18 @@
       for (const mark of Array.isArray(block.marks) ? block.marks : []) {
         const [start, length, kind] = mark;
         if (!Number.isInteger(start) || !Number.isInteger(length) || !highlights[kind]) continue;
-        for (const range of rangesOf(block.id, start, length)) highlights[kind].add(range);
+        for (const range of rangesOf(block.id, start, length)) fresh[kind].add(range);
       }
     }
+    if (fresh.some((highlight) => highlight.size > 0)) fadeIn();
   }
 
   function reset() {
     generation++;
     pending.clear();
-    for (const highlight of highlights) highlight.clear();
+    if (fadeFrame) cancelAnimationFrame(fadeFrame);
+    fadeFrame = 0;
+    for (const highlight of [...highlights, ...fresh]) highlight.clear();
     queue.clear();
     if (!observer) return;
     // Observing again reports what is near the screen now.
@@ -242,7 +307,10 @@
     if (content === root) return;
     stop();
     root = content;
-    for (let i = 0; i < NAMES.length; i++) CSS.highlights.set(NAMES[i], highlights[i]);
+    for (let i = 0; i < NAMES.length; i++) {
+      CSS.highlights.set(NAMES[i], highlights[i]);
+      CSS.highlights.set(FRESH_NAMES[i], fresh[i]);
+    }
     observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
@@ -250,7 +318,9 @@
           if (entry.isIntersecting && id !== undefined) ask(id);
         }
       },
-      { rootMargin: AHEAD },
+      // In page mode the book box clips the rest of the chapter: the margin only reaches past
+      // the page when the box is the root.
+      { root: clips(content) ? content : null, rootMargin: AHEAD },
     );
     scan();
     // ttu fills the book in after the page shows (and again after some settings).

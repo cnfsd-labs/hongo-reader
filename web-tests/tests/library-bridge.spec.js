@@ -470,11 +470,15 @@ test('word marks: the page asks about the paragraphs on screen and marks what th
   const request = (await markRequests(page)).find((m) => m.blocks.some((b) => b.text.startsWith('吾輩')));
   expect(request.mode).toBe('learning');
   const block = request.blocks.find((b) => b.text.startsWith('吾輩'));
-  await page.evaluate(
-    ([requestId, id]) => window.__reply({ type: 'marks', requestId, color: '#e91e63', blocks: [{ id, marks: [[0, 2, 0], [3, 1, 1]] }] }),
-    [request.requestId, block.id],
-  );
+  // New marks fade in: they start in their own highlights, then join the others.
+  const fresh = await page.evaluate(([requestId, id]) => {
+    window.__reply({ type: 'marks', requestId, color: '#e91e63', blocks: [{ id, marks: [[0, 2, 0], [3, 1, 1]] }] });
+    const texts = (name) => [...(CSS.highlights.get(name) ?? [])].map((range) => range.toString());
+    return { learning: texts('honmani-learning-fresh'), new: texts('honmani-new-fresh'), settled: texts('honmani-learning') };
+  }, [request.requestId, block.id]);
+  expect(fresh).toEqual({ learning: ['吾輩'], new: ['猫'], settled: [] });
   await expect.poll(() => marked(page)).toEqual({ 'honmani-learning': ['吾輩'], 'honmani-new': ['猫'] });
+  expect(await page.evaluate(() => CSS.highlights.get('honmani-learning-fresh').size)).toBe(0);
 
   // The reader's words changed: the marks go, and the paragraphs on screen are asked about again.
   const before = (await markRequests(page)).length;
@@ -519,4 +523,84 @@ test('every sample book imports into ttu with its title, and the first one opens
   await page.waitForURL(/\/b\?id=/);
   await expect(page.locator('.book-content')).toContainText('寒い冬が北方から');
   await expect(page.locator('.book-content rt').first()).toHaveText('きつね');
+});
+
+/** Whether any character of the book is on screen (not just inside the book's box). */
+const textOnScreen = (page) =>
+  page.evaluate(() => {
+    const walker = document.createTreeWalker(document.querySelector('.book-content'), NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      if (!node.data.trim() || node.parentElement.closest('rt')) continue;
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      for (const box of range.getClientRects()) {
+        if (box.width > 0 && box.right > 0 && box.left < innerWidth && box.bottom > 0 && box.top < innerHeight) return true;
+      }
+    }
+    return false;
+  });
+
+/** The heading of the chapter ttu shows (it puts in one chapter at a time). */
+const chapter = (page) => page.evaluate(() => document.querySelector('.book-content h2')?.textContent ?? null);
+
+test.describe('chapter ends', () => {
+  // The OnePlus 7 Pro's WebView, where 銀河鉄道の夜 showed an empty page between two chapters.
+  test.use({ isMobile: true, hasTouch: true, deviceScaleFactor: 3, viewport: { width: 360, height: 718 } });
+
+  test('a chapter\'s blank last lines get no page of their own', async ({ page }) => {
+    await setUp(page);
+    await page.addInitScript({ path: path.join(ASSETS, 'chapter-end.js') });
+    await page.goto(`${server.url}/manage`);
+    const book = await ensure(page, 'sample-ginga.epub');
+    await page.goto(`${server.url}/b?id=${book.id}`);
+    await expect(page.locator('div.fixed.inset-0.text-7xl')).toHaveCount(0, { timeout: 5_000 });
+
+    // Through the book, whose chapters end in blank lines; some of them would start a page.
+    const empty = [];
+    let hidden = 0;
+    let turn = 0;
+    while ((await chapter(page)) !== '九、ジョバンニの切符') {
+      expect(++turn, 'turns to reach the last chapter').toBeLessThan(400);
+      hidden = Math.max(hidden, await page.locator('[data-honmani-blank-end]').count());
+      await page.keyboard.press('ArrowDown');
+      await page.waitForTimeout(50);
+      if (!(await textOnScreen(page))) empty.push({ turn, chapter: await chapter(page) });
+    }
+    expect(empty).toEqual([]);
+    expect(hidden).toBeGreaterThan(0);
+  });
+
+  test('word marks ask about the next page before it is turned to', async ({ page }) => {
+    await setUp(page);
+    await withReplies(page);
+    await page.addInitScript({ path: path.join(ASSETS, 'word-marks.js') });
+    await page.goto(`${server.url}/manage`);
+    const book = await ensure(page, 'sample-ginga.epub');
+    await page.goto(`${server.url}/b?id=${book.id}`);
+    await expect(page.locator('div.fixed.inset-0.text-7xl')).toHaveCount(0, { timeout: 5_000 });
+
+    const asked = async () => (await markRequests(page)).flatMap((m) => m.blocks.map((b) => b.text));
+    for (let turn = 1; turn <= 3; turn++) {
+      await expect.poll(async () => (await asked()).length).toBeGreaterThan(0);
+      await page.waitForTimeout(300);
+      const before = new Set(await asked());
+      await page.keyboard.press('ArrowDown');
+      // The paragraphs now on screen, as word-marks.js reads them (without furigana).
+      const shown = await page.evaluate(() =>
+        [...document.querySelectorAll('.book-content p')]
+          .filter((p) => [...p.getClientRects()].some((box) => box.right > 0 && box.left < innerWidth && box.bottom > 0 && box.top < innerHeight))
+          .map((p) => {
+            const walker = document.createTreeWalker(p, NodeFilter.SHOW_TEXT);
+            let text = '';
+            for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+              if (!node.parentElement.closest('rt, rp')) text += node.data;
+            }
+            return text;
+          })
+          .filter((text) => text.trim()),
+      );
+      expect(shown.length, `paragraphs on page ${turn + 1}`).toBeGreaterThan(0);
+      expect(shown.filter((text) => !before.has(text.slice(0, 4000))), `page ${turn + 1} asked about before the turn`).toEqual([]);
+    }
+  });
 });

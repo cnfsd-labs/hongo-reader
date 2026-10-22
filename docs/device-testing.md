@@ -79,7 +79,8 @@ Reader settings → Mark words. "Learning" (the default): look up a word, turn a
 come back: the word and its other forms (食べた, 食べない) have a light accent tint; after
 "Learned" in Words it loses it. "+ New" adds a grey tint on rarer words never met in your
 reading (too many or too few?). "Off" shows none. The first marks after opening Honmani take a
-few seconds (the dictionaries are read). Book sheet, after some reading in graded books: "You
+few seconds (the dictionaries are read) and fade in; after that, a turned page shows its marks at
+once. Between two chapters there is no empty page (銀河鉄道の夜 had four). Book sheet, after some reading in graded books: "You
 know about N% of its words; about M are new to you", higher for easy books.
 
 ## Known limitations (no need to report)
