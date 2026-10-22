@@ -26,6 +26,10 @@ internal class FakeKoSyncServer(
     val progress = ConcurrentHashMap<String, JsonObject>()
     var now: Long = 1_000_000
 
+    /** Answers every request with an error, like a server that can't be reached. */
+    @Volatile
+    var down = false
+
     private lateinit var http: HeaderServer
     val url: String get() = "http://127.0.0.1:${http.port}"
     val requests get() = http.requests
@@ -41,6 +45,7 @@ internal class FakeKoSyncServer(
                 request.headers["x-auth-user"]?.let { users[it] }?.let { it == request.headers["x-auth-key"] } == true
             }
             when {
+                down -> out.respond("503 Service Unavailable", "")
                 cwa && !fullPath.startsWith("/kosync/") -> out.respond("308 Permanent Redirect", "")
                 request.headers["accept"] != "application/vnd.koreader.v1+json" -> out.respond("412 Precondition Failed", "{}")
                 !authorized -> out.respond("401 Unauthorized", """{"code":2001,"message":"Unauthorized"}""")

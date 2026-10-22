@@ -20,6 +20,7 @@ import app.honmani.reader.data.library.BookSource
 import app.honmani.reader.data.library.RemovedBookEntity
 import app.honmani.reader.data.library.SampleBook
 import app.honmani.reader.data.opds.AutoImportStatus
+import app.honmani.reader.data.sync.SyncQuestion
 import app.honmani.reader.lookup.Romaji
 import app.honmani.reader.lookup.TextReading
 import app.honmani.reader.ui.reader.TtuBook
@@ -29,6 +30,7 @@ import java.io.File
 import java.io.IOException
 import java.io.InputStream
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
@@ -132,8 +134,11 @@ class LibraryViewModel(
     private val reading: suspend (String) -> String = { it },
     /** A sample book that comes with the app. */
     private val openSample: (SampleBook) -> PickedFile? = { null },
-    /** Takes a newer reading position from progress sync before the book (ttu id) opens. */
-    private val syncPosition: suspend (BookEntity, Long) -> Unit = { _, _ -> },
+    /**
+     * Takes a newer reading position from progress sync before the book (ttu id) opens, asking
+     * (true: go to the other device's place) when it is further back.
+     */
+    private val syncPosition: suspend (BookEntity, Long, suspend (SyncQuestion) -> Boolean) -> Unit = { _, _, _ -> },
     /** Book grades by content hash, for sorting by difficulty. */
     private val grades: Flow<Map<String, StoredDifficulty>> = flowOf(emptyMap()),
     /** The chosen order (a [LibrarySort] name) and where a new choice is kept. */
@@ -158,6 +163,11 @@ class LibraryViewModel(
     private val searchTerms = combine(query, readings) { query, readings -> query to readings }
     private val addMutex = Mutex()
     private val adder = BookAdder(dao, importer, ttu)
+    private val _syncQuestion = MutableStateFlow<Pair<SyncQuestion, CompletableDeferred<Boolean>>?>(null)
+
+    /** Progress sync asks where to continue the book being opened; answered with [answerSync]. */
+    val syncQuestion: StateFlow<SyncQuestion?> =
+        _syncQuestion.map { it?.first }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
     private val _notices = Channel<LibraryNotice>(Channel.BUFFERED)
     val notices: Flow<LibraryNotice> = _notices.receiveAsFlow()
 
@@ -284,7 +294,15 @@ class LibraryViewModel(
                     return@launch
                 }
                 if (ttuBook != known) adder.link(book, ttuBook)
-                syncPosition(book, ttuBook.id)
+                syncPosition(book, ttuBook.id) { question ->
+                    val answer = CompletableDeferred<Boolean>()
+                    _syncQuestion.value = question to answer
+                    try {
+                        answer.await()
+                    } finally {
+                        _syncQuestion.value = null
+                    }
+                }
                 ttu.open(ttuBook.id)
                 dao.setLastOpened(book.id, now())
             } catch (_: TtuLibraryException) {
@@ -293,6 +311,11 @@ class LibraryViewModel(
                 opening.value = null
             }
         }
+    }
+
+    /** True: continue at the other device's place; false: stay at this phone's. */
+    fun answerSync(goThere: Boolean) {
+        _syncQuestion.value?.second?.complete(goThere)
     }
 
     /** Shows only books with [status]; null shows all. */
@@ -450,7 +473,7 @@ class LibraryViewModel(
                             out.use { output -> file.inputStream().use { it.copyTo(output) } }
                         }
                     },
-                    syncPosition = { book, ttuId ->
+                    syncPosition = { book, ttuId, ask ->
                         val ttu = container.ttuLibrary
                         // A restored backup's position, if ttu's own is behind it (ttu forgot the
                         // book when Honmani was installed again). It keeps the time it was read,
@@ -473,6 +496,7 @@ class LibraryViewModel(
                                 ttuId,
                                 bookmark = { ttu.bookmark(ttuId) },
                                 setBookmark = { characters, progress -> ttu.setBookmark(ttuId, characters, progress) },
+                                ask = ask,
                             )
                         } catch (_: TtuLibraryException) {
                             null

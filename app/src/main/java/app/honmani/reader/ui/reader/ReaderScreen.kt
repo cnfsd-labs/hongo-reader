@@ -14,8 +14,10 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -261,6 +263,25 @@ private fun ReaderWithTabs(viewModel: ReaderViewModel) {
                     },
                 )
             }
+        }
+        // Progress sync asks before going back to another device's earlier place in a book.
+        val syncQuestion by library.syncQuestion.collectAsStateWithLifecycle()
+        syncQuestion?.let { question ->
+            AlertDialog(
+                onDismissRequest = { library.answerSync(false) },
+                title = { Text(stringResource(R.string.sync_question_title)) },
+                text = { Text(stringResource(R.string.sync_question_message, question.device, question.theirs, question.ours)) },
+                confirmButton = {
+                    TextButton(onClick = { library.answerSync(false) }) {
+                        Text(stringResource(R.string.sync_question_stay, question.ours))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { library.answerSync(true) }) {
+                        Text(stringResource(R.string.sync_question_go, question.theirs))
+                    }
+                },
+            )
         }
         if (readerSettings) {
             // On top of everything; closing it reloads the reader if anything changed.

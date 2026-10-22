@@ -5,6 +5,7 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CopyOnWriteArrayList
 
 /**
  * The phone's current network, and whether it is a hotspot with a login page (Android's captive
@@ -15,10 +16,15 @@ import java.util.concurrent.ConcurrentHashMap
 class NetworkWatch(context: Context) {
     private val connectivity = context.getSystemService(ConnectivityManager::class.java)
     private val hotspots = ConcurrentHashMap.newKeySet<Network>()
+    private val listeners = CopyOnWriteArrayList<() -> Unit>()
 
     init {
         try {
             connectivity?.registerDefaultNetworkCallback(object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: Network) {
+                    listeners.forEach { it() }
+                }
+
                 override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
                     if (capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_CAPTIVE_PORTAL)) hotspots += network
                 }
@@ -30,6 +36,11 @@ class NetworkWatch(context: Context) {
         } catch (_: RuntimeException) {
             // Without the callback only a login page showing right now is recognised.
         }
+    }
+
+    /** Calls [listener] (on a system thread) whenever the phone gets a network. */
+    fun onAvailable(listener: () -> Unit) {
+        listeners += listener
     }
 
     fun current(): Network? = try {

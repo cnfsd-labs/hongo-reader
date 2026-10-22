@@ -45,6 +45,7 @@ import app.honmani.reader.data.sync.EpubPositions
 import app.honmani.reader.data.sync.KoSyncClient
 import app.honmani.reader.data.sync.KoSyncSettings
 import app.honmani.reader.data.sync.ProgressSync
+import app.honmani.reader.data.sync.UnsentPositions
 import app.honmani.reader.data.sync.RubyText
 import app.honmani.reader.data.words.ReadStretchStore
 import app.honmani.reader.data.words.WordKnowledge
@@ -145,9 +146,10 @@ class AppContainer(context: Context) {
      * Over plain http, logins wait for the server to ask, per network, and never go on a
      * hotspot with a login page (see [LoginGate]).
      */
+    private val networkWatch: NetworkWatch by lazy { NetworkWatch(appContext) }
+
     private val loginGate: LoginGate by lazy {
-        val networks = NetworkWatch(appContext)
-        LoginGate(network = networks::current, hotspot = networks::isHotspot)
+        LoginGate(network = networkWatch::current, hotspot = networkWatch::isHotspot)
     }
 
     val koSyncClient: KoSyncClient by lazy { KoSyncClient(logins = loginGate) }
@@ -160,7 +162,12 @@ class AppContainer(context: Context) {
             bookFile = bookImporter::bookFile,
             scope = applicationScope,
             device = "Honmani (${Build.MODEL})",
-        )
+            unsent = UnsentPositions(File(appContext.filesDir, "sync-unsent.json")),
+        ).also { sync ->
+            // Pages read without a connection go out when there is one again, or now.
+            networkWatch.onAvailable(sync::resend)
+            sync.resend()
+        }
     }
 
     /** One phone voice for the app, so its engine stays connected between cards. */

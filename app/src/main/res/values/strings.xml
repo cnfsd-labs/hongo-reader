@@ -573,6 +573,10 @@
     <string name="sync_sign_out">Sign out</string>
     <string name="sync_close">Close</string>
     <string name="sync_continued">Continued at %1$d%% from %2$s</string>
+    <string name="sync_question_title">Where to continue?</string>
+    <string name="sync_question_message">%1$s was last at %2$d%%, an earlier place than this phone (%3$d%%).</string>
+    <string name="sync_question_stay">Stay at %1$d%%</string>
+    <string name="sync_question_go">Go to %1$d%%</string>
     <string name="backup_title">Back up and restore</string>
     <string name="backup_details">Settings, progress, statistics and saved words in one file, for a new phone or a new install</string>
     <string name="backup_message">A backup keeps your settings, reading progress, statistics, skill, saved words and milestones in one file, saved where you choose (nothing is sent anywhere). Books are not in it: after a restore, add them again (from your book server, or the same files) and their progress comes back with them.\n\nRestoring adds to what is on this phone; it never deletes anything.</string>
