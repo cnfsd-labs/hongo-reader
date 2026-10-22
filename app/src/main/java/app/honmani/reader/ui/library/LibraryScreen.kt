@@ -142,6 +142,9 @@ import kotlinx.coroutines.withContext
 /** File managers report EPUBs and Aozora text files under many types; the importer checks. */
 private val BOOK_MIME_TYPES = arrayOf("*/*")
 
+/** Where the first-start screen asked for a first book: the phone's files or a book server. */
+enum class AddBookStart { FILES, SERVER }
+
 /** The app's home: the books in the library. */
 @Composable
 fun LibraryScreen(
@@ -150,8 +153,8 @@ fun LibraryScreen(
     viewModel: LibraryViewModel = viewModel(factory = LibraryViewModel.Factory),
     opds: OpdsViewModel = viewModel(factory = OpdsViewModel.Factory),
     progress: ProgressViewModel = viewModel(factory = ProgressViewModel.Factory),
-    /** Opens the "Add book" sheet right away (from the first-start screen). */
-    addBookOnStart: Boolean = false,
+    /** Adds a book right away, from the first-start screen; null: nothing to do. */
+    addBookOnStart: AddBookStart? = null,
     onAddBookStarted: () -> Unit = {},
     /** Opens the Progress tab, from a milestone's notice. */
     onShowProgress: () -> Unit = {},
@@ -160,15 +163,17 @@ fun LibraryScreen(
     val autoImport by viewModel.autoImport.collectAsStateWithLifecycle()
     val opdsState by opds.uiState.collectAsStateWithLifecycle()
     var choosingSource by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(addBookOnStart) {
-        if (addBookOnStart) {
-            choosingSource = true
-            onAddBookStarted()
-        }
-    }
     val snackbarHostState = remember { SnackbarHostState() }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) {
         if (it.isNotEmpty()) viewModel.add(it)
+    }
+    LaunchedEffect(addBookOnStart) {
+        when (addBookOnStart) {
+            AddBookStart.FILES -> picker.launch(BOOK_MIME_TYPES)
+            AddBookStart.SERVER -> opds.startAdding()
+            null -> return@LaunchedEffect
+        }
+        onAddBookStarted()
     }
     // A copy of a book's file where the reader picks (an OPDS download, say), one launcher per type.
     var savingCopy by rememberSaveable { mutableStateOf<Long?>(null) }

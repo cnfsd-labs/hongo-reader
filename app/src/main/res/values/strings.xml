@@ -531,9 +531,10 @@
     <string name="onboarding_failed">The download failed. Check your connection and try again.</string>
     <string name="onboarding_retry">Try again</string>
     <string name="onboarding_book_title">Open a book</string>
-    <string name="onboarding_book_message">Try 手袋を買いに (Niimi Nankichi), a short children\'s story, or add an EPUB or text file of your own.</string>
+    <string name="onboarding_book_message">Try 手袋を買いに (Niimi Nankichi), a short children\'s story, or add your own: an EPUB or text file, or the books on your Calibre-Web or other OPDS server.</string>
     <string name="onboarding_sample">Read the sample book</string>
-    <string name="onboarding_add_book">Add my own book</string>
+    <string name="onboarding_add_book">Add a book from this phone</string>
+    <string name="onboarding_add_server">Add a book server</string>
     <string name="onboarding_skip">Skip for now</string>
     <string name="onboarding_skip_dictionaries">Skip</string>
     <string name="onboarding_next">Next</string>

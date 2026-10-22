@@ -120,14 +120,15 @@ enum class OnboardingPage {
 }
 
 /**
- * The first-start screen in two steps: dictionaries with one tap, then a first book (the sample
- * or the reader's own). The download goes on during the second step, so the sample can be opened
- * meanwhile. Shown once; skipping it leaves everything in the tabs.
+ * The first-start screen in two steps: dictionaries with one tap, then a first book (the sample,
+ * a file on the phone, or a book server). The download goes on during the second step, so the
+ * sample can be opened meanwhile. Shown once; skipping it leaves everything in the tabs.
  */
 @Composable
 fun OnboardingScreen(
     onTrySample: () -> Unit,
     onAddBook: () -> Unit,
+    onAddServer: () -> Unit,
     onSkip: () -> Unit,
     dictionaries: DictionariesViewModel = viewModel(factory = DictionariesViewModel.Factory),
 ) {
@@ -158,6 +159,7 @@ fun OnboardingScreen(
         onBackToDictionaries = { page.back()?.let { page = it } },
         onTrySample = onTrySample,
         onAddBook = onAddBook,
+        onAddServer = onAddServer,
         onSkip = onSkip,
     )
 }
@@ -175,6 +177,7 @@ private fun OnboardingContent(
     onBackToDictionaries: () -> Unit,
     onTrySample: () -> Unit,
     onAddBook: () -> Unit,
+    onAddServer: () -> Unit,
     onSkip: () -> Unit,
 ) {
     Surface(modifier = Modifier.fillMaxSize()) {
@@ -238,6 +241,7 @@ private fun OnboardingContent(
                                 onGetDictionaries = onBackToDictionaries,
                                 onTrySample = onTrySample,
                                 onAddBook = onAddBook,
+                                onAddServer = onAddServer,
                                 onSkip = onSkip,
                             )
                         }
@@ -303,6 +307,7 @@ private fun BookStep(
     onGetDictionaries: () -> Unit,
     onTrySample: () -> Unit,
     onAddBook: () -> Unit,
+    onAddServer: () -> Unit,
     onSkip: () -> Unit,
 ) {
     Step(number = 2, title = stringResource(R.string.onboarding_book_title)) {
@@ -312,6 +317,9 @@ private fun BookStep(
         }
         OutlinedButton(onClick = onAddBook, modifier = Modifier.fillMaxWidth()) {
             Text(stringResource(R.string.onboarding_add_book))
+        }
+        OutlinedButton(onClick = onAddServer, modifier = Modifier.fillMaxWidth()) {
+            Text(stringResource(R.string.onboarding_add_server))
         }
     }
     // The dictionaries below the book: the download as it goes on, or a way back to step 1 when
@@ -441,6 +449,7 @@ private fun OnboardingPreview() {
             onBackToDictionaries = {},
             onTrySample = {},
             onAddBook = {},
+            onAddServer = {},
             onSkip = {},
         )
     }

@@ -47,6 +47,7 @@ import app.honmani.reader.ui.HomeNavigationBar
 import app.honmani.reader.ui.HomeTab
 import app.honmani.reader.ui.anki.rememberAnkiAccess
 import app.honmani.reader.ui.anki.showAnkiResult
+import app.honmani.reader.ui.library.AddBookStart
 import app.honmani.reader.ui.library.LibraryScreen
 import app.honmani.reader.ui.library.LibraryViewModel
 import app.honmani.reader.ui.onboarding.OnboardingScreen
@@ -131,7 +132,7 @@ private fun ReaderWithTabs(viewModel: ReaderViewModel) {
         }
         onboardingChecked = true
     }
-    var addBookOnStart by remember { mutableStateOf(false) }
+    var addBookOnStart by remember { mutableStateOf<AddBookStart?>(null) }
     // Honmani's reader settings, from the Settings tab or the reader's top bar.
     var readerSettings by rememberSaveable { mutableStateOf(false) }
     // The Dictionaries screen, under Settings; lookups without a dictionary open it directly.
@@ -222,7 +223,12 @@ private fun ReaderWithTabs(viewModel: ReaderViewModel) {
                     },
                     onAddBook = {
                         tab = HomeTab.LIBRARY
-                        addBookOnStart = true
+                        addBookOnStart = AddBookStart.FILES
+                        container.onboardingSettings.finish()
+                    },
+                    onAddServer = {
+                        tab = HomeTab.LIBRARY
+                        addBookOnStart = AddBookStart.SERVER
                         container.onboardingSettings.finish()
                     },
                     onSkip = container.onboardingSettings::finish,
@@ -250,7 +256,7 @@ private fun ReaderWithTabs(viewModel: ReaderViewModel) {
                     bottomBar = bottomBar,
                     viewModel = library,
                     addBookOnStart = addBookOnStart,
-                    onAddBookStarted = { addBookOnStart = false },
+                    onAddBookStarted = { addBookOnStart = null },
                     onShowProgress = { tab = HomeTab.PROGRESS },
                 )
                 HomeTab.WORDS -> WordsScreen(bottomBar = bottomBar)
