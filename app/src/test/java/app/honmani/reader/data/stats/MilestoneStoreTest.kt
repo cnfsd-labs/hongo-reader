@@ -41,4 +41,17 @@ class MilestoneStoreTest {
 
         assertEquals(setOf("anki_1"), MilestoneStore(preferences()).pending.value)
     }
+
+    @Test
+    fun aRestoreKeepsTheEarlierDay_andAnnouncesNothing() {
+        val store = MilestoneStore(preferences())
+        store.record(listOf("books_1"), today)
+
+        store.restore(mapOf("books_1" to today.minusDays(30), "streak_7" to today.minusDays(9)))
+        store.record(listOf("books_1", "streak_7"), today.plusDays(1))
+
+        val reopened = MilestoneStore(preferences())
+        assertEquals(mapOf("books_1" to today.minusDays(30), "streak_7" to today.minusDays(9)), reopened.seen.value)
+        assertEquals(emptySet<String>(), reopened.pending.value)
+    }
 }

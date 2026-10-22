@@ -70,8 +70,8 @@ import app.honmani.reader.ui.theme.HonmaniTheme
 import kotlinx.coroutines.launch
 
 /**
- * Settings: the accent colour, book servers, Anki cards, the way into ttu's reader settings, and
- * diagnostics.
+ * Settings: the accent colour, book servers, Anki cards, the way into ttu's reader settings,
+ * backups and diagnostics.
  */
 @Composable
 fun SettingsScreen(
@@ -133,6 +133,7 @@ fun SettingsScreen(
         onOpenSample = onOpenSample,
         anki = { AnkiSettingsSection() },
         sync = { ProgressSyncSection() },
+        backup = { BackupSection() },
     )
 }
 
@@ -157,6 +158,7 @@ private fun SettingsContent(
     onOpenSample: (SampleBook) -> Unit = {},
     anki: @Composable () -> Unit = {},
     sync: @Composable () -> Unit = {},
+    backup: @Composable () -> Unit = {},
 ) {
     var showingSamples by rememberSaveable { mutableStateOf(false) }
     if (showingSamples) {
@@ -243,6 +245,7 @@ private fun SettingsContent(
             }
             item { anki() }
             item { sync() }
+            item { backup() }
             item {
                 ListItem(
                     headlineContent = { Text(stringResource(R.string.settings_reader)) },

@@ -18,12 +18,13 @@ object ReadStretches {
     val NONE = IntArray(0)
 
     /** [stretches] with [from]..[to] (0 to 1) added. */
-    fun add(stretches: IntArray, from: Float, to: Float): IntArray {
-        val start = step(minOf(from, to))
-        val end = step(maxOf(from, to))
+    fun add(stretches: IntArray, from: Float, to: Float): IntArray = addSteps(stretches, step(minOf(from, to)), step(maxOf(from, to)))
+
+    /** [stretches] with the steps [start]..[end] added. */
+    fun addSteps(stretches: IntArray, start: Int, end: Int): IntArray {
         val merged = ArrayList<Int>(stretches.size + 2)
-        var newStart = start
-        var newEnd = end
+        var newStart = minOf(start, end).coerceIn(0, BookWords.POSITIONS)
+        var newEnd = maxOf(start, end).coerceIn(0, BookWords.POSITIONS)
         var placed = false
         for (i in stretches.indices step 2) {
             val a = stretches[i]
@@ -70,6 +71,25 @@ class ReadStretchStore(private val file: File) {
         synchronized(lock) {
             val updated = current().toMutableMap()
             updated[contentHash] = ReadStretches.add(updated[contentHash] ?: ReadStretches.NONE, from, to)
+            loaded = updated
+            save(updated)
+        }
+        changes.update { it + 1 }
+    }
+
+    /** Every book's stretches now, by content hash. */
+    fun all(): Map<String, IntArray> = synchronized(lock) { current() }
+
+    /** Adds [other] books' stretches (from a backup) to what was read here. */
+    fun merge(other: Map<String, IntArray>) {
+        if (other.isEmpty()) return
+        synchronized(lock) {
+            val updated = current().toMutableMap()
+            for ((hash, steps) in other) {
+                var merged = updated[hash] ?: ReadStretches.NONE
+                for (i in 0 until steps.size - 1 step 2) merged = ReadStretches.addSteps(merged, steps[i], steps[i + 1])
+                updated[hash] = merged
+            }
             loaded = updated
             save(updated)
         }

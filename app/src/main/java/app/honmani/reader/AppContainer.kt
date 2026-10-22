@@ -10,6 +10,8 @@ import app.honmani.reader.anki.AnkiSettings
 import app.honmani.reader.anki.PhoneVoice
 import app.honmani.reader.anki.WordDetails
 import app.honmani.reader.data.HonmaniDatabase
+import app.honmani.reader.data.backup.Backup
+import app.honmani.reader.data.backup.RestoredBooks
 import app.honmani.reader.data.difficulty.BookGrader
 import app.honmani.reader.data.difficulty.DifficultyStore
 import app.honmani.reader.data.difficulty.DifficultyWorker
@@ -54,6 +56,7 @@ import app.honmani.reader.lookup.DictionaryLookup
 import app.honmani.reader.lookup.LookupGroups
 import app.honmani.reader.ui.reader.TtuLibrary
 import java.io.File
+import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -122,7 +125,7 @@ class AppContainer(context: Context) {
     val bookDao: BookDao by lazy { database.bookDao() }
 
     val bookImporter: BookImporter by lazy {
-        BookImporter(bookDao, booksDir, File(appContext.filesDir, "covers"))
+        BookImporter(bookDao, booksDir, File(appContext.filesDir, "covers"), restore = { backup.onBookAdded(it) })
     }
 
     /** One for the app: catalogue passwords and the Google key share its Keystore key. */
@@ -287,6 +290,28 @@ class AppContainer(context: Context) {
         ReadStretchStore(File(appContext.filesDir, "read-stretches.txt"))
     }
 
+    private val wordProgressStore by lazy { WordProgressStore(File(appContext.filesDir, "word-progress.json")) }
+
+    /** What a restored backup keeps for books not back in the library yet. */
+    val restoredBooks: RestoredBooks by lazy { RestoredBooks(File(appContext.filesDir, "restored-books.json")) }
+
+    /** Backups of everything but the books (Settings → Back up and restore). */
+    val backup: Backup by lazy {
+        Backup(
+            database = database,
+            settings = settingsPreferences,
+            milestones = milestoneStore,
+            stretches = readStretches,
+            wordProgress = wordProgressStore,
+            restored = restoredBooks,
+            grades = { difficultyStore.grades.value },
+            installationId = {
+                devicePreferences.getString(KEY_INSTALLATION_ID, null)
+                    ?: UUID.randomUUID().toString().also { devicePreferences.edit().putString(KEY_INSTALLATION_ID, it).apply() }
+            },
+        )
+    }
+
     /** The words read and how well each is known; one computation shared by its screens. */
     val wordKnowledge: Flow<WordKnowledge> by lazy {
         WordKnowledgeTracker(
@@ -295,7 +320,7 @@ class AppContainer(context: Context) {
             grades = difficultyStore.grades,
             words = wordRepository.all,
             bookWords = difficultyStore::words,
-            store = WordProgressStore(File(appContext.filesDir, "word-progress.json")),
+            store = wordProgressStore,
         ).knowledge.shareIn(applicationScope, SharingStarted.WhileSubscribed(5_000), replay = 1)
     }
 
@@ -306,6 +331,7 @@ class AppContainer(context: Context) {
             books = bookDao.observeAll(),
             grades = difficultyStore.grades,
             knowledge = wordKnowledge,
+            restored = restoredBooks.scores,
         )
     }
 
@@ -332,5 +358,8 @@ class AppContainer(context: Context) {
         const val SETTINGS = "settings"
         const val DEVICE_SETTINGS = "device"
         private const val KEY_DISMISSED_CONTINUE = "continue_dismissed"
+
+        /** Names this installation in backups (see [Backup]). */
+        private const val KEY_INSTALLATION_ID = "installation_id"
     }
 }

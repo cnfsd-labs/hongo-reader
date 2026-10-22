@@ -1,6 +1,6 @@
 # Privacy policy for Honmani
 
-*Last updated: 2026-10-20.*
+*Last updated: 2026-10-22.*
 
 Honmani is a free reader for Japanese books, published by CNFSD Labs. It has no account, no ads,
 no analytics and no tracking. CNFSD Labs does not receive any data from the app.
@@ -13,6 +13,11 @@ on your phone, in Honmani's own app storage. Uninstalling the app deletes them.
 If you have turned on Android's backup to your Google account, Android includes only Honmani's
 settings (such as the accent colour and the Anki deck) in that backup. Books, dictionaries,
 saved words, statistics and passwords are never part of it.
+
+Settings → Back up and restore writes your settings, reading progress, statistics and saved words
+to a file in a place you choose, such as your phone's storage or a cloud storage app you picked.
+Honmani sends it nowhere itself. The file holds no passwords or keys; it does hold your saved
+words with their sentences and the titles of your books, so keep it where only you can read it.
 
 ## When Honmani connects to the internet
 

@@ -65,7 +65,7 @@ class ProgressViewModel(
     private val today: () -> LocalDate = LocalDate::now,
     private val zone: () -> ZoneId = ZoneId::systemDefault,
     /** The skill; by default from speed alone (no words read). */
-    private val skill: Flow<SkillEstimate> = SkillTracker(days, books, grades, flowOf(WordKnowledge.EMPTY), today).estimate,
+    private val skill: Flow<SkillEstimate> = SkillTracker(days, books, grades, flowOf(WordKnowledge.EMPTY), today = today).estimate,
 ) : ViewModel() {
     private val library = combine(books, grades, skill) { b, g, s -> Triple(b, g, s) }
 

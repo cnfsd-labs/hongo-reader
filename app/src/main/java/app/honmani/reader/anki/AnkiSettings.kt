@@ -119,6 +119,14 @@ class AnkiSettings(
         } ?: phone()
     }
 
+    /** Reads the reader's choices again (a backup was restored). */
+    fun reload() {
+        _audio.value = CardAudio.fromName(preferences.getString(KEY_AUDIO, null))
+        _sentenceSpeed.value = SentenceSpeed.fromName(preferences.getString(KEY_SENTENCE_SPEED, null))
+        _googleVoice.value = preferences.getString(KEY_GOOGLE_VOICE, null)
+        _deck.value = preferences.getString(KEY_DECK, null) ?: AnkiCard.DECK
+    }
+
     /** The note type whose card template Honmani has checked (see [AnkiExporter]). */
     var checkedNoteTypeId: Long?
         get() = devicePreferences.getLong(KEY_CHECKED_NOTE_TYPE, -1L).takeIf { it >= 0 }

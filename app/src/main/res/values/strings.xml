@@ -573,6 +573,36 @@
     <string name="sync_sign_out">Sign out</string>
     <string name="sync_close">Close</string>
     <string name="sync_continued">Continued at %1$d%% from %2$s</string>
+    <string name="backup_title">Back up and restore</string>
+    <string name="backup_details">Settings, progress, statistics and saved words in one file, for a new phone or a new install</string>
+    <string name="backup_message">A backup keeps your settings, reading progress, statistics, skill, saved words and milestones in one file, saved where you choose (nothing is sent anywhere). Books are not in it: after a restore, add them again (from your book server, or the same files) and their progress comes back with them.\n\nRestoring adds to what is on this phone; it never deletes anything.</string>
+    <string name="backup_save">Back up…</string>
+    <string name="backup_restore">Restore…</string>
+    <string name="backup_working">One moment…</string>
+    <string name="backup_saved_title">Backup saved</string>
+    <string name="backup_saved">Keep the file somewhere safe, away from this phone (your computer or cloud storage, say). To restore it, open Settings → Back up and restore → Restore.</string>
+    <string name="backup_restored_title">Backup restored</string>
+    <string name="backup_restored">Your settings, statistics, milestones and saved words are back.</string>
+    <plurals name="backup_restored_books">
+        <item quantity="one">Progress restored for %d book in the library.</item>
+        <item quantity="other">Progress restored for %d books in the library.</item>
+    </plurals>
+    <plurals name="backup_restored_words">
+        <item quantity="one">%d saved word added.</item>
+        <item quantity="other">%d saved words added.</item>
+    </plurals>
+    <plurals name="backup_restored_waiting">
+        <item quantity="one">%d book is not in the library: add it again (the same file) and its progress comes back.</item>
+        <item quantity="other">%d books are not in the library: add them again (the same files) and their progress comes back.</item>
+    </plurals>
+    <plurals name="backup_restored_catalogs">
+        <item quantity="one">%d book server added: enter its password again if it has one.</item>
+        <item quantity="other">%d book servers added: enter their passwords again if they have one.</item>
+    </plurals>
+    <string name="backup_restored_not_included">Not in a backup: dictionaries and fonts (download them again), the reading progress sync login and the Google Cloud key.</string>
+    <string name="backup_failed_title">Not restored</string>
+    <string name="backup_not_a_backup">This file is not a Honmani backup, or it comes from a newer version of Honmani. Update Honmani and try again.</string>
+    <string name="backup_failed">The file could not be read or written. Try again, or pick another place for it.</string>
     <string name="sync_error_unauthorized">The server did not accept the user name or password.</string>
     <string name="sync_error_network">No sync server answered at this address. Check the address and your connection.</string>
     <string name="sync_error_hotspot">This Wi-Fi is a hotspot with a login page, and this address is not encrypted (http), so Honmani does not send your password here. Use https, a VPN or another network.</string>

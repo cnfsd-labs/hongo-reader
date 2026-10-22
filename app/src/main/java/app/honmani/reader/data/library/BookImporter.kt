@@ -5,6 +5,7 @@ import java.io.File
 import java.io.IOException
 import java.io.InputStream
 import java.security.MessageDigest
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -19,6 +20,11 @@ class BookImporter(
     private val booksDir: File,
     private val coversDir: File,
     private val now: () -> Long = System::currentTimeMillis,
+    /**
+     * Called with each new book; returns it with what a restored backup kept for it (its
+     * progress, see `Backup.onBookAdded`).
+     */
+    private val restore: suspend (BookEntity) -> BookEntity = { it },
 ) {
     private val mutex = Mutex()
 
@@ -115,12 +121,22 @@ class BookImporter(
                 sourceId = sourceId,
                 addedAt = now(),
             )
-            return try {
-                Result.Added(book.copy(id = dao.insert(book)))
+            val added = try {
+                book.copy(id = dao.insert(book))
             } catch (_: SQLiteConstraintException) {
                 // Imports are serialized, so this only happens if the row appeared meanwhile.
-                dao.findByHash(hash)?.let { Result.AlreadyInLibrary(it) } ?: Result.Unreadable
+                return dao.findByHash(hash)?.let { Result.AlreadyInLibrary(it) } ?: Result.Unreadable
             }
+            return Result.Added(
+                try {
+                    restore(added)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    // The book is in; only what a backup kept for it is missing.
+                    added
+                },
+            )
         } finally {
             temp.delete()
         }

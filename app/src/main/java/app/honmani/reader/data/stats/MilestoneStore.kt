@@ -41,6 +41,18 @@ class MilestoneStore(private val preferences: SharedPreferences) {
             .apply()
     }
 
+    /**
+     * Adds milestones from a backup as seen on their days (the earlier day where both have one),
+     * without announcing them.
+     */
+    fun restore(seen: Map<String, LocalDate>) {
+        val merged = _seen.value.toMutableMap()
+        for ((id, day) in seen) merged[id] = merged[id]?.let { minOf(it, day) } ?: day
+        if (merged == _seen.value && preferences.contains(KEY_SEEN)) return
+        _seen.value = merged
+        preferences.edit().putStringSet(KEY_SEEN, merged.map { (id, day) -> "$id$SEPARATOR$day" }.toSet()).apply()
+    }
+
     fun shown(ids: Collection<String>) {
         if (ids.none { it in _pending.value }) return
         _pending.value -= ids.toSet()

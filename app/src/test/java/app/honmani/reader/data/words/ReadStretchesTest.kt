@@ -55,4 +55,16 @@ class ReadStretchesTest {
         assertArrayEquals(intArrayOf(1_000, 3_000), again.getValue("a"))
         assertArrayEquals(intArrayOf(5_000, 6_000), again.getValue("b"))
     }
+
+    @Test
+    fun aRestoreAddsItsStretchesToWhatWasReadHere() {
+        val file = File(Files.createTempDirectory("stretches").toFile(), "read-stretches.json")
+        val store = ReadStretchStore(file).apply { add("a", 0.1f, 0.2f) }
+
+        store.merge(mapOf("a" to intArrayOf(1_500, 4_000, 9_000, 20_000), "b" to intArrayOf(0, 100)))
+
+        assertArrayEquals(intArrayOf(1_000, 4_000, 9_000, 10_000), store.all().getValue("a"))
+        assertArrayEquals(intArrayOf(0, 100), store.all().getValue("b"))
+        assertArrayEquals(intArrayOf(1_000, 4_000, 9_000, 10_000), ReadStretchStore(file).all().getValue("a"))
+    }
 }

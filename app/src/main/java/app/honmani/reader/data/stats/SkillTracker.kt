@@ -7,6 +7,7 @@ import app.honmani.reader.data.words.WordKnowledge
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOf
 
 /**
  * The reader's skill as Progress, the book sheet and the library show it: fluency from reading
@@ -19,13 +20,15 @@ class SkillTracker(
     /** Book grades by content hash. */
     grades: Flow<Map<String, StoredDifficulty>>,
     knowledge: Flow<WordKnowledge>,
+    /** Difficulty of books from a restored backup that aren't back in the library yet, by their ids. */
+    restored: Flow<Map<Long, Int>> = flowOf(emptyMap()),
     private val today: () -> LocalDate = LocalDate::now,
 ) {
-    val estimate: Flow<SkillEstimate> = combine(days, books, grades, knowledge) { rows, books, grades, knowledge ->
+    val estimate: Flow<SkillEstimate> = combine(days, books, grades, knowledge, restored) { rows, books, grades, knowledge, restored ->
         val graded = books.mapNotNull { book ->
             grades[book.contentHash]?.takeIf { it.difficulty.score > 0 }?.let { book to it }
         }
-        val scores = graded.associate { (book, grade) -> book.id to grade.difficulty.score }
+        val scores = restored + graded.associate { (book, grade) -> book.id to grade.difficulty.score }
         Skill.combine(Skill.estimate(rows, scores::get, today()), vocabulary(graded, knowledge))
     }
 

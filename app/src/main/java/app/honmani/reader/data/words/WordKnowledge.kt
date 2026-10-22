@@ -48,7 +48,30 @@ class WordKnowledge(
  * it is worked out again from the totals.
  */
 class WordProgressStore(private val file: File) {
-    fun load(): Map<Long, WordStep> = runCatching {
+    /** Goes up when a restore changed the file: what was loaded before is out of date. */
+    @Volatile
+    var generation = 0
+        private set
+
+    fun load(): Map<Long, WordStep> = synchronized(this) { read() }
+
+    /** Saves [progress], unless a restore changed the file since [generation] was read. */
+    fun save(progress: Map<Long, WordStep>, generation: Int) {
+        synchronized(this) {
+            if (generation == this.generation) save(progress)
+        }
+    }
+
+    /** Sets the steps of the words in [restored] (from a backup), by word id. */
+    fun restore(restored: Map<Long, WordStep>) {
+        if (restored.isEmpty()) return
+        synchronized(this) {
+            save(read() + restored)
+            generation++
+        }
+    }
+
+    private fun read(): Map<Long, WordStep> = runCatching {
         val json = JSONObject(file.readText())
         json.keys().asSequence().associate { id ->
             val values = json.getJSONArray(id)
@@ -57,14 +80,16 @@ class WordProgressStore(private val file: File) {
     }.getOrDefault(emptyMap())
 
     fun save(progress: Map<Long, WordStep>) {
-        val json = JSONObject()
-        for ((id, step) in progress) {
-            json.put(id.toString(), JSONArray().put(step.steps).put(step.reads).put(step.lookups).put(step.learned))
+        synchronized(this) {
+            val json = JSONObject()
+            for ((id, step) in progress) {
+                json.put(id.toString(), JSONArray().put(step.steps).put(step.reads).put(step.lookups).put(step.learned))
+            }
+            file.parentFile?.mkdirs()
+            val temporary = File(file.path + ".tmp")
+            temporary.writeText(json.toString())
+            temporary.renameTo(file)
         }
-        file.parentFile?.mkdirs()
-        val temporary = File(file.path + ".tmp")
-        temporary.writeText(json.toString())
-        temporary.renameTo(file)
     }
 }
 
@@ -90,6 +115,7 @@ class WordKnowledgeTracker(
     /** Words already read, by content hash and grade signature: they only change when a book is graded again. */
     private val cache = ConcurrentHashMap<String, Pair<String, BookWords?>>()
     private var progress: Map<Long, WordStep>? = null
+    private var generation = -1
 
     val knowledge: Flow<WordKnowledge> = combine(books, stretches, grades, words) { books, stretches, grades, words ->
         val read = HashMap<String, ReadWord>()
@@ -104,7 +130,8 @@ class WordKnowledgeTracker(
                 read[key] = if (before == null) ReadWord(rank, reads) else ReadWord(minOf(before.rank, rank), before.reads + reads)
             }
         }
-        val previous = progress ?: store.load()
+        val loaded = store.generation
+        val previous = progress?.takeIf { generation == loaded } ?: store.load()
         val updated = words.associate { word ->
             word.id to WordProgress.update(
                 previous[word.id],
@@ -113,8 +140,9 @@ class WordKnowledgeTracker(
                 learned = word.status == WordStatus.LEARNED,
             )
         }
-        if (updated != previous) store.save(updated)
+        if (updated != previous) store.save(updated, loaded)
         progress = updated
+        generation = loaded
         val learning = words.filter { (updated[it.id]?.steps ?: 0) < WordProgress.KNOWN }.mapTo(HashSet()) { it.expression }
         WordKnowledge(read, updated, learning, shares)
     }.flowOn(context)

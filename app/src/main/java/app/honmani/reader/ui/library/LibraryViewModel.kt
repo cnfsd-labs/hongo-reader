@@ -452,6 +452,19 @@ class LibraryViewModel(
                     },
                     syncPosition = { book, ttuId ->
                         val ttu = container.ttuLibrary
+                        // A restored backup's position, if ttu's own is behind it (ttu forgot the
+                        // book when Honmani was installed again).
+                        val restored = container.restoredBooks
+                        withContext(Dispatchers.IO) { restored.takePosition(book.contentHash) }?.let { position ->
+                            try {
+                                val (characters, _) = ttu.bookmark(ttuId)
+                                if (characters == null || characters < position.characters) {
+                                    ttu.setBookmark(ttuId, position.characters, position.progress.toDouble())
+                                }
+                            } catch (_: TtuLibraryException) {
+                                withContext(Dispatchers.IO) { restored.setPosition(book.contentHash, position) }
+                            }
+                        }
                         // Sync is a bonus: the book opens where it was if the reader page can't answer.
                         val pulled = try {
                             container.progressSync.pull(

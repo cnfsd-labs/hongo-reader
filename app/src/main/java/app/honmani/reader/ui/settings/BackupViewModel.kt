@@ -1,0 +1,138 @@
+package app.honmani.reader.ui.settings
+
+import android.content.ContentResolver
+import android.net.Uri
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
+import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import app.honmani.reader.AppContainer
+import app.honmani.reader.HonmaniApplication
+import app.honmani.reader.data.backup.BackupCodec
+import app.honmani.reader.data.backup.BackupFormatException
+import app.honmani.reader.data.backup.RestoreSummary
+import app.honmani.reader.data.fonts.FontCatalog
+import app.honmani.reader.data.fonts.FontState
+import app.honmani.reader.data.settings.ReaderFont
+import app.honmani.reader.ui.reader.TtuLibraryException
+import java.io.IOException
+import java.time.LocalDate
+import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+sealed interface BackupState {
+    data object Idle : BackupState
+
+    data object Working : BackupState
+
+    data object Saved : BackupState
+
+    data class Restored(val summary: RestoreSummary) : BackupState
+
+    data object NotABackup : BackupState
+
+    data object Failed : BackupState
+}
+
+/**
+ * Settings → Back up and restore: writes a backup to a file the reader picks, or restores one.
+ * Runs on the main thread, as the reader page (ttu's settings and positions) needs.
+ */
+class BackupViewModel(private val container: AppContainer, private val resolver: ContentResolver) : ViewModel() {
+    private val _state = MutableStateFlow<BackupState>(BackupState.Idle)
+    val state: StateFlow<BackupState> = _state.asStateFlow()
+
+    /** The file name offered when saving. */
+    fun fileName(today: LocalDate = LocalDate.now()) = "honmani-backup-$today.zip"
+
+    fun export(uri: Uri) = launchWork {
+        // ttu's settings live in the reader page; without it the backup has the rest.
+        val readerSettings = try {
+            container.ttuLibrary.readSettings()
+        } catch (_: TtuLibraryException) {
+            null
+        }
+        val backup = container.backup.export(readerSettings)
+        withContext(Dispatchers.IO) {
+            val output = resolver.openOutputStream(uri, "wt") ?: throw IOException("Cannot write $uri")
+            output.use { BackupCodec.write(backup, it) }
+        }
+        BackupState.Saved
+    }
+
+    fun restore(uri: Uri) = launchWork {
+        val backup = withContext(Dispatchers.IO) {
+            val input = resolver.openInputStream(uri) ?: throw IOException("Cannot read $uri")
+            input.use { BackupCodec.read(it.buffered()) }
+        }
+        val summary = container.backup.restore(backup)
+        container.appearanceSettings.reload()
+        container.ankiSettings.reload()
+        val ttu = container.ttuLibrary
+        // Books in the library whose position moved forward: ttu opens them there.
+        for (book in summary.positions) {
+            val ttuId = book.ttuId ?: continue
+            try {
+                ttu.setBookmark(ttuId, book.characters, book.progress.toDouble())
+                withContext(Dispatchers.IO) { container.restoredBooks.takePosition(book.contentHash) }
+            } catch (_: TtuLibraryException) {
+                // Given to ttu when the book opens.
+            }
+        }
+        backup.readerSettings?.let { stored ->
+            val values = stored.filterValues { it != null }.mapValues { (_, value) -> value!! }.toMutableMap()
+            // A downloaded font that isn't on this phone (yet) would keep books waiting for it.
+            values[FONT_KEY]?.let { family ->
+                val font = FontCatalog.byFamily(family)
+                if (font != null && container.fontStore.states.value[font.id] != FontState.Installed) {
+                    values[FONT_KEY] = ReaderFont.SERIF.storage
+                }
+            }
+            if (values.isNotEmpty()) {
+                ttu.writeSettings(values)
+                ttu.reload()
+            }
+        }
+        if (summary.catalogsAdded > 0) container.opdsAutoImport.start(force = true)
+        BackupState.Restored(summary)
+    }
+
+    fun dismiss() {
+        _state.value = BackupState.Idle
+    }
+
+    private fun launchWork(work: suspend () -> BackupState) {
+        if (_state.value == BackupState.Working) return
+        _state.value = BackupState.Working
+        viewModelScope.launch {
+            _state.value = try {
+                work()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: BackupFormatException) {
+                BackupState.NotABackup
+            } catch (_: Exception) {
+                // IOException, SecurityException, or whatever the picked file's app throws.
+                BackupState.Failed
+            }
+        }
+    }
+
+    companion object {
+        /** ttu's localStorage key for the font (see `ReaderSettings`). */
+        private const val FONT_KEY = "fontFamilyGroupOne"
+
+        val Factory = viewModelFactory {
+            initializer {
+                val application = this[APPLICATION_KEY] as HonmaniApplication
+                BackupViewModel(application.container, application.contentResolver)
+            }
+        }
+    }
+}

@@ -14,6 +14,7 @@ conjugated: 食べさせられなかった leads straight to 食べる.
 - Book difficulty from 1 to 100, worked out on the phone from the text
 - Your own book server (OPDS, such as Calibre-Web): browse, search, download
 - Reading progress sync with KOReader (e-readers, Calibre-Web Automated), to the character
+- Back up settings, progress, statistics and saved words to one file, for a new phone
 - No account, no ads, no tracking ([privacy policy](docs/privacy-policy.md))
 
 ## Status
@@ -66,6 +67,9 @@ libraries, a complete bundled reader, and no Play-restricted permissions.
   character count (`data/sync/`). Passwords are encrypted with an Android Keystore key; over
   plain http a login is only sent once the server asks for it (`data/net/`).
 - **Statistics.** Reading time and characters per book and day (`data/stats/`).
+- **Backups.** One zip of JSON through the system file picker (`data/backup/`): everything but
+  the books, which are named by content hash; a restore merges and keeps what books not in the
+  library had until the same file is added again.
 
 ## Licence
 

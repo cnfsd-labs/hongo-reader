@@ -44,6 +44,15 @@ add a card to AnkiDroid; Words → export (arrow up) → "Anki package" and impo
 computer (cards with audio in the chosen deck); force-stop and reopen (books, dictionaries,
 position kept).
 
+## Back up and restore
+
+Settings → Back up and restore → Back up…, save the file (to Downloads, say). Uninstall Honmani,
+install it again, get a dictionary, then Restore… and pick the file: accent colour, reader
+settings, Words (with Learning/Known progress), Progress (level, streak, calendar, milestones,
+skill) and Statistics come back. Add one of the books again (the same file, or from the book
+server): it shows its old progress, opens at the old page and has its statistics. Restoring the
+same file again changes nothing.
+
 ## Reading progress sync (KOReader)
 
 With KOReader on an e-reader (or Calibre-Web Automated, whose own KOReader plugin "CWA Progress

@@ -96,6 +96,14 @@ class AppearanceSettings(private val preferences: SharedPreferences) {
         preferences.edit().putBoolean(KEY_SHOW_DIFFICULTY, show).apply()
     }
 
+    /** Reads the stored values again (a backup was restored). */
+    fun reload() {
+        _accent.value = Accent.fromName(preferences.getString(KEY_ACCENT, null))
+        _customHue.value = preferences.getFloat(KEY_CUSTOM_HUE, DEFAULT_CUSTOM_HUE)
+        _showDifficulty.value = preferences.getBoolean(KEY_SHOW_DIFFICULTY, true)
+        _librarySort.value = preferences.getString(KEY_LIBRARY_SORT, null)
+    }
+
     private companion object {
         const val KEY_ACCENT = "accent"
         const val KEY_SHOW_DIFFICULTY = "show_difficulty"
