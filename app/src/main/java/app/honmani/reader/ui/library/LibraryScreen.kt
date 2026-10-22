@@ -2,6 +2,7 @@ package app.honmani.reader.ui.library
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.net.Uri
 import android.util.LruCache
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -123,6 +124,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.honmani.reader.HonmaniApplication
 import app.honmani.reader.R
+import app.honmani.reader.data.library.BookFormat
 import app.honmani.reader.data.opds.AutoImportStatus
 import app.honmani.reader.ui.ProgressBar
 import app.honmani.reader.ui.opds.CatalogBrowser
@@ -167,6 +169,20 @@ fun LibraryScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) {
         if (it.isNotEmpty()) viewModel.add(it)
+    }
+    // A copy of a book's file where the reader picks (an OPDS download, say), one launcher per type.
+    var savingCopy by rememberSaveable { mutableStateOf<Long?>(null) }
+    val onCopyPicked: (Uri?) -> Unit = { uri ->
+        val id = savingCopy
+        savingCopy = null
+        if (uri != null && id != null) viewModel.saveCopy(id, uri)
+    }
+    val saveEpub = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/epub+zip"), onCopyPicked)
+    val saveText = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain"), onCopyPicked)
+    val saveCopy: (LibraryBook) -> Unit = { book ->
+        savingCopy = book.id
+        val name = LibraryViewModel.copyFileName(book.title, book.format)
+        if (book.format == BookFormat.TXT) saveText.launch(name) else saveEpub.launch(name)
     }
 
     // Notices are shown one at a time; each waits until the previous snackbar is gone.
@@ -239,6 +255,7 @@ fun LibraryScreen(
             onResetProgress = viewModel::resetProgress,
             onMarkFinished = viewModel::markFinished,
             onSetHidden = viewModel::setHidden,
+            onSaveCopy = saveCopy,
             onFilter = viewModel::setFilter,
             onShowHidden = viewModel::showHidden,
             onSearch = viewModel::search,
@@ -291,6 +308,8 @@ private fun noticeText(notice: LibraryNotice): String = when (notice) {
     is LibraryNotice.Unreadable -> stringResource(R.string.library_unreadable, notice.fileName)
     is LibraryNotice.ReaderFailed -> stringResource(R.string.library_reader_failed, notice.title)
     is LibraryNotice.ResetFailed -> stringResource(R.string.library_reset_failed, notice.title)
+    is LibraryNotice.CopySaved -> stringResource(R.string.library_copy_saved, notice.title)
+    is LibraryNotice.CopyFailed -> stringResource(R.string.library_copy_failed, notice.title)
 }
 
 @Composable
@@ -308,6 +327,7 @@ private fun LibraryContent(
     bottomBar: @Composable () -> Unit,
     modifier: Modifier = Modifier,
     onSetHidden: (id: Long, hidden: Boolean) -> Unit = { _, _ -> },
+    onSaveCopy: (LibraryBook) -> Unit = {},
     onShowHidden: (Boolean) -> Unit = {},
     /** The difficulty to show on a cover; null for none. */
     difficulty: (LibraryBook) -> Int? = { null },
@@ -476,6 +496,7 @@ private fun LibraryContent(
                 onSetHidden(book.id, it)
             },
             onRemove = { pendingRemove = book },
+            onSaveCopy = { onSaveCopy(book) },
         )
     }
 

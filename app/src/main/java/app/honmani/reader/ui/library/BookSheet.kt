@@ -33,6 +33,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -85,6 +86,8 @@ fun BookSheet(
     onResetProgress: () -> Unit,
     onSetHidden: (Boolean) -> Unit,
     onRemove: () -> Unit,
+    /** Saves a copy of the book's file on the phone (an OPDS download, say). */
+    onSaveCopy: () -> Unit = {},
     viewModel: StatisticsViewModel = viewModel(factory = StatisticsViewModel.Factory),
     progress: ProgressViewModel = viewModel(factory = ProgressViewModel.Factory),
 ) {
@@ -139,6 +142,10 @@ fun BookSheet(
                     onSetHidden = onSetHidden,
                     onRemove = onRemove,
                 )
+                TextButton(onClick = onSaveCopy, modifier = Modifier.padding(horizontal = 16.dp)) {
+                    Icon(painterResource(R.drawable.ic_download), contentDescription = null, modifier = Modifier.size(18.dp))
+                    Text(stringResource(R.string.action_save_copy), modifier = Modifier.padding(start = 8.dp))
+                }
             }
         }
     }

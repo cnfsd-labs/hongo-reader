@@ -3,6 +3,7 @@ package app.honmani.reader.ui.library
 import android.net.Uri
 import app.honmani.reader.data.library.BookDao
 import app.honmani.reader.data.library.BookEntity
+import app.honmani.reader.data.library.BookFormat
 import app.honmani.reader.data.library.BookImporter
 import app.honmani.reader.data.library.BookSource
 import app.honmani.reader.data.library.RemovedBookEntity
@@ -162,6 +163,32 @@ class LibraryViewModelTest {
 
         val book = eventually { dao.books.value.singleOrNull()?.takeIf { it.lastOpenedAt != null } }
         assertEquals("/b?id=${book.ttuId}", page.loads.single())
+    }
+
+    @Test
+    fun aCopyOfTheBookFileIsSavedWhereTheReaderPicked() = runBlocking {
+        val saved = HashMap<String, ByteArray>()
+        viewModel = LibraryViewModel(
+            dao = dao,
+            importer = importer,
+            ttu = ttu,
+            openFile = { uri -> files[uri.lastPathSegment]?.let { PickedFile(uri.lastPathSegment!!, it.inputStream()) } },
+            now = { 42L },
+            writeDocument = { file, uri ->
+                if (uri.toString().contains("readonly")) throw java.io.IOException("read-only")
+                saved[uri.toString()] = file.readBytes()
+            },
+        )
+        val bytes = TestBooks.epub()
+        val book = addAndWait("neko.epub", bytes)
+
+        viewModel.saveCopy(book.id, Uri.parse("content://downloads/neko.epub"))
+        assertEquals(LibraryNotice.CopySaved("吾輩は猫である"), viewModel.notices.first())
+        assertTrue(bytes.contentEquals(saved.getValue("content://downloads/neko.epub")))
+
+        viewModel.saveCopy(book.id, Uri.parse("content://readonly/neko.epub"))
+        assertEquals(LibraryNotice.CopyFailed("吾輩は猫である"), viewModel.notices.first())
+        assertEquals("a_b.txt", LibraryViewModel.copyFileName("a/b", BookFormat.TXT))
     }
 
     @Test

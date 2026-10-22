@@ -14,6 +14,7 @@ import app.honmani.reader.R
 import app.honmani.reader.data.difficulty.StoredDifficulty
 import app.honmani.reader.data.library.BookDao
 import app.honmani.reader.data.library.BookEntity
+import app.honmani.reader.data.library.BookFormat
 import app.honmani.reader.data.library.BookImporter
 import app.honmani.reader.data.library.BookSource
 import app.honmani.reader.data.library.RemovedBookEntity
@@ -25,6 +26,7 @@ import app.honmani.reader.ui.reader.TtuBook
 import app.honmani.reader.ui.reader.TtuLibrary
 import app.honmani.reader.ui.reader.TtuLibraryException
 import java.io.File
+import java.io.IOException
 import java.io.InputStream
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -58,6 +60,7 @@ data class LibraryBook(
     val hidden: Boolean = false,
     /** Identifies the book's file, and with it its difficulty grade. */
     val contentHash: String = "",
+    val format: BookFormat = BookFormat.EPUB,
 )
 
 data class LibraryUiState(
@@ -96,6 +99,10 @@ sealed interface LibraryNotice {
 
     /** ッツ Ebook Reader could not import or open the book. */
     data class ReaderFailed(val title: String) : LibraryNotice
+
+    data class CopySaved(val title: String) : LibraryNotice
+
+    data class CopyFailed(val title: String) : LibraryNotice
 }
 
 /** The books and what their order depends on. */
@@ -137,6 +144,8 @@ class LibraryViewModel(
     /** The "Continue reading" bubble swiped away ([continueKey]), and where that is kept. */
     private val dismissedContinue: Flow<String?> = flowOf(null),
     private val saveDismissedContinue: (String) -> Unit = {},
+    /** Writes a book's file to a document the reader picked (a content URI). */
+    private val writeDocument: suspend (File, Uri) -> Unit = { _, _ -> },
 ) : ViewModel() {
     private val adding = MutableStateFlow<String?>(null)
     private val opening = MutableStateFlow<Long?>(null)
@@ -353,6 +362,22 @@ class LibraryViewModel(
         }
     }
 
+    /** Saves a copy of the book's file (as added: EPUB or text) where the reader picked. */
+    fun saveCopy(id: Long, uri: Uri) {
+        viewModelScope.launch {
+            val book = dao.find(id) ?: return@launch
+            val notice = try {
+                writeDocument(importer.bookFile(book), uri)
+                LibraryNotice.CopySaved(book.title)
+            } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                LibraryNotice.CopyFailed(book.title)
+            }
+            _notices.send(notice)
+        }
+    }
+
     fun remove(id: Long) {
         viewModelScope.launch {
             val book = dao.find(id) ?: return@launch
@@ -381,15 +406,19 @@ class LibraryViewModel(
         status = ReadingStatus.of(book.progress, book.finishedAt),
         hidden = book.hidden,
         contentHash = book.contentHash,
+        format = book.format,
     )
 
     companion object {
         fun fileUrl(book: BookEntity) = TtuLibrary.BOOK_FILES_PATH + book.fileName
 
         /** ttu takes a text file's title from its name, and picks its importer by extension. */
-        fun readerFileName(book: BookEntity): String {
-            val safeTitle = book.title.replace(Regex("[\\\\/:*?\"<>|\\p{Cntrl}]"), "_").take(100)
-            return "${safeTitle.ifBlank { "book" }}.${book.format.extension}"
+        fun readerFileName(book: BookEntity): String = copyFileName(book.title, book.format)
+
+        /** The book's title as a file name with its format's extension. */
+        fun copyFileName(title: String, format: BookFormat): String {
+            val safeTitle = title.replace(Regex("[\\\\/:*?\"<>|\\p{Cntrl}]"), "_").take(100)
+            return "${safeTitle.ifBlank { "book" }}.${format.extension}"
         }
 
         /** Identifies one opening of a book: opening it (or another) again brings the bubble back. */
@@ -414,6 +443,13 @@ class LibraryViewModel(
                     skill = container.skillTracker.estimate.map { it.current }.distinctUntilChanged(),
                     dismissedContinue = container.dismissedContinue,
                     saveDismissedContinue = container::dismissContinue,
+                    writeDocument = { file, uri ->
+                        withContext(Dispatchers.IO) {
+                            val out = application.contentResolver.openOutputStream(uri, "wt")
+                                ?: throw IOException("Cannot write $uri")
+                            out.use { output -> file.inputStream().use { it.copyTo(output) } }
+                        }
+                    },
                     syncPosition = { book, ttuId ->
                         val ttu = container.ttuLibrary
                         // Sync is a bonus: the book opens where it was if the reader page can't answer.
