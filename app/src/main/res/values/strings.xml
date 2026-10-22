@@ -172,6 +172,7 @@
         <item quantity="one">read %1$d time</item>
         <item quantity="other">read %1$d times</item>
     </plurals>
+    <string name="words_just_now">just now</string>
     <plurals name="words_lookup_count">
         <item quantity="one">%1$d lookup</item>
         <item quantity="other">%1$d lookups</item>

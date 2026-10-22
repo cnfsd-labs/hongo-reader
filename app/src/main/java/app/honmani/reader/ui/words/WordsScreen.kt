@@ -673,11 +673,12 @@ private fun Sentence(sentence: AnnotatedString, source: String?, maxLines: Int) 
 @Composable
 private fun details(word: WordEntity, now: Long): String {
     val count = pluralStringResource(R.plurals.words_lookup_count, word.lookupCount, word.lookupCount)
-    val time = DateUtils.getRelativeTimeSpanString(
-        word.lastLookedUpAt,
-        now,
-        DateUtils.MINUTE_IN_MILLIS,
-    ).toString()
+    // Android says "0 minutes ago" for the first minute.
+    val time = if (now - word.lastLookedUpAt < DateUtils.MINUTE_IN_MILLIS) {
+        stringResource(R.string.words_just_now)
+    } else {
+        DateUtils.getRelativeTimeSpanString(word.lastLookedUpAt, now, DateUtils.MINUTE_IN_MILLIS).toString()
+    }
     return listOfNotNull(count, time, word.lastBookTitle).joinToString(" · ")
 }
 

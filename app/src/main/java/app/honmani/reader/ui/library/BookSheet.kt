@@ -1,6 +1,5 @@
 package app.honmani.reader.ui.library
 
-import android.text.format.DateUtils
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -49,7 +48,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -68,6 +66,8 @@ import app.honmani.reader.ui.stats.BookStatistics
 import app.honmani.reader.ui.stats.StatisticsViewModel
 import app.honmani.reader.ui.stats.duration
 import app.honmani.reader.ui.stats.number
+import java.time.Instant
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import kotlin.math.roundToInt
@@ -446,15 +446,12 @@ private fun Statistics(stats: BookStatistics) {
                 modifier = Modifier.weight(1f).fillMaxHeight(),
             )
         }
-        val context = LocalContext.current
         val dateFormat = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
         val dates = listOfNotNull(
             reading.firstDay?.let { stringResource(R.string.book_first_read, it.format(dateFormat)) },
             stats.finishedAt?.let {
-                stringResource(
-                    R.string.book_finished_on,
-                    DateUtils.formatDateTime(context, it, DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_YEAR),
-                )
+                val day = Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate()
+                stringResource(R.string.book_finished_on, day.format(dateFormat))
             },
         )
         if (dates.isNotEmpty()) {
