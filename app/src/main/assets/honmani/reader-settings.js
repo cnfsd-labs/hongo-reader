@@ -43,6 +43,7 @@
     'showCharacterCounter',
     'showPercentage',
     'enableReaderWakeLock',
+    'honmaniProgressBar',
   ];
   const USER_FONTS = 'userfonts';
   const FONT_PATH = '/honmani-fonts/';

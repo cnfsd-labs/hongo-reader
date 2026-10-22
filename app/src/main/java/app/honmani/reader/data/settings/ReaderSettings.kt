@@ -37,6 +37,8 @@ data class ReaderSettings(
     val furigana: Boolean = true,
     /** ttu's character counter and percentage at the bottom of the page. */
     val showProgress: Boolean = true,
+    /** Honmani's thin bar along the bottom of the page (`book-frame.js`). */
+    val progressBar: Boolean = true,
     val keepScreenOn: Boolean = false,
 ) {
     /** The values to store, as ttu writes them. */
@@ -50,6 +52,7 @@ data class ReaderSettings(
         put(HIDE_FURIGANA, flag(!furigana))
         put(CHARACTER_COUNTER, flag(showProgress))
         put(PERCENTAGE, flag(showProgress))
+        put(PROGRESS_BAR, flag(progressBar))
         put(WAKE_LOCK, flag(keepScreenOn))
     }
 
@@ -70,6 +73,7 @@ data class ReaderSettings(
         private const val CHARACTER_COUNTER = "showCharacterCounter"
         private const val PERCENTAGE = "showPercentage"
         private const val WAKE_LOCK = "enableReaderWakeLock"
+        private const val PROGRESS_BAR = "honmaniProgressBar"
         private const val VERTICAL = "vertical-rl"
         private const val HORIZONTAL = "horizontal-tb"
         private const val PAGINATED = "paginated"
@@ -91,6 +95,7 @@ data class ReaderSettings(
                 paginated = values[VIEW_MODE]?.let { it != CONTINUOUS } ?: defaults.paginated,
                 furigana = !flag(HIDE_FURIGANA, !defaults.furigana),
                 showProgress = flag(CHARACTER_COUNTER, defaults.showProgress) || flag(PERCENTAGE, defaults.showProgress),
+                progressBar = flag(PROGRESS_BAR, defaults.progressBar),
                 keepScreenOn = flag(WAKE_LOCK, defaults.keepScreenOn),
             )
         }

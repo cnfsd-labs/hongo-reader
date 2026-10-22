@@ -9,7 +9,8 @@
  * Progress: a slim bar along the bottom of the book page, in the app's accent colour
  * (--honmani-accent, from ttu-defaults.js), filled to the reading position. The position comes
  * from ttu's bookmark when the book is opened and on every page turn. It fills from the right
- * in vertical books, the way their pages turn.
+ * in vertical books, the way their pages turn. localStorage "honmaniProgressBar" = "0" (Honmani's
+ * reader settings) turns it off.
  */
 (() => {
   'use strict';
@@ -57,10 +58,18 @@
     return typeof number === 'number' && isFinite(number) ? Math.min(1, Math.max(0, number)) : null;
   }
 
+  function barWanted() {
+    try {
+      return window.localStorage.getItem('honmaniProgressBar') !== '0';
+    } catch (error) {
+      return true; // No storage: the default.
+    }
+  }
+
   function drawBar() {
     const id = bookId();
     let bar = document.getElementById(BAR_ID);
-    if (id === null || id !== progressBook || progress === null || !document.body) {
+    if (id === null || id !== progressBook || progress === null || !document.body || !barWanted()) {
       if (bar) bar.remove();
       return;
     }

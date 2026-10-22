@@ -417,6 +417,21 @@ test('the book page reports its background and shows the reading position as a b
   else expect(box.x).toBeCloseTo(0, 0);
 });
 
+test('the progress bar stays off when the reader turned it off', async ({ page }) => {
+  await setUp(page);
+  await page.addInitScript(() => window.localStorage.setItem('honmaniProgressBar', '0'));
+  await page.addInitScript({ path: path.join(ASSETS, 'reading-activity.js') });
+  await page.addInitScript({ path: path.join(ASSETS, 'book-frame.js') });
+  await page.goto(`${server.url}/manage`);
+  const book = await ensure(page, 'long.epub');
+  await page.goto(`${server.url}/b?id=${book.id}`);
+  await expect(page.locator('div.fixed.inset-0.text-7xl')).toHaveCount(0, { timeout: 5_000 });
+
+  for (let turn = 1; turn <= 3; turn++) await page.keyboard.press('ArrowDown');
+  await expect.poll(() => page.evaluate(() => window.__messages.some((m) => m.type === 'reader.position'))).toBe(true);
+  await expect(page.locator('#honmani-progress')).toHaveCount(0);
+});
+
 test('every sample book imports into ttu with its title, and the first one opens', async ({ page }) => {
   await setUp(page);
   await page.goto(`${server.url}/manage`);

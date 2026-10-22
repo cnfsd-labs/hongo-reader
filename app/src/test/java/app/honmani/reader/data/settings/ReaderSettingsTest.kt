@@ -25,11 +25,12 @@ class ReaderSettingsTest {
                 "showCharacterCounter" to "0",
                 "showPercentage" to "0",
                 "enableReaderWakeLock" to "1",
+                "honmaniProgressBar" to "0",
             ),
         )
 
         assertEquals(
-            ReaderSettings(ReaderTheme.SEPIA, ReaderFont.SANS.storage, 32, 1.8f, vertical = false, paginated = false, furigana = false, showProgress = false, keepScreenOn = true),
+            ReaderSettings(ReaderTheme.SEPIA, ReaderFont.SANS.storage, 32, 1.8f, vertical = false, paginated = false, furigana = false, showProgress = false, progressBar = false, keepScreenOn = true),
             settings,
         )
     }
@@ -55,6 +56,7 @@ class ReaderSettingsTest {
         assertEquals("2", stored["lineHeight"])
         assertEquals("vertical-rl", stored["writingMode"])
         assertEquals("0", stored["hideFurigana"])
+        assertEquals("1", stored["honmaniProgressBar"])
         assertEquals(settings, ReaderSettings.fromStorage(stored))
         assertEquals("1.65", ReaderSettings().toStorage()["lineHeight"])
     }

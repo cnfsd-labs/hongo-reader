@@ -176,6 +176,9 @@ private fun ReaderSettingsContent(
         SwitchRow(R.string.reader_settings_progress, R.string.reader_settings_progress_details, settings.showProgress) {
             onChange(settings.copy(showProgress = it))
         }
+        SwitchRow(R.string.reader_settings_progress_bar, R.string.reader_settings_progress_bar_details, settings.progressBar) {
+            onChange(settings.copy(progressBar = it))
+        }
         SwitchRow(R.string.reader_settings_keep_screen_on, null, settings.keepScreenOn) { onChange(settings.copy(keepScreenOn = it)) }
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
         ListItem(
