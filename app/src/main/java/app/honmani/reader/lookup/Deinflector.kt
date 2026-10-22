@@ -46,7 +46,7 @@ enum class Inflection {
     IMPERATIVE, CONDITIONAL_BA, CONDITIONAL_TARA, TARI, WANT, STEM, PROGRESSIVE, COMPLETION,
     PREPARATION, RESULTING_STATE, ATTEMPT, GIVING, RECEIVING, REQUEST, DESIRE_OF_OTHERS,
     DIRECTION, WHILE, COMMAND_POLITE, TOO_MUCH, SEEMINGLY, EASY, HARD, WITHOUT, ADVERB, NOUN,
-    SURU_VERB,
+    SURU_VERB, NEGATIVE_VOLITIONAL, TE_WA, CLASSICAL,
 }
 
 /**
@@ -119,16 +119,29 @@ object Deinflector {
             vararg inflections: Inflection,
         ) = add(Rule(inflected, base, conditionsIn, conditionsOut, inflections.toList()))
 
+        // The negatives of older and spoken Japanese on the negative stem: 知らぬ, 知らん,
+        // 知らねば (must), 知らざる.
+        fun literaryNegatives(stem: String, base: String, out: Int) {
+            rule(stem + "ぬ", base, FINAL, out, Inflection.NEGATIVE)
+            rule(stem + "ん", base, FINAL, out, Inflection.NEGATIVE)
+            rule(stem + "ねば", base, FINAL, out, Inflection.NEGATIVE, Inflection.CONDITIONAL_BA)
+            rule(stem + "ざる", base, FINAL, out, Inflection.NEGATIVE)
+        }
+
         // Ichidan: drop る and add the ending.
         fun ichidan(stem: String, base: String, out: Int) {
             rule(stem + "ない", base, ADJ, out, Inflection.NEGATIVE)
             rule(stem + "ず", base, FINAL, out, Inflection.WITHOUT)
+            literaryNegatives(stem, base, out)
+            rule(stem + "まい", base, FINAL, out, Inflection.NEGATIVE_VOLITIONAL)
+            rule(base + "まい", base, FINAL, out, Inflection.NEGATIVE_VOLITIONAL)
             rule(stem + "た", base, PAST, out, Inflection.PAST)
             rule(stem + "て", base, TE, out, Inflection.TE)
             rule(stem, base, STEM, out, Inflection.STEM)
             rule(stem + "ろ", base, FINAL, out, Inflection.IMPERATIVE)
             rule(stem + "よ", base, FINAL, out, Inflection.IMPERATIVE)
             rule(stem + "れば", base, FINAL, out, Inflection.CONDITIONAL_BA)
+            rule(stem + "りゃ", base, FINAL, out, Inflection.CONDITIONAL_BA)
             rule(stem + "よう", base, FINAL, out, Inflection.VOLITIONAL)
             rule(stem + "られる", base, V1, out, Inflection.POTENTIAL_OR_PASSIVE)
             rule(stem + "れる", base, V1, out, Inflection.POTENTIAL)
@@ -163,12 +176,16 @@ object Deinflector {
         for (row in godanRows) {
             rule(row.a + "ない", row.u, ADJ, V5, Inflection.NEGATIVE)
             rule(row.a + "ず", row.u, FINAL, V5, Inflection.WITHOUT)
+            literaryNegatives(row.a, row.u, V5)
+            rule(row.u + "まい", row.u, FINAL, V5, Inflection.NEGATIVE_VOLITIONAL)
             rule(row.a + "れる", row.u, V1, V5, Inflection.PASSIVE)
             rule(row.a + "せる", row.u, V1, V5, Inflection.CAUSATIVE)
             rule(row.a + "す", row.u, V5, V5, Inflection.CAUSATIVE_SHORT)
             rule(row.i, row.u, STEM, V5, Inflection.STEM)
             rule(row.e + "る", row.u, V1, V5, Inflection.POTENTIAL)
             rule(row.e + "ば", row.u, FINAL, V5, Inflection.CONDITIONAL_BA)
+            // Spoken ば: 行きゃ, 分かりゃ (not for う verbs, whose い takes no ゃ).
+            if (row.u != "う") rule(row.i + "ゃ", row.u, FINAL, V5, Inflection.CONDITIONAL_BA)
             rule(row.e, row.u, FINAL, V5, Inflection.IMPERATIVE)
             rule(row.o + "う", row.u, FINAL, V5, Inflection.VOLITIONAL)
             rule(row.te, row.u, TE, V5, Inflection.TE)
@@ -192,10 +209,14 @@ object Deinflector {
         rule("こい", "くる", FINAL, VK, Inflection.IMPERATIVE)
         rule("来い", "来る", FINAL, VK, Inflection.IMPERATIVE)
         rule("くれば", "くる", FINAL, VK, Inflection.CONDITIONAL_BA)
+        rule("くりゃ", "くる", FINAL, VK, Inflection.CONDITIONAL_BA)
         rule("こよう", "くる", FINAL, VK, Inflection.VOLITIONAL)
         rule("こられる", "くる", V1, VK, Inflection.POTENTIAL_OR_PASSIVE)
         rule("これる", "くる", V1, VK, Inflection.POTENTIAL)
         rule("こさせる", "くる", V1, VK, Inflection.CAUSATIVE)
+        literaryNegatives("こ", "くる", VK)
+        rule("くるまい", "くる", FINAL, VK, Inflection.NEGATIVE_VOLITIONAL)
+        rule("こまい", "くる", FINAL, VK, Inflection.NEGATIVE_VOLITIONAL)
 
         // する, and nouns used as する verbs (勉強する -> 勉強 with class vs).
         rule("しない", "する", ADJ, VS, Inflection.NEGATIVE)
@@ -206,10 +227,14 @@ object Deinflector {
         rule("しろ", "する", FINAL, VS, Inflection.IMPERATIVE)
         rule("せよ", "する", FINAL, VS, Inflection.IMPERATIVE)
         rule("すれば", "する", FINAL, VS, Inflection.CONDITIONAL_BA)
+        rule("すりゃ", "する", FINAL, VS, Inflection.CONDITIONAL_BA)
         rule("しよう", "する", FINAL, VS, Inflection.VOLITIONAL)
         rule("される", "する", V1, VS, Inflection.PASSIVE)
         rule("させる", "する", V1, VS, Inflection.CAUSATIVE)
         rule("できる", "する", V1, VS, Inflection.POTENTIAL)
+        literaryNegatives("せ", "する", VS)
+        rule("するまい", "する", FINAL, VS, Inflection.NEGATIVE_VOLITIONAL)
+        rule("すまい", "する", FINAL, VS, Inflection.NEGATIVE_VOLITIONAL)
         rule("する", "", VS, VS, Inflection.SURU_VERB)
 
         // ずる verbs (信ずる).
@@ -232,6 +257,14 @@ object Deinflector {
         rule("さ", "い", FINAL, ADJ, Inflection.NOUN)
         rule("そう", "い", FINAL, ADJ, Inflection.SEEMINGLY)
         rule("すぎる", "い", V1, ADJ, Inflection.TOO_MUCH)
+        // Spoken contractions: なきゃ / なけりゃ (なければ), なくちゃ (なくては).
+        rule("きゃ", "い", FINAL, ADJ, Inflection.CONDITIONAL_BA)
+        rule("けりゃ", "い", FINAL, ADJ, Inflection.CONDITIONAL_BA)
+        rule("くちゃ", "い", FINAL, ADJ, Inflection.TE_WA)
+        rule("くっちゃ", "い", FINAL, ADJ, Inflection.TE_WA)
+        // The classical attributive of older books: 無き人, 美しき. (The final form 高し is left
+        // out: after a kanji it also reads katakana シ, as in 赤シャツ.)
+        rule("き", "い", FINAL, ADJ, Inflection.CLASSICAL)
 
         // Polite ます, which conjugates on its own.
         rule("ます", "", MASU, STEM, Inflection.POLITE)
@@ -274,6 +307,8 @@ object Deinflector {
             rule(te + "ほしい", te, ADJ, TE, Inflection.DESIRE_OF_OTHERS)
             rule(te + "くる", te, VK, TE, Inflection.DIRECTION)
             rule(te + "いく", te, V5, TE, Inflection.DIRECTION)
+            rule(te + "は", te, FINAL, TE, Inflection.TE_WA)
+            rule(if (voiced) "じゃ" else "ちゃ", te, FINAL, TE, Inflection.TE_WA)
         }
     }
 }

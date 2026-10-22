@@ -144,6 +144,35 @@ test('horizontal text works and rp/rt are skipped', async ({ page }) => {
   expect(message.sentenceOffset).toBe(5);
 });
 
+test('a tap on an opening bracket looks up the word after it and marks only that', async ({ page }) => {
+  await tapChar(page, '#v1', '「');
+
+  const [message] = await messages(page);
+  expect(message.text).toBe('吾輩は猫である。名前はまだ無い。」');
+  expect(message.sentence).toBe('「吾輩は猫である。');
+  expect(message.sentenceOffset).toBe(1);
+  expect(message.ruby).toEqual([{ start: 3, end: 4, reading: 'ねこ' }]);
+
+  await reply(page, { type: 'highlight', length: 2 });
+  expect(await highlighted(page)).toEqual(['吾輩']);
+});
+
+test('a line break ends the scanned text and the sentence', async ({ page }) => {
+  await tapChar(page, '#h4', '風');
+
+  const [message] = await messages(page);
+  expect(message.text).toBe('風ニモマケズ');
+  expect(message.sentence).toBe('風ニモマケズ');
+  expect(message.sentenceOffset).toBe(0);
+  expect(message.ruby).toBeUndefined();
+
+  // Furigana after a line break still lines up with the text.
+  await tapChar(page, '#h4', '雪');
+  const [, next] = await messages(page);
+  expect(next.text).toBe('雪ニモ');
+  expect(next.ruby).toEqual([{ start: 0, end: 1, reading: 'ゆき' }]);
+});
+
 test('characters outside the BMP are kept whole', async ({ page }) => {
   await tapChar(page, '#h2', '𠮟');
 

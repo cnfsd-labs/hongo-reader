@@ -43,4 +43,7 @@ fun Inflection.labelRes(): Int = when (this) {
     Inflection.ADVERB -> R.string.inflection_adverb
     Inflection.NOUN -> R.string.inflection_noun
     Inflection.SURU_VERB -> R.string.inflection_suru_verb
+    Inflection.NEGATIVE_VOLITIONAL -> R.string.inflection_negative_volitional
+    Inflection.TE_WA -> R.string.inflection_te_wa
+    Inflection.CLASSICAL -> R.string.inflection_classical
 }

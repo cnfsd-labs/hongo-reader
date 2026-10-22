@@ -369,6 +369,9 @@
     <string name="inflection_adverb">adverb (…-ly)</string>
     <string name="inflection_noun">noun (…-ness)</string>
     <string name="inflection_suru_verb">する verb (to do …)</string>
+    <string name="inflection_negative_volitional">まい (won\'t … / probably not …)</string>
+    <string name="inflection_te_wa">ては / ちゃ (if … / …-ing)</string>
+    <string name="inflection_classical">classical form</string>
 
     <string name="lookup_close">Close</string>
     <string name="lookup_nothing_found">No entry for “%1$s”.</string>

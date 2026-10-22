@@ -347,4 +347,123 @@ class DictionaryLookupTest {
         assertEquals("ふふん", hmph.entries.first().source)
         assertFalse(hmph.headwords().contains("ふふん"))
     }
+
+    @Test
+    fun repeatMarksVariationSelectorsAndWidthsAreNormalized() = runTest {
+        install(
+            "JMdict",
+            listOf("こころ", "こころ", "", 10, "heart"),
+            listOf("いすず", "いすず", "", 10, "Isuzu"),
+            listOf("葛", "くず", "", 10, "kudzu"),
+            listOf("ガラス", "がらす", "", 10, "glass"),
+            listOf("居る", "いる", "v1", 10, "to be"),
+        )
+
+        val heart = lookup.lookup("こゝろ")
+        assertEquals("こころ", heart.headwords().first())
+        assertEquals("こゝろ", heart.entries.first().source)
+        assertEquals("いすず", lookup.lookup("いすゞ").headwords().first())
+        // The selector stays part of the matched text, so the mark covers it.
+        val kudzu = lookup.lookup("葛󠄀の")
+        assertEquals("葛", kudzu.headwords().first())
+        assertEquals(3, kudzu.matchedLength)
+        assertEquals("ガラス", lookup.lookup("ｶﾞﾗｽ").headwords().first())
+        // ゐ of the old kana spelling.
+        assertEquals("居る", lookup.lookup("ゐる").headwords().first())
+    }
+
+    @Test
+    fun stretchedAndClippedWordsAreFound() = runTest {
+        install(
+            "JMdict",
+            listOf("凄い", "すごい", "adj-i", 10, "amazing"),
+            listOf("ねえ", "ねえ", "", 10, "hey"),
+            listOf("ね", "ね", "", 5, "right?"),
+            listOf("やば", "やば", "", 10, "yikes"),
+            listOf("ラーメン", "らーめん", "", 10, "ramen"),
+            listOf("らめん", "らめん", "", 10, "not a word"),
+        )
+
+        val amazing = lookup.lookup("すごーい！")
+        assertEquals("凄い", amazing.headwords().first())
+        assertEquals("すごーい", amazing.entries.first().source)
+        assertEquals("凄い", lookup.lookup("すごぉい").headwords().first())
+        val hey = lookup.lookup("ねぇ、")
+        assertEquals("ねえ", hey.headwords().first())
+        assertEquals("ねぇ", hey.entries.first().source)
+        val yikes = lookup.lookup("やばっ！")
+        assertEquals("やば", yikes.headwords().first())
+        assertEquals("やばっ", yikes.entries.first().source)
+        // っ before more kana is no clipped word.
+        assertEquals("やば", lookup.lookup("やばっか").entries.first().source)
+        // Katakana keeps its long-vowel mark.
+        assertEquals(listOf("ラーメン"), lookup.lookup("ラーメン").headwords())
+    }
+
+    @Test
+    fun katakanaAfterKanjiIsNotReadAsOkurigana() = runTest {
+        install(
+            "JMdict",
+            listOf("赤", "あか", "", 10, "red"),
+            listOf("赤い", "あかい", "adj-i", 10, "red"),
+            listOf("赤する", "あかする", "vs", 10, "not a word"),
+        )
+
+        val result = lookup.lookup("赤シャツ")
+        assertEquals(1, result.matchedLength)
+        assertEquals("赤", result.headwords().first())
+    }
+
+    @Test
+    fun extraOkuriganaOfOlderBooksIsDropped() = runTest {
+        install(
+            "JMdict",
+            listOf("驚く", "おどろく", "v5", 10, "to be surprised"),
+            listOf("見る", "みる", "v1", 10, "to see"),
+            listOf("見える", "みえる", "v1", 10, "to be seen"),
+            listOf("私", "わたし", "", 10, "I"),
+            listOf("私か", "わたしか", "", 10, "not a word"),
+        )
+
+        val surprised = lookup.lookup("驚ろいて、")
+        assertEquals("驚く", surprised.headwords().first())
+        assertEquals("驚ろいて", surprised.entries.first().source)
+        assertEquals(listOf(Inflection.TE), surprised.entries.first().inflections)
+        // Only when nothing longer than the kanji matched.
+        assertEquals("見える", lookup.lookup("見える").headwords().first())
+        // A particle is no okurigana.
+        assertEquals(listOf("私"), lookup.lookup("私はか").headwords())
+    }
+
+    @Test
+    fun furiganaThatIsNoReadingOfTheWordLooksUpTheWordItNames() = runTest {
+        install(
+            "JMdict",
+            listOf("宅", "たく", "", 10, "house (formal)"),
+            listOf("家", "うち", "", 10, "home"),
+            listOf("失策", "しっさく", "vs", 10, "blunder"),
+            listOf("仕舞う", "しまう", "v5", 10, "to finish"),
+            listOf("島", "しま", "", 10, "island"),
+            listOf("停車場", "ていしゃじょう", "", 10, "station"),
+            listOf("ステーション", "ステーション", "", 10, "station"),
+        )
+
+        val station = lookup.lookup("停車場へ", ruby = listOf(RubySpan(0, 3, "ステーション")))
+        assertEquals(listOf("ステーション", "停車場"), station.headwords())
+
+        val home = lookup.lookup("宅へ", ruby = listOf(RubySpan(0, 1, "うち")))
+        assertEquals(listOf("家", "宅"), home.headwords())
+        assertEquals(listOf("宅", "宅"), home.entries.map { it.source })
+        assertTrue(home.entries.first().matchesFurigana)
+
+        // The kana after the base belong to the furigana's word: 失策った read しまった.
+        val blunder = lookup.lookup("失策った", ruby = listOf(RubySpan(0, 2, "しま")))
+        assertEquals("仕舞う", blunder.headwords().first())
+        assertEquals("失策った", blunder.entries.first().source)
+        assertFalse("島" in blunder.headwords())
+
+        // Furigana that agrees with an entry looks up nothing more.
+        val formal = lookup.lookup("宅へ", ruby = listOf(RubySpan(0, 1, "たく")))
+        assertEquals(listOf("宅"), formal.headwords())
+    }
 }

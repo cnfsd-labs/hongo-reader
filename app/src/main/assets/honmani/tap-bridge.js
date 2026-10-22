@@ -13,7 +13,8 @@
  *   { "type": "dismiss" }   (a tap on book content that is not on text)
  *
  * Furigana (<rt>, <rp>) is not part of the scanned text. Scanning stops at the end of the
- * tapped paragraph.
+ * tapped paragraph and at a line break (<br>). A tap on an opening bracket or quote scans from
+ * the character after it.
  *
  * Messages from the app (replies on the same object):
  *
@@ -40,10 +41,14 @@
   const INTERACTIVE_SELECTOR = 'a, button, input, textarea, select, [role="button"]';
   const SENTENCE_END = '。！？!?…\n';
   const CLOSING_QUOTES = '」』）〉》】"\'';
+  const OPENING_BRACKETS = '「『（(〈《【〔［｛“‘〝"\'';
   const HIGHLIGHT_NAME = 'honmani-lookup';
   const OVERLAY_ID = 'honmani-highlight-overlay';
 
-  /** Where the last lookup started: { block, node, index }. */
+  /**
+   * Where the last lookup started: { block, node, index, skip }, `skip` being the opening brackets
+   * between the tapped character and the scanned text.
+   */
   let lastTap = null;
 
   /** The fallback mark: { ranges, background }, or null. */
@@ -123,17 +128,34 @@
     return null;
   }
 
+  /** Like textWalker, but also stops at <br> elements. */
+  function lineWalker(block) {
+    return document.createTreeWalker(block, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, {
+      acceptNode: (node) => {
+        if (node.nodeType === Node.ELEMENT_NODE) {
+          return node.tagName === 'BR' ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
+        }
+        return isSkipped(node) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT;
+      },
+    });
+  }
+
   /**
-   * Text of `block` without furigana, the index of (node, index) within it, and the ruby bases in
-   * it as { start, end, reading } (indexes into the text).
+   * Text of `block` without furigana (a <br> as "\n"), the index of (node, index) within it, and
+   * the ruby bases in it as { start, end, reading } (indexes into the text).
    */
   function blockText(block, node, index) {
-    const walker = textWalker(block);
+    const walker = lineWalker(block);
     let text = '';
     let position = -1;
     const ruby = [];
     let lastRt = null;
     for (let current = walker.nextNode(); current; current = walker.nextNode()) {
+      if (current.nodeType === Node.ELEMENT_NODE) {
+        text += '\n';
+        lastRt = null;
+        continue;
+      }
       if (current === node) position = text.length + index;
       const rt = rubyTextFor(current, block);
       if (rt && rt === lastRt) {
@@ -203,13 +225,15 @@
     const { text: paragraph, position, ruby: paragraphRuby } = blockText(block, caret.node, index);
     if (position < 0) return null;
 
-    const text = takeCodePoints(paragraph.slice(position), SCAN_LENGTH);
+    let start = position;
+    while (start < paragraph.length && OPENING_BRACKETS.includes(paragraph[start])) start++;
+    const text = takeCodePoints(paragraph.slice(start), SCAN_LENGTH).split('\n')[0];
     if (!text.trim() || /^\s/.test(text)) return null;
 
-    const { sentence, offset } = sentenceAround(paragraph, position);
-    lastTap = { block, node: caret.node, index };
+    const { sentence, offset } = sentenceAround(paragraph, start);
+    lastTap = { block, node: caret.node, index, skip: start - position };
     const message = { type: 'lookup', text, sentence, sentenceOffset: offset };
-    const ruby = rubyWithin(paragraphRuby, position, text.length);
+    const ruby = rubyWithin(paragraphRuby, start, text.length);
     if (ruby.length > 0) message.ruby = ruby;
     return message;
   }
@@ -278,6 +302,19 @@
     const ranges = [];
     let node = lastTap.node;
     let offset = lastTap.index;
+    // Past the opening brackets the scan skipped.
+    let skip = lastTap.skip;
+    while (node && skip > 0) {
+      const available = node.data.length - offset;
+      if (skip < available) {
+        offset += skip;
+        skip = 0;
+      } else {
+        skip -= available;
+        node = walker.nextNode();
+        offset = 0;
+      }
+    }
     let remaining = length;
     while (node && remaining > 0) {
       const take = Math.min(remaining, node.data.length - offset);

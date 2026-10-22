@@ -72,6 +72,9 @@ repository is public: never copy those notes, personal details or discussions in
   `scripts/check-apk.sh <apk>`.
 - `cd web-tests && npm ci && npx playwright install --with-deps chromium && npx playwright test`
   (needs `:app:buildTtu` output, or `TTU_DIR=...`).
+- Lookup against a real dictionary: `scripts/lookup-coverage/export_terms.py <honmani.db>` (from a
+  debug build), then `LookupCoverageCheck` taps through the sample books and writes
+  `app/build/lookup-coverage/report.txt` (skipped without the export, so CI skips it).
 - CI (`.github/workflows/android.yml`) runs all of this on every push and cancels the running
   build: don't push while someone waits for an APK.
 - **Test APKs:** artifact `honmani-test-apks` of a green run → `app-internal.apk`. Every run signs

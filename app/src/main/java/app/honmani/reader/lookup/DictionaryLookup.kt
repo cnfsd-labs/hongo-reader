@@ -115,41 +115,61 @@ class DictionaryLookup(
             return LookupResult(emptyList(), dictionariesAvailable = false)
         }
 
-        val candidates = candidates(text, maxLength)
-        val candidatesByText = candidates.groupBy { it.deinflection.text }
-        val terms = candidatesByText.keys.chunked(MAX_LOOKUP_TEXTS)
-            .flatMap { termDao.findByExpressionOrReading(it) }
-            .distinctBy { it.id }
-
         val readingPrefixes = HashMap<String, String?>()
         fun readingPrefix(source: String) =
             readingPrefixes.getOrPut(source) { Furigana.readingPrefix(source, ruby) }
 
-        val matched = terms.mapNotNull { term ->
-            val dictionary = dictionaries[term.dictionaryId] ?: return@mapNotNull null
-            val termClasses = WordClass.fromRules(term.rules)
-            val matches = (candidatesByText[term.expression].orEmpty().map { it to true }) +
-                (candidatesByText[term.reading].orEmpty().map { it to false })
-            matches
-                .filter { (candidate, _) -> candidate.deinflection.fits(termClasses) }
-                .maxWithOrNull(matchOrder)
-                ?.let { (candidate, matchedExpression) ->
-                    LookupEntry(
-                        term = term,
-                        dictionary = dictionary,
-                        source = candidate.source,
-                        inflections = candidate.deinflection.inflections,
-                        matchedExpression = matchedExpression,
-                        matchesFurigana = readingPrefix(candidate.source)?.let { prefix ->
-                            Furigana.agrees(prefix, term.reading.ifEmpty { term.expression })
-                        } ?: false,
-                    )
-                }
+        suspend fun match(candidates: List<Candidate>): List<LookupEntry> {
+            val candidatesByText = candidates.groupBy { it.deinflection.text }
+            val terms = candidatesByText.keys.chunked(MAX_LOOKUP_TEXTS)
+                .flatMap { termDao.findByExpressionOrReading(it) }
+                .distinctBy { it.id }
+            return terms.mapNotNull { term ->
+                val dictionary = dictionaries[term.dictionaryId] ?: return@mapNotNull null
+                val termClasses = WordClass.fromRules(term.rules)
+                val matches = (candidatesByText[term.expression].orEmpty().map { it to true }) +
+                    (candidatesByText[term.reading].orEmpty().map { it to false })
+                matches
+                    .filter { (candidate, _) -> candidate.deinflection.fits(termClasses) }
+                    .maxWithOrNull(matchOrder)
+                    ?.let { (candidate, matchedExpression) ->
+                        LookupEntry(
+                            term = term,
+                            dictionary = dictionary,
+                            source = candidate.source,
+                            inflections = candidate.deinflection.inflections,
+                            matchedExpression = matchedExpression,
+                            matchesFurigana = readingPrefix(candidate.source)?.let { prefix ->
+                                Furigana.agrees(prefix, term.reading.ifEmpty { term.expression })
+                            } ?: false,
+                        )
+                    }
+            }
         }
+
         // Only the entries that matched are unpacked.
-        val unpackedEntries = matched.map { it.copy(term = unpacked(it.term, it.dictionary)) }
-        val (entries, pointers) = followPointers(unpackedEntries) { source, reading ->
-            readingPrefix(source)?.let { Furigana.agrees(it, reading) } ?: false
+        suspend fun resolved(matched: List<LookupEntry>) =
+            followPointers(matched.map { it.copy(term = unpacked(it.term, it.dictionary)) }) { source, reading ->
+                readingPrefix(source)?.let { Furigana.agrees(it, reading) } ?: false
+            }
+
+        var matched = match(candidates(text, maxLength))
+        // Older books write more okurigana than dictionaries do (驚ろいて, 困まる): if nothing
+        // longer than the leading kanji matched, try again without the kana right after them.
+        val kanjiEnd = leadingKanjiEnd(text)
+        if (kanjiEnd > 0 && (matched.maxOfOrNull { it.source.length } ?: 0) <= kanjiEnd) {
+            matched = (matched + match(candidates(text, maxLength, dropKanaAt = kanjiEnd))).distinctBy { it.term.id }
+        }
+        var (entries, pointers) = resolved(matched)
+        // Furigana that is no reading of the word as written names the word meant: 宅 read うち
+        // is 家, 本気 read マジ is マジ. Then the furigana's word is looked up too, its longest
+        // match only (not every word read like the first kana).
+        val byFurigana = match(furiganaCandidates(text, ruby, entries))
+        if (byFurigana.isNotEmpty()) {
+            val longest = byFurigana.maxOf { it.source.length }
+            val (moreEntries, morePointers) = resolved(byFurigana.filter { it.source.length == longest })
+            entries = (entries + moreEntries.map { it.copy(matchesFurigana = true) }).distinctBy { it.term.id }
+            pointers = pointers + morePointers
         }
         val meta = meta(entries, dictionaries)
         val order = compareByDescending<LookupEntry> { it.source.length }
@@ -286,20 +306,84 @@ class DictionaryLookup(
     private fun formatNumber(value: Double): String =
         if (value == Math.floor(value) && value < 1e15) value.toLong().toString() else value.toString()
 
-    /** Prefixes of [text] (whole code points, longest first) with their deinflections. */
-    private fun candidates(text: String, maxLength: Int): List<Candidate> {
-        val codePoints = text.codePoints().toArray()
-        val ends = (minOf(codePoints.size, maxLength) downTo 1)
-            .map { String(codePoints, 0, it) }
-            .filter { it.isNotBlank() }
-        return ends.flatMap { source ->
-            val variants = buildSet {
-                add(source)
-                if (JapaneseText.containsKatakana(source)) add(JapaneseText.toHiragana(source))
+    /**
+     * Candidates for the furigana's own word, when furigana starts [text] and none of the
+     * [entries] that hold its base agrees with it: the furigana followed by the hiragana after the
+     * base (失策 read しま + った is しまった), matched as the base and that hiragana. None if the
+     * furigana is not all kana (emphasis dots, glosses).
+     */
+    private fun furiganaCandidates(text: String, ruby: List<RubySpan>, entries: List<LookupEntry>): List<Candidate> {
+        val first = ruby.firstOrNull()?.takeIf { it.start == 0 && it.end <= text.length } ?: return emptyList()
+        if (entries.any { it.source.length >= first.end && it.matchesFurigana }) return emptyList()
+        if (!first.reading.all(JapaneseText::isKana)) return emptyList()
+        var kanaEnd = first.end
+        while (kanaEnd < text.length && JapaneseText.isHiragana(text[kanaEnd]) && ruby.none { it.start == kanaEnd }) kanaEnd++
+        // Katakana furigana as written too: dictionaries read ステーション in katakana.
+        val readings = setOf(first.reading, JapaneseText.toHiragana(first.reading))
+        return (kanaEnd downTo first.end).flatMap { end ->
+            readings.flatMap { reading ->
+                Deinflector.deinflect(reading + text.substring(first.end, end)).map { Candidate(text.substring(0, end), it) }
             }
-            variants.flatMap { variant -> Deinflector.deinflect(variant).map { Candidate(source, it) } }
         }
     }
+
+    /**
+     * Where the kana after the kanji that start [text] begin (as a UTF-16 index), or 0 if [text]
+     * does not start with kanji followed by a hiragana that could be okurigana: a particle (私は)
+     * is none.
+     */
+    private fun leadingKanjiEnd(text: String): Int {
+        var end = 0
+        while (end < text.length) {
+            val codePoint = text.codePointAt(end)
+            if (!JapaneseText.isKanji(codePoint) && codePoint != '々'.code) break
+            end += Character.charCount(codePoint)
+        }
+        val okurigana = end > 0 && end < text.length && JapaneseText.isHiragana(text[end]) && text[end] !in PARTICLES
+        return if (okurigana) end else 0
+    }
+
+    /**
+     * Prefixes of [text] (whole code points, longest first) with their deinflections, each also
+     * normalized ([JapaneseText.normalize]), in hiragana and without emphasis
+     * ([JapaneseText.emphaticForms]). With [dropKanaAt] (a UTF-16 index of a kana), only the
+     * prefixes that go past it, without that kana.
+     */
+    private fun candidates(text: String, maxLength: Int, dropKanaAt: Int? = null): List<Candidate> {
+        val codePoints = text.codePoints().toArray()
+        val drop = dropKanaAt?.let { text.codePointCount(0, it) }
+        val ends = (minOf(codePoints.size, maxLength) downTo 1)
+            .filter { String(codePoints, 0, it).isNotBlank() }
+            // At least one more kana after the dropped one (困ま alone is no 困), and only kana.
+            .filter { end ->
+                drop == null ||
+                    end > drop + 1 && (drop + 1 until end).all { JapaneseText.isHiragana(codePoints[it].toChar()) }
+            }
+        return ends.flatMap { end ->
+            val written = String(codePoints, 0, end)
+            val looked = if (drop == null) written else String(codePoints, 0, drop) + String(codePoints, drop + 1, end - drop - 1)
+            // A clipped word (痛っ) ends the text or comes before punctuation, never before more kana.
+            val clipped = end == codePoints.size || !isWordCharacter(codePoints[end])
+            val variants = buildSet {
+                val normalized = JapaneseText.normalize(looked)
+                add(looked)
+                add(normalized)
+                // Only on the text as written: katakana words in hiragana would lose their ー
+                // (ノート is no のと).
+                addAll(JapaneseText.emphaticForms(normalized, clipped))
+                // Katakana words (ハマる) also in hiragana, but not after kanji: 赤シ is no 赤し.
+                if (JapaneseText.containsKatakana(normalized) && normalized.codePoints().noneMatch(JapaneseText::isKanji)) {
+                    add(JapaneseText.toHiragana(normalized))
+                }
+            }
+            variants.filter { it.isNotBlank() }
+                .flatMap { variant -> Deinflector.deinflect(variant).map { Candidate(written, it) } }
+        }
+    }
+
+    private fun isWordCharacter(codePoint: Int): Boolean =
+        JapaneseText.isKanji(codePoint) || codePoint == '々'.code ||
+            (Character.isBmpCodePoint(codePoint) && JapaneseText.isKana(codePoint.toChar()))
 
     private fun Deinflection.fits(termClasses: Int): Boolean =
         conditions == WordClass.ANY || conditions and termClasses != 0
@@ -307,6 +391,9 @@ class DictionaryLookup(
     private companion object {
         /** Matches the tap bridge's scan length. */
         const val MAX_SOURCE_LENGTH = 20
+
+        /** Hiragana after a kanji that are particles rather than okurigana. */
+        const val PARTICLES = "はがをにへとでものや"
 
         /** Better match for one term: longer source, then fewer inflections, then written form. */
         val matchOrder: Comparator<Pair<Candidate, Boolean>> =
