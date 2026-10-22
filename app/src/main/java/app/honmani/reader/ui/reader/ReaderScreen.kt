@@ -23,6 +23,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -53,7 +54,9 @@ import app.honmani.reader.ui.progress.ProgressTab
 import app.honmani.reader.ui.settings.ReaderSettingsScreen
 import app.honmani.reader.ui.settings.SettingsScreen
 import app.honmani.reader.ui.words.WordsScreen
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 
 /**
  * The app's home: the library, words, dictionaries and settings tabs, and ッツ Ebook Reader with
@@ -138,6 +141,12 @@ private fun ReaderWithTabs(viewModel: ReaderViewModel) {
         viewModel.ankiResults.collect { (expression, result) -> showAnkiResult(context, expression, result) }
     }
 
+    // While a book is open: the words being learned, so marks follow lookups (word-marks.js).
+    val learning by produceState<Set<String>?>(null, atLibrary) {
+        value = null
+        if (!atLibrary) container.wordKnowledge.map { it.learning }.distinctUntilChanged().collect { value = it }
+    }
+
     // The book's background, also behind the status and navigation bars while a book is shown.
     var bookBackground by remember { mutableStateOf<Color?>(null) }
     val frame = bookBackground.takeIf { !atLibrary && !readerSettings }
@@ -174,6 +183,8 @@ private fun ReaderWithTabs(viewModel: ReaderViewModel) {
                     if (it) viewModel.dismiss()
                 },
                 onBackground = { bookBackground = Color(it) },
+                marks = { texts, mode -> container.wordMarker.mark(texts, mode) },
+                marksKey = learning,
                 modifier = Modifier
                     .fillMaxSize()
                     .windowInsetsPadding(WindowInsets.safeDrawing),

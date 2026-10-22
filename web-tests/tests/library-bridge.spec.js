@@ -432,6 +432,79 @@ test('the progress bar stays off when the reader turned it off', async ({ page }
   await expect(page.locator('#honmani-progress')).toHaveCount(0);
 });
 
+/** The bridge object with replies, as WebView's: the app's answers go to its message listeners. */
+async function withReplies(page) {
+  await page.addInitScript(() => {
+    const listeners = [];
+    window.honmani.addEventListener = (type, listener) => listeners.push(listener);
+    window.__reply = (message) => listeners.forEach((listener) => listener({ data: JSON.stringify(message) }));
+  });
+}
+
+/** Opens `name` with word marks on, in `mode` (null: the default), and waits for the book. */
+async function openWithMarks(page, name, mode) {
+  await setUp(page);
+  await withReplies(page);
+  if (mode) await page.addInitScript((mode) => window.localStorage.setItem('honmaniWordMarks', mode), mode);
+  await page.addInitScript({ path: path.join(ASSETS, 'word-marks.js') });
+  await page.goto(`${server.url}/manage`);
+  const book = await ensure(page, name);
+  await page.goto(`${server.url}/b?id=${book.id}`);
+  await expect(page.locator('div.fixed.inset-0.text-7xl')).toHaveCount(0, { timeout: 5_000 });
+}
+
+const markRequests = (page) => page.evaluate(() => window.__messages.filter((m) => m.type === 'marks.request'));
+
+/** The text each word-mark highlight covers. */
+const marked = (page) =>
+  page.evaluate(() =>
+    Object.fromEntries(
+      ['honmani-learning', 'honmani-new'].map((name) => [name, [...(CSS.highlights.get(name) ?? [])].map((range) => range.toString())]),
+    ),
+  );
+
+test('word marks: the page asks about the paragraphs on screen and marks what the app answers', async ({ page }) => {
+  await openWithMarks(page, 'neko.epub', null);
+
+  await expect.poll(async () => (await markRequests(page)).flatMap((m) => m.blocks.map((b) => b.text))).toContain('吾輩は猫である。名前はまだ無い。');
+  const request = (await markRequests(page)).find((m) => m.blocks.some((b) => b.text.startsWith('吾輩')));
+  expect(request.mode).toBe('learning');
+  const block = request.blocks.find((b) => b.text.startsWith('吾輩'));
+  await page.evaluate(
+    ([requestId, id]) => window.__reply({ type: 'marks', requestId, color: '#e91e63', blocks: [{ id, marks: [[0, 2, 0], [3, 1, 1]] }] }),
+    [request.requestId, block.id],
+  );
+  await expect.poll(() => marked(page)).toEqual({ 'honmani-learning': ['吾輩'], 'honmani-new': ['猫'] });
+
+  // The reader's words changed: the marks go, and the paragraphs on screen are asked about again.
+  const before = (await markRequests(page)).length;
+  await page.evaluate(() => window.__reply({ type: 'marks.reset' }));
+  await expect.poll(() => marked(page)).toEqual({ 'honmani-learning': [], 'honmani-new': [] });
+  await expect.poll(async () => (await markRequests(page)).length).toBeGreaterThan(before);
+});
+
+test('word marks leave furigana out of the text and the marks', async ({ page }) => {
+  await openWithMarks(page, 'ruby.epub', 'new');
+
+  await expect.poll(async () => (await markRequests(page)).length).toBeGreaterThan(0);
+  const request = (await markRequests(page))[0];
+  expect(request.mode).toBe('new');
+  const block = request.blocks.find((b) => b.text.startsWith('第1段落。'));
+  expect(block.text.startsWith('第1段落。吾輩は猫である。吾輩は')).toBe(true);
+  await page.evaluate(
+    ([requestId, id]) => window.__reply({ type: 'marks', requestId, blocks: [{ id, marks: [[5, 4, 0]] }] }),
+    [request.requestId, block.id],
+  );
+  // 吾輩は猫 spans a ruby base, plain text and another base: three ranges, no furigana.
+  await expect.poll(() => marked(page)).toEqual({ 'honmani-learning': ['吾輩', 'は', '猫'], 'honmani-new': [] });
+});
+
+test('word marks ask nothing when the reader turned them off', async ({ page }) => {
+  await openWithMarks(page, 'neko.epub', 'off');
+  await page.waitForTimeout(500);
+  expect(await markRequests(page)).toEqual([]);
+});
+
 test('every sample book imports into ttu with its title, and the first one opens', async ({ page }) => {
   await setUp(page);
   await page.goto(`${server.url}/manage`);

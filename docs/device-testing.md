@@ -66,6 +66,22 @@ the page Honmani showed). Read on in KOReader, then open the book in Honmani: it
 at …% from …" and shows the page KOReader was on. Books converted from Aozora text files only
 match if both devices have the same EPUB.
 
+Away from the server (mobile data with a home server, or flight mode): read a few pages in
+Honmani, go back to the library, then reconnect (or restart Honmani on the home Wi-Fi). Without
+opening the book again, KOReader then offers Honmani's last page. Going back: read further in
+Honmani offline, open the book in KOReader at its older place and close it, reconnect, open the
+book in Honmani: it asks "Where to continue?"; "Stay at …" keeps Honmani's page and KOReader
+offers it next time, "Go to …" jumps back.
+
+## Word marks and known words
+
+Reader settings → Mark words. "Learning" (the default): look up a word, turn a page or two and
+come back: the word and its other forms (食べた, 食べない) have a light accent tint; after
+"Learned" in Words it loses it. "+ New" adds a grey tint on rarer words never met in your
+reading (too many or too few?). "Off" shows none. The first marks after opening Honmani take a
+few seconds (the dictionaries are read). Book sheet, after some reading in graded books: "You
+know about N% of its words; about M are new to you", higher for easy books.
+
 ## Known limitations (no need to report)
 
 - Diagnostics show "Failed to register a ServiceWorker": ttu tries to install its offline cache,

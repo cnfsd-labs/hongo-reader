@@ -559,6 +559,13 @@
     <string name="reader_settings_page_turns">Page turns</string>
     <string name="reader_settings_pages">Pages</string>
     <string name="reader_settings_scrolling">Scrolling</string>
+    <string name="reader_settings_word_marks">Mark words</string>
+    <string name="reader_settings_word_marks_off">Off</string>
+    <string name="reader_settings_word_marks_learning">Learning</string>
+    <string name="reader_settings_word_marks_new">+ New</string>
+    <string name="reader_settings_word_marks_off_details">No words are marked.</string>
+    <string name="reader_settings_word_marks_learning_details">Words you looked up and are still learning get a light tint in your accent colour, until you know them.</string>
+    <string name="reader_settings_word_marks_new_details">Words you are learning, and in grey the words that are probably new to you: never met in your reading and rarer than your vocabulary.</string>
     <string name="reader_settings_furigana">Furigana</string>
     <string name="reader_settings_progress">Progress at the bottom</string>
     <string name="reader_settings_progress_details">Characters read and percentage</string>

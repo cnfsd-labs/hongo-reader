@@ -1,5 +1,6 @@
 package app.honmani.reader.ui.reader
 
+import app.honmani.reader.data.words.WordMarksMode
 import app.honmani.reader.lookup.RubySpan
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
@@ -35,6 +36,13 @@ sealed interface BridgeMessage {
     /** The book page's background colour, opaque ARGB (`assets/honmani/book-frame.js`). */
     data class Background(val color: Int) : BridgeMessage
 
+    /** Paragraphs near the screen whose words to mark (`assets/honmani/word-marks.js`). */
+    data class Marks(val requestId: Long, val mode: WordMarksMode, val blocks: List<MarksBlock>) : BridgeMessage
+
+    /** A paragraph's text without furigana, and the page's id for it. */
+    @Serializable
+    data class MarksBlock(val id: Long = 0, val text: String = "")
+
     companion object {
         /** Parses a bridge message, or returns null for anything unknown or malformed. */
         fun parse(message: String?): BridgeMessage? =
@@ -44,6 +52,7 @@ sealed interface BridgeMessage {
                 ?: parseBookShown(message)
                 ?: parsePosition(message)
                 ?: parseBackground(message)
+                ?: parseMarks(message)
                 ?: Activity.takeIf { message?.replace(" ", "") == ACTIVITY_MESSAGE }
                 ?: SettingsShown.takeIf { message?.replace(" ", "") == SETTINGS_SHOWN_MESSAGE }
                 ?: OpenSettings.takeIf { message?.replace(" ", "") == OPEN_SETTINGS_MESSAGE }
@@ -107,7 +116,34 @@ sealed interface BridgeMessage {
             return if (valid) Background(digits.toInt(16) or 0xFF000000.toInt()) else null
         }
 
+        @Serializable
+        private data class MarksEnvelope(
+            val type: String = "",
+            val requestId: Long = 0,
+            val mode: String = "",
+            val blocks: List<MarksBlock> = emptyList(),
+        )
+
+        private fun parseMarks(message: String?): Marks? {
+            if (message == null || message.length > MAX_MARKS_LENGTH || "marks.request" !in message) return null
+            val envelope = try {
+                bookShownJson.decodeFromString<MarksEnvelope>(message)
+            } catch (_: SerializationException) {
+                return null
+            } catch (_: IllegalArgumentException) {
+                return null
+            }
+            if (envelope.type != "marks.request" || envelope.blocks.size > MAX_MARKS_BLOCKS) return null
+            val blocks = envelope.blocks.filter { it.text.length <= MAX_MARKS_TEXT }
+            return Marks(envelope.requestId, WordMarksMode.fromStorage(envelope.mode), blocks)
+        }
+
         private const val MAX_BOOK_SHOWN_LENGTH = 200
+
+        /** Generous bounds: the page sends up to about 6,000 characters, 4,000 per paragraph. */
+        private const val MAX_MARKS_LENGTH = 64_000
+        private const val MAX_MARKS_BLOCKS = 500
+        private const val MAX_MARKS_TEXT = 8_000
         private const val SETTINGS_SHOWN_MESSAGE = """{"type":"pageShown","path":"/settings"}"""
         private const val OPEN_SETTINGS_MESSAGE = """{"type":"reader.settings"}"""
         private const val ACTIVITY_MESSAGE = """{"type":"reader.activity"}"""

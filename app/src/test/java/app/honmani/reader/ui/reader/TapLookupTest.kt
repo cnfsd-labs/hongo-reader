@@ -1,5 +1,6 @@
 package app.honmani.reader.ui.reader
 
+import app.honmani.reader.data.words.WordMarksMode
 import app.honmani.reader.lookup.RubySpan
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -112,5 +113,21 @@ class TapLookupTest {
         assertNull(BridgeMessage.parse("""{"type":"bookShown","id":"x"}"""))
         assertNull(BridgeMessage.parse("""{"type":"highlight","length":2}"""))
         assertNull(BridgeMessage.parse(null))
+    }
+
+    @Test
+    fun bridgeMessage_parsesMarkRequests() {
+        val request = """{"type":"marks.request","requestId":4,"mode":"new","blocks":[{"id":1,"text":"猫だ。"},{"id":2,"text":"}{"}]}"""
+
+        assertEquals(
+            BridgeMessage.Marks(4, WordMarksMode.NEW, listOf(BridgeMessage.MarksBlock(1, "猫だ。"), BridgeMessage.MarksBlock(2, "}{"))),
+            BridgeMessage.parse(request),
+        )
+        // An unknown mode is the default.
+        assertEquals(
+            BridgeMessage.Marks(5, WordMarksMode.LEARNING, emptyList()),
+            BridgeMessage.parse("""{"type":"marks.request","requestId":5,"mode":"x","blocks":[]}"""),
+        )
+        assertNull(BridgeMessage.parse("""{"type":"marks.request","blocks":"x"}"""))
     }
 }

@@ -1,0 +1,303 @@
+/*
+ * Word marks, injected at document start into the ッツ Ebook Reader (ttu) WebView: on the book
+ * page, words the reader is learning (looked up, not known yet) and, if chosen, words probably
+ * new to them get a tint. localStorage "honmaniWordMarks" (Honmani's reader settings) is "off",
+ * "learning" (the default) or "new" (learning and new words).
+ *
+ * The app splits the text into words (the splitter that grades books) and knows the reader's
+ * words, so the page asks it about the paragraphs near the screen, a few at a time:
+ *
+ *   { type: 'marks.request', requestId, mode, blocks: [{ id, text }] }
+ *     text: the paragraph without furigana (<rt>, <rp>), as the tap bridge reads it
+ *
+ * and the app answers on the same object:
+ *
+ *   { type: 'marks', requestId, color: '#rrggbb', blocks: [{ id, marks: [[start, length, kind]] }] }
+ *     kind 0: learning, 1: new; start and length in UTF-16 units of text; color: the app's
+ *     accent, for the learning words' tint
+ *   { type: 'marks.reset' }   the reader's words changed: paragraphs are asked about again
+ *
+ * Marks use the CSS Custom Highlight API (Chromium 105+), so ttu's DOM, its character counts
+ * and layout are never touched; older WebViews show no marks. The lookup mark (tap-bridge.js)
+ * is drawn above them.
+ */
+(() => {
+  'use strict';
+
+  if (window.__honmaniWordMarks) return;
+  window.__honmaniWordMarks = true;
+
+  const MODE_KEY = 'honmaniWordMarks';
+  const BOOK_ROOT_SELECTOR = '.book-content';
+  const SKIPPED_SELECTOR = 'rt, rp, script, style';
+  const NAMES = ['honmani-learning', 'honmani-new'];
+  /** Paragraphs this far from the screen (in screens) are asked about before they show. */
+  const AHEAD = '100%';
+  const MAX_BATCH_TEXT = 6_000;
+  const MAX_BLOCK_TEXT = 4_000;
+  const BATCH_DELAY_MS = 80;
+
+  if (!(window.CSS && CSS.highlights && window.Highlight)) return;
+
+  function mode() {
+    try {
+      const value = window.localStorage.getItem(MODE_KEY);
+      return value === 'off' || value === 'new' ? value : 'learning';
+    } catch (error) {
+      return 'learning';
+    }
+  }
+
+  function isBookPage() {
+    return location.pathname.startsWith('/b');
+  }
+
+  /** A block's text nodes with where each starts in its text, by block. */
+  const blocks = new Map();
+  /** Block elements by id, and ids by element. */
+  const elements = new Map();
+  const ids = new WeakMap();
+  let nextId = 1;
+  let nextRequest = 1;
+  let root = null;
+  let observer = null;
+  let mutations = null;
+  let queue = new Set();
+  let timer = 0;
+  /** Bumped by a reset: answers to older requests are dropped. */
+  let generation = 0;
+  const pending = new Map();
+  const highlights = NAMES.map(() => new Highlight());
+  // Below the lookup mark.
+  for (const highlight of highlights) highlight.priority = -1;
+
+  function setColor(color) {
+    const hex = /^#([0-9a-fA-F]{6})$/.exec(color || '');
+    const value = hex ? parseInt(hex[1], 16) : 0xffc400;
+    const rgb = `${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255}`;
+    let style = document.getElementById('honmani-marks-style');
+    if (!style) {
+      style = document.createElement('style');
+      style.id = 'honmani-marks-style';
+      (document.head || document.documentElement).appendChild(style);
+    }
+    style.textContent =
+      `::highlight(${NAMES[0]}) { background-color: rgba(${rgb}, 0.28); }\n` +
+      `::highlight(${NAMES[1]}) { background-color: rgba(128, 128, 128, 0.2); }`;
+  }
+
+  function isSkipped(node) {
+    const parent = node.parentElement;
+    return !parent || parent.closest(SKIPPED_SELECTOR) !== null;
+  }
+
+  const blockCache = new WeakMap();
+  function isBlock(element) {
+    let block = blockCache.get(element);
+    if (block === undefined) {
+      const display = getComputedStyle(element).display;
+      block = !display.startsWith('inline') && !display.startsWith('ruby') && display !== 'contents';
+      blockCache.set(element, block);
+    }
+    return block;
+  }
+
+  function blockAncestor(node) {
+    for (let element = node.parentElement; element && element !== root; element = element.parentElement) {
+      if (isBlock(element)) return element;
+    }
+    return root;
+  }
+
+  /** Groups the book's text into paragraphs and watches which come near the screen. */
+  function scan() {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode: (node) => (isSkipped(node) || !node.data.trim() ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
+    });
+    const found = new Map();
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const block = blockAncestor(node);
+      if (!found.has(block)) found.set(block, []);
+      found.get(block).push(node);
+    }
+    for (const [element, nodes] of found) {
+      let id = ids.get(element);
+      if (id === undefined) {
+        id = nextId++;
+        ids.set(element, id);
+        elements.set(id, element);
+        observer.observe(element);
+      }
+      blocks.set(id, nodes);
+    }
+  }
+
+  function textOf(id) {
+    return (blocks.get(id) || []).map((node) => node.data).join('');
+  }
+
+  function send() {
+    timer = 0;
+    const app = window.honmani;
+    if (!app || queue.size === 0) return;
+    const wanted = mode();
+    if (wanted === 'off') {
+      queue.clear();
+      return;
+    }
+    let size = 0;
+    const batch = [];
+    for (const id of queue) {
+      const text = textOf(id).slice(0, MAX_BLOCK_TEXT);
+      if (batch.length > 0 && size + text.length > MAX_BATCH_TEXT) break;
+      queue.delete(id);
+      if (!text.trim()) continue;
+      batch.push({ id, text });
+      size += text.length;
+    }
+    if (batch.length > 0) {
+      const requestId = nextRequest++;
+      pending.set(requestId, { generation, texts: new Map(batch.map((block) => [block.id, block.text])) });
+      app.postMessage(JSON.stringify({ type: 'marks.request', requestId, mode: wanted, blocks: batch }));
+    }
+    if (queue.size > 0) timer = setTimeout(send, BATCH_DELAY_MS);
+  }
+
+  function ask(id) {
+    queue.add(id);
+    if (!timer) timer = setTimeout(send, BATCH_DELAY_MS);
+  }
+
+  /** Ranges for text[start, start + length) of block `id`, one per text node (furigana between stays unmarked). */
+  function rangesOf(id, start, length) {
+    const ranges = [];
+    let offset = 0;
+    for (const node of blocks.get(id) || []) {
+      const from = Math.max(start, offset);
+      const to = Math.min(start + length, offset + node.data.length);
+      if (from < to && node.isConnected) {
+        const range = document.createRange();
+        range.setStart(node, from - offset);
+        range.setEnd(node, to - offset);
+        ranges.push(range);
+      }
+      offset += node.data.length;
+      if (offset >= start + length) break;
+    }
+    return ranges;
+  }
+
+  function apply(message) {
+    const request = pending.get(message.requestId);
+    pending.delete(message.requestId);
+    if (!request || request.generation !== generation || !Array.isArray(message.blocks)) return;
+    if (message.color) setColor(message.color);
+    for (const block of message.blocks) {
+      // The paragraph changed since it was sent: ask again.
+      if (!block || request.texts.get(block.id) !== textOf(block.id).slice(0, MAX_BLOCK_TEXT)) {
+        if (block && blocks.has(block.id)) ask(block.id);
+        continue;
+      }
+      for (const mark of Array.isArray(block.marks) ? block.marks : []) {
+        const [start, length, kind] = mark;
+        if (!Number.isInteger(start) || !Number.isInteger(length) || !highlights[kind]) continue;
+        for (const range of rangesOf(block.id, start, length)) highlights[kind].add(range);
+      }
+    }
+  }
+
+  function reset() {
+    generation++;
+    pending.clear();
+    for (const highlight of highlights) highlight.clear();
+    queue.clear();
+    if (!observer) return;
+    // Observing again reports what is near the screen now.
+    for (const element of elements.values()) {
+      observer.unobserve(element);
+      observer.observe(element);
+    }
+  }
+
+  function stop() {
+    if (observer) observer.disconnect();
+    if (mutations) mutations.disconnect();
+    observer = null;
+    mutations = null;
+    root = null;
+    blocks.clear();
+    elements.clear();
+    reset();
+  }
+
+  function start() {
+    const content = document.querySelector(BOOK_ROOT_SELECTOR);
+    if (!isBookPage() || !content || mode() === 'off') {
+      if (!isBookPage() && root) stop();
+      return;
+    }
+    if (content === root) return;
+    stop();
+    root = content;
+    for (let i = 0; i < NAMES.length; i++) CSS.highlights.set(NAMES[i], highlights[i]);
+    observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const id = ids.get(entry.target);
+          if (entry.isIntersecting && id !== undefined) ask(id);
+        }
+      },
+      { rootMargin: AHEAD },
+    );
+    scan();
+    // ttu fills the book in after the page shows (and again after some settings).
+    let rescan = 0;
+    mutations = new MutationObserver(() => {
+      clearTimeout(rescan);
+      rescan = setTimeout(() => {
+        if (root && root.isConnected) scan();
+        else start();
+      }, 200);
+    });
+    mutations.observe(root, { childList: true, subtree: true, characterData: true });
+  }
+
+  function onAppMessage(event) {
+    let message;
+    try {
+      message = JSON.parse(event.data);
+    } catch (error) {
+      return;
+    }
+    if (!message || typeof message !== 'object') return;
+    if (message.type === 'marks') apply(message);
+    else if (message.type === 'marks.reset') reset();
+  }
+
+  function listen() {
+    const app = window.honmani;
+    if (app && !app.__honmaniMarks && app.addEventListener) {
+      app.__honmaniMarks = true;
+      app.addEventListener('message', onAppMessage);
+    }
+  }
+
+  setColor(null);
+  listen();
+  const check = () => {
+    listen();
+    start();
+  };
+  // The book content appears some time after the route changes; ttu is a single-page app.
+  const pageObserver = new MutationObserver(() => {
+    if (!root || !root.isConnected || !isBookPage()) check();
+  });
+  const watchPage = () => {
+    pageObserver.observe(document.documentElement, { childList: true, subtree: true });
+    check();
+  };
+  if (document.documentElement) watchPage();
+  else document.addEventListener('DOMContentLoaded', watchPage, { once: true });
+  window.addEventListener('popstate', () => setTimeout(check, 0));
+
+})();

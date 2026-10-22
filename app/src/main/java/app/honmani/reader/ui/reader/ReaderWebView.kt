@@ -37,6 +37,8 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.net.toUri
 import app.honmani.reader.HonmaniApplication
+import app.honmani.reader.data.words.WordMark
+import app.honmani.reader.data.words.WordMarksMode
 import app.honmani.reader.diagnostics.ReaderDiagnostics
 import androidx.webkit.JavaScriptReplyProxy
 import androidx.webkit.WebViewAssetLoader
@@ -48,6 +50,12 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.addJsonArray
+import kotlinx.serialization.json.addJsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
 
 /**
  * Origin the bundled ッツ Ebook Reader is served from (WebViewAssetLoader's default domain).
@@ -70,6 +78,7 @@ private val DOCUMENT_START_SCRIPTS = listOf(
     "honmani/reading-activity.js",
     "honmani/book-frame.js",
     "honmani/reader-settings.js",
+    "honmani/word-marks.js",
 )
 
 /**
@@ -128,6 +137,10 @@ fun ReaderWebView(
     /** The book page's background colour (ARGB) changed, for the bars around the reader. */
     onBackground: (Int) -> Unit = {},
     highlightColor: Color = MaterialTheme.colorScheme.primary,
+    /** The words to mark in each paragraph (`word-marks.js`); null: none can be found. */
+    marks: suspend (texts: List<String>, mode: WordMarksMode) -> List<List<WordMark>>? = { _, _ -> null },
+    /** Changes when the reader's words change, so the page asks for its marks again. */
+    marksKey: Any? = null,
 ) {
     val currentOnLookup by rememberUpdatedState(onLookup)
     val currentOnDismiss by rememberUpdatedState(onDismiss)
@@ -137,6 +150,8 @@ fun ReaderWebView(
     val currentOnPage by rememberUpdatedState(onPage)
     val currentOnOpenSettings by rememberUpdatedState(onOpenSettings)
     val currentOnBackground by rememberUpdatedState(onBackground)
+    val currentMarks by rememberUpdatedState(marks)
+    val currentHighlightColor by rememberUpdatedState(highlightColor)
     val webViewRef = remember { WebViewRef() }
     var atLibrary by remember { mutableStateOf(true) }
     val scope = rememberCoroutineScope()
@@ -185,6 +200,16 @@ fun ReaderWebView(
         }
     }
 
+    // Asked for again after the reader's words changed (a lookup, say), not when first known.
+    var lastMarksKey by remember { mutableStateOf<Any?>(null) }
+    LaunchedEffect(marksKey) {
+        val changed = lastMarksKey != null && marksKey != null
+        if (marksKey != null) lastMarksKey = marksKey
+        if (changed && WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
+            webViewRef.replyProxy?.postMessage("""{"type":"marks.reset"}""")
+        }
+    }
+
     // A new WebView after the page's renderer died (crashed, or killed by Android for memory):
     // the old one cannot be used again, and without this Android would close the whole app.
     var renderer by remember { mutableIntStateOf(0) }
@@ -208,6 +233,13 @@ fun ReaderWebView(
                             is BridgeMessage.Position -> currentOnPage(message.id, message.characters, message.progress)
                             BridgeMessage.OpenSettings -> currentOnOpenSettings()
                             is BridgeMessage.Background -> currentOnBackground(message.color)
+                            is BridgeMessage.Marks -> scope.launch {
+                                val found = currentMarks(message.blocks.map { it.text }, message.mode) ?: return@launch
+                                val reply = marksReply(message, found, currentHighlightColor.toHex())
+                                if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
+                                    replyProxy.postMessage(reply)
+                                }
+                            }
                         }
                     },
                     diagnostics = diagnostics,
@@ -256,6 +288,30 @@ fun ReaderWebView(
         )
     }
 }
+
+/** The answer to a [BridgeMessage.Marks] request, as `word-marks.js` reads it. */
+private fun marksReply(request: BridgeMessage.Marks, marks: List<List<WordMark>>, color: String): String =
+    buildJsonObject {
+        put("type", "marks")
+        put("requestId", request.requestId)
+        put("color", color)
+        putJsonArray("blocks") {
+            request.blocks.zip(marks) { block, found ->
+                addJsonObject {
+                    put("id", block.id)
+                    putJsonArray("marks") {
+                        for (mark in found) {
+                            addJsonArray {
+                                add(mark.start)
+                                add(mark.length)
+                                add(mark.kind.ordinal)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }.toString()
 
 /** `#RRGGBB`, as CSS takes it. */
 private fun Color.toHex(): String = "#%06X".format(toArgb() and 0xFFFFFF)

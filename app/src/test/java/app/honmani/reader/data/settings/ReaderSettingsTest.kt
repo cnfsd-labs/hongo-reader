@@ -1,5 +1,6 @@
 package app.honmani.reader.data.settings
 
+import app.honmani.reader.data.words.WordMarksMode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -26,11 +27,12 @@ class ReaderSettingsTest {
                 "showPercentage" to "0",
                 "enableReaderWakeLock" to "1",
                 "honmaniProgressBar" to "0",
+                "honmaniWordMarks" to "new",
             ),
         )
 
         assertEquals(
-            ReaderSettings(ReaderTheme.SEPIA, ReaderFont.SANS.storage, 32, 1.8f, vertical = false, paginated = false, furigana = false, showProgress = false, progressBar = false, keepScreenOn = true),
+            ReaderSettings(ReaderTheme.SEPIA, ReaderFont.SANS.storage, 32, 1.8f, vertical = false, paginated = false, furigana = false, showProgress = false, progressBar = false, wordMarks = WordMarksMode.NEW, keepScreenOn = true),
             settings,
         )
     }
@@ -57,6 +59,7 @@ class ReaderSettingsTest {
         assertEquals("vertical-rl", stored["writingMode"])
         assertEquals("0", stored["hideFurigana"])
         assertEquals("1", stored["honmaniProgressBar"])
+        assertEquals("learning", stored["honmaniWordMarks"])
         assertEquals(settings, ReaderSettings.fromStorage(stored))
         assertEquals("1.65", ReaderSettings().toStorage()["lineHeight"])
     }

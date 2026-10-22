@@ -62,6 +62,7 @@ import app.honmani.reader.data.fonts.FontStyle
 import app.honmani.reader.data.settings.ReaderFont
 import app.honmani.reader.data.settings.ReaderSettings
 import app.honmani.reader.data.settings.ReaderTheme
+import app.honmani.reader.data.words.WordMarksMode
 import app.honmani.reader.ui.HonmaniTopAppBar
 import java.io.File
 import kotlin.math.roundToInt
@@ -169,6 +170,29 @@ private fun ReaderSettingsContent(
                 options = listOf(true to R.string.reader_settings_pages, false to R.string.reader_settings_scrolling),
                 selected = settings.paginated,
                 onSelect = { onChange(settings.copy(paginated = it)) },
+            )
+        }
+        Section(stringResource(R.string.reader_settings_word_marks)) {
+            Choice(
+                options = listOf(
+                    WordMarksMode.OFF to R.string.reader_settings_word_marks_off,
+                    WordMarksMode.LEARNING to R.string.reader_settings_word_marks_learning,
+                    WordMarksMode.NEW to R.string.reader_settings_word_marks_new,
+                ),
+                selected = settings.wordMarks,
+                onSelect = { onChange(settings.copy(wordMarks = it)) },
+            )
+            Text(
+                stringResource(
+                    when (settings.wordMarks) {
+                        WordMarksMode.OFF -> R.string.reader_settings_word_marks_off_details
+                        WordMarksMode.LEARNING -> R.string.reader_settings_word_marks_learning_details
+                        WordMarksMode.NEW -> R.string.reader_settings_word_marks_new_details
+                    },
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 8.dp),
             )
         }
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))

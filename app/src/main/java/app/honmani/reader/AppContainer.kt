@@ -53,6 +53,7 @@ import app.honmani.reader.data.words.BookCoverage
 import app.honmani.reader.data.words.ReadStretchStore
 import app.honmani.reader.data.words.WordKnowledge
 import app.honmani.reader.data.words.WordKnowledgeTracker
+import app.honmani.reader.data.words.WordMarker
 import app.honmani.reader.data.words.WordProgressStore
 import app.honmani.reader.data.words.WordRepository
 import app.honmani.reader.diagnostics.ReaderDiagnostics
@@ -267,9 +268,7 @@ class AppContainer(context: Context) {
         BookGrader(
             store = difficultyStore,
             books = { bookDao.observeAll().first() },
-            sources = {
-                LexiconSources.of(database.dictionaryDao().enabledReady()) { database.difficultyDao().hasFrequencies(it.id) }
-            },
+            sources = { lexiconSources() },
             lexicon = { LexiconLoader(database.difficultyDao()).load(it) },
             texts = { book ->
                 val file = bookImporter.bookFile(book)
@@ -280,6 +279,18 @@ class AppContainer(context: Context) {
                 }
             },
             log = { Log.i("Honmani.difficulty", it) },
+        )
+    }
+
+    private suspend fun lexiconSources(): LexiconSources? =
+        LexiconSources.of(database.dictionaryDao().enabledReady()) { database.difficultyDao().hasFrequencies(it.id) }
+
+    /** The words to mark in the reader (a reader setting). */
+    val wordMarker: WordMarker by lazy {
+        WordMarker(
+            sources = { lexiconSources() },
+            lexicon = { LexiconLoader(database.difficultyDao()).load(it) },
+            knowledge = { wordKnowledge.first() },
         )
     }
 

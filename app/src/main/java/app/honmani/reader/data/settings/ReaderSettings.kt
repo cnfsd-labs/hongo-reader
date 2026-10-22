@@ -1,5 +1,6 @@
 package app.honmani.reader.data.settings
 
+import app.honmani.reader.data.words.WordMarksMode
 import java.util.Locale
 
 /** The reader's colours: ttu's themes Honmani offers, or following the system's dark mode. */
@@ -39,6 +40,8 @@ data class ReaderSettings(
     val showProgress: Boolean = true,
     /** Honmani's thin bar along the bottom of the page (`book-frame.js`). */
     val progressBar: Boolean = true,
+    /** Which words get a tint in the book (`word-marks.js`). */
+    val wordMarks: WordMarksMode = WordMarksMode.DEFAULT,
     val keepScreenOn: Boolean = false,
 ) {
     /** The values to store, as ttu writes them. */
@@ -53,6 +56,7 @@ data class ReaderSettings(
         put(CHARACTER_COUNTER, flag(showProgress))
         put(PERCENTAGE, flag(showProgress))
         put(PROGRESS_BAR, flag(progressBar))
+        put(WORD_MARKS, wordMarks.storage)
         put(WAKE_LOCK, flag(keepScreenOn))
     }
 
@@ -74,6 +78,7 @@ data class ReaderSettings(
         private const val PERCENTAGE = "showPercentage"
         private const val WAKE_LOCK = "enableReaderWakeLock"
         private const val PROGRESS_BAR = "honmaniProgressBar"
+        private const val WORD_MARKS = "honmaniWordMarks"
         private const val VERTICAL = "vertical-rl"
         private const val HORIZONTAL = "horizontal-tb"
         private const val PAGINATED = "paginated"
@@ -96,6 +101,7 @@ data class ReaderSettings(
                 furigana = !flag(HIDE_FURIGANA, !defaults.furigana),
                 showProgress = flag(CHARACTER_COUNTER, defaults.showProgress) || flag(PERCENTAGE, defaults.showProgress),
                 progressBar = flag(PROGRESS_BAR, defaults.progressBar),
+                wordMarks = WordMarksMode.fromStorage(values[WORD_MARKS]),
                 keepScreenOn = flag(WAKE_LOCK, defaults.keepScreenOn),
             )
         }
