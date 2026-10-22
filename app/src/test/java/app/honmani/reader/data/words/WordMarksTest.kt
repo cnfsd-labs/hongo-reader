@@ -27,8 +27,8 @@ class WordMarksTest {
         learning = setOf("食べる"),
     )
 
-    private fun marks(text: String, mode: WordMarksMode, vocabulary: Int = 500) =
-        WordMarks.of(text, segmenter, knowledge, mode, vocabulary).map { text.substring(it.start, it.start + it.length) to it.kind }
+    private fun marks(text: String, mode: WordMarksMode) =
+        WordMarks.of(text, segmenter, knowledge, mode).map { text.substring(it.start, it.start + it.length) to it.kind }
 
     @Test
     fun wordsBeingLearnedAreMarked_inflectedAsWritten() {
@@ -36,13 +36,21 @@ class WordMarksTest {
     }
 
     @Test
-    fun newWordsAreThoseNeitherReadNorWithinTheVocabulary_namesLeftOut() {
-        // 鼬 is rare and unread; 猫 was read; メロス is no dictionary word.
+    fun newWordsAreThoseNeverRead_namesAndTheMostCommonWordsLeftOut() {
+        // 鼬 is unread; 猫 was read; メロス is no dictionary word; 私 and は are among the most common.
         assertEquals(
             listOf("鼬" to WordMark.Kind.NEW, "食べた" to WordMark.Kind.LEARNING),
             marks("メロスは猫と鼬を食べた", WordMarksMode.NEW),
         )
-        assertEquals(listOf("食べた" to WordMark.Kind.LEARNING), marks("鼬を食べた", WordMarksMode.NEW, vocabulary = 50_000))
+        assertEquals(emptyList<Pair<String, WordMark.Kind>>(), marks("私は", WordMarksMode.NEW))
+    }
+
+    @Test
+    fun anUnreadWordIsNewWhateverTheVocabulary() {
+        // 猫 (rank 900) unread is new, though any estimate would count it known.
+        val unread = WordKnowledge(read = emptyMap(), progress = emptyMap(), learning = emptySet())
+        val marks = WordMarks.of("猫", segmenter, unread, WordMarksMode.NEW)
+        assertEquals(listOf(WordMark(0, 1, WordMark.Kind.NEW)), marks)
     }
 
     @Test

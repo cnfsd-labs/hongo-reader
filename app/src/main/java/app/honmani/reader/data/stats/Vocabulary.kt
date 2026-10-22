@@ -26,6 +26,10 @@ data class VocabularyEstimate(
  * band, so the estimate never runs far ahead of what was read. Readers don't look up every word
  * they don't know, which [KNOWN_SHARE] allows for in part; it stays an upper estimate.
  *
+ * It never exceeds [CEILING_FACTOR] times the words met and not being learned: what the reader
+ * has shown to know limits how far it can reach, and the limit rises as they read more. (After
+ * 20,000 characters read fast with four lookups, it said 163,000 words.)
+ *
  * (Summing each band's size times its known share, as first planned, let a few rare words without
  * lookups add 100,000 words.)
  */
@@ -41,6 +45,12 @@ object Vocabulary {
 
     /** Known up to where at most one met word in ten is being learned. */
     const val KNOWN_SHARE = 0.9
+
+    /**
+     * The estimate's ceiling, in words met and known: one novel (some 9,000 different words)
+     * allows about 36,000, a native adult's range.
+     */
+    const val CEILING_FACTOR = 4
 
     /** [met]: the words read so far, by dictionary form. [learning]: those being learned. */
     fun estimate(met: Map<String, ReadWord>, learning: Set<String>): VocabularyEstimate {
@@ -71,7 +81,8 @@ object Vocabulary {
             }
             previous = share
         }
-        return VocabularyEstimate(words = words.roundToInt(), met = met.size, learning = learningMet)
+        val ceiling = CEILING_FACTOR.toDouble() * (seen.sum() - unknown.sum())
+        return VocabularyEstimate(words = words.coerceAtMost(ceiling).roundToInt(), met = met.size, learning = learningMet)
     }
 
     private fun band(rank: Int): Int? {

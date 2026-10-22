@@ -27,8 +27,21 @@ class VocabularyTest {
     @Test
     fun aFewRareWordsWithoutLookupsProveLittle() {
         // Nothing looked up, but only a handful of words past rank 16,000: no credit far beyond.
-        val estimate = Vocabulary.estimate(read(1 to 400, 600 to 300, 1_200 to 500, 2_500 to 800, 5_000 to 900, 9_000 to 800, 20_000 to 5), emptySet())
+        val estimate = Vocabulary.estimate(
+            read(1 to 400, 600 to 400, 1_200 to 900, 2_500 to 1_500, 5_000 to 2_500, 9_000 to 2_000, 20_000 to 5),
+            emptySet(),
+        )
         assertTrue(estimate.words in 16_000..32_000)
+    }
+
+    @Test
+    fun theEstimateReachesNoFurtherThanFourTimesTheWordsKnown() {
+        // A short, fast read without lookups: every band looks known, but 1,500 words show little.
+        val quick = read(1 to 300, 600 to 200, 1_200 to 250, 2_500 to 250, 5_000 to 200, 9_000 to 150, 20_000 to 100, 40_000 to 50)
+        assertEquals(6_000, Vocabulary.estimate(quick, emptySet()).words)
+        // Words being learned don't count towards it.
+        val learning = quick.filterValues { it.rank >= 40_000 }.keys
+        assertEquals(5_800, Vocabulary.estimate(quick, learning).words)
     }
 
     @Test

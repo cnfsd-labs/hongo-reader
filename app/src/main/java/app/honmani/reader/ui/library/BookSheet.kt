@@ -31,16 +31,20 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
@@ -48,6 +52,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -95,9 +100,20 @@ fun BookSheet(
     val stats by flow.collectAsStateWithLifecycle(null)
     val progressState by progress.uiState.collectAsStateWithLifecycle()
     val skill = progressState?.skill?.current
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var contentHeight by remember { mutableIntStateOf(0) }
+    // The statistics and the known-words line arrive while the sheet slides in, and the sheet
+    // can stop where its shorter first content put it, with its bottom below the screen; scrolling
+    // to the end then pushed it up to where it belongs (a jump on a OnePlus 7 Pro). Once it
+    // grows and nothing moves it, it goes where it now belongs.
+    LaunchedEffect(sheetState) {
+        snapshotFlow { contentHeight to sheetState.isAnimationRunning }.collect { (_, running) ->
+            if (!running && sheetState.currentValue == SheetValue.Expanded) sheetState.expand()
+        }
+    }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        sheetState = sheetState,
         // The handle is drawn inside the header, so the cover's colour reaches the sheet's top.
         dragHandle = null,
     ) {
@@ -108,6 +124,7 @@ fun BookSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(max = maxHeight * MAX_HEIGHT_FRACTION)
+                    .onSizeChanged { contentHeight = it.height }
                     .verticalScroll(rememberScrollState(), overscrollEffect = null)
                     .padding(bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),

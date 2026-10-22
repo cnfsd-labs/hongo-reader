@@ -10,7 +10,7 @@ enum class WordMarksMode(val storage: String) {
     /** Words looked up and not known yet. */
     LEARNING("learning"),
 
-    /** Those, and words probably new to the reader. */
+    /** Those, and words the reader has never met ([WordMark.Kind.NEW]). */
     NEW("new"),
     ;
 
@@ -27,15 +27,22 @@ data class WordMark(val start: Int, val length: Int, val kind: Kind) {
         /** Looked up and not known yet (`WordProgress`). */
         LEARNING,
 
-        /** Never met in reading and beyond the reader's vocabulary ([WordKnowledge.knows]). */
+        /** Never met in reading (nor among the [WordMarks.COMMON] most common words). */
         NEW,
     }
 }
 
-/** The words to mark in the reader, split as books are graded ([Segmenter]). */
+/**
+ * The words to mark in the reader, split as books are graded ([Segmenter]). A new word is one the
+ * reader has never met, not one the vocabulary estimate guesses they don't know: a mark is a claim
+ * about one word, which a guess about frequency bands can't make. Only the very most common words
+ * (particles, する, いる) are never new, or a new reader's first page would be all marks.
+ */
 object WordMarks {
-    /** [vocabulary]: the reader's vocabulary as a frequency rank, for [WordMarksMode.NEW]. */
-    fun of(text: String, segmenter: Segmenter, knowledge: WordKnowledge, mode: WordMarksMode, vocabulary: Int): List<WordMark> {
+    /** Frequency ranks never marked new. */
+    const val COMMON = 100
+
+    fun of(text: String, segmenter: Segmenter, knowledge: WordKnowledge, mode: WordMarksMode): List<WordMark> {
         if (mode == WordMarksMode.OFF) return emptyList()
         val marks = ArrayList<WordMark>()
         segmenter.segment(text) { token ->
@@ -43,7 +50,7 @@ object WordMarks {
             if (token.rank == Token.UNKNOWN) return@segment
             val kind = when {
                 token.key in knowledge.learning -> WordMark.Kind.LEARNING
-                mode == WordMarksMode.NEW && !knowledge.knows(token.key, token.rank, vocabulary) -> WordMark.Kind.NEW
+                mode == WordMarksMode.NEW && token.key !in knowledge.read && token.rank > COMMON -> WordMark.Kind.NEW
                 else -> return@segment
             }
             marks += WordMark(token.start, token.length, kind)
