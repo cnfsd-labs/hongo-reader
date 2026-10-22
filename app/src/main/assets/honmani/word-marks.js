@@ -77,9 +77,12 @@
     const rgb = `${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255}`;
     let style = document.getElementById('honmani-marks-style');
     if (!style) {
+      // Only with the first answer: at document start there is no document element yet.
+      const parent = document.head || document.documentElement;
+      if (!parent) return;
       style = document.createElement('style');
       style.id = 'honmani-marks-style';
-      (document.head || document.documentElement).appendChild(style);
+      parent.appendChild(style);
     }
     style.textContent =
       `::highlight(${NAMES[0]}) { background-color: rgba(${rgb}, 0.28); }\n` +
@@ -191,7 +194,7 @@
     const request = pending.get(message.requestId);
     pending.delete(message.requestId);
     if (!request || request.generation !== generation || !Array.isArray(message.blocks)) return;
-    if (message.color) setColor(message.color);
+    setColor(message.color);
     for (const block of message.blocks) {
       // The paragraph changed since it was sent: ask again.
       if (!block || request.texts.get(block.id) !== textOf(block.id).slice(0, MAX_BLOCK_TEXT)) {
@@ -282,7 +285,6 @@
     }
   }
 
-  setColor(null);
   listen();
   const check = () => {
     listen();
