@@ -36,13 +36,17 @@ class WordMarksTest {
     }
 
     @Test
-    fun newWordsAreThoseNeverRead_namesAndTheMostCommonWordsLeftOut() {
-        // 鼬 is unread; 猫 was read; メロス is no dictionary word; 私 and は are among the most common.
+    fun newWordsAreThoseNeverRead_namesLeftOut() {
+        // 鼬, は, と and を are unread, however common; 猫 was read; メロス is no dictionary word.
         assertEquals(
-            listOf("鼬" to WordMark.Kind.NEW, "食べた" to WordMark.Kind.LEARNING),
-            marks("メロスは猫と鼬を食べた", WordMarksMode.NEW),
+            listOf(
+                "は" to WordMark.Kind.NEW,
+                "鼬" to WordMark.Kind.NEW,
+                "を" to WordMark.Kind.NEW,
+                "食べた" to WordMark.Kind.LEARNING,
+            ),
+            marks("メロスは猫鼬を食べた", WordMarksMode.NEW),
         )
-        assertEquals(emptyList<Pair<String, WordMark.Kind>>(), marks("私は", WordMarksMode.NEW))
     }
 
     @Test

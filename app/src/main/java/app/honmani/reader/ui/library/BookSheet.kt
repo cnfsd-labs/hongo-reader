@@ -1,9 +1,9 @@
 package app.honmani.reader.ui.library
 
+import androidx.compose.animation.core.animate
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
@@ -31,33 +31,38 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
-import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
-import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -76,6 +81,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
 
 /**
  * Everything about one book, from a long press on its cover: the cover and progress, a button
@@ -101,30 +107,58 @@ fun BookSheet(
     val progressState by progress.uiState.collectAsStateWithLifecycle()
     val skill = progressState?.skill?.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    var contentHeight by remember { mutableIntStateOf(0) }
-    // The statistics and the known-words line arrive while the sheet slides in, and the sheet
-    // can stop where its shorter first content put it, with its bottom below the screen; scrolling
-    // to the end then pushed it up to where it belongs (a jump on a OnePlus 7 Pro). Once it
-    // grows and nothing moves it, it goes where it now belongs.
-    LaunchedEffect(sheetState) {
-        snapshotFlow { contentHeight to sheetState.isAnimationRunning }.collect { (_, running) ->
-            if (!running && sheetState.currentValue == SheetValue.Expanded) sheetState.expand()
+    val scope = rememberCoroutineScope()
+    val density = LocalDensity.current
+    val maxHeight = with(density) { LocalWindowInfo.current.containerSize.height.toDp() } * MAX_HEIGHT_FRACTION
+    val closeDistance = with(density) { CLOSE_DISTANCE.toPx() }
+    // How far the sheet is pulled down, following the finger.
+    var pull by remember { mutableFloatStateOf(0f) }
+    val pullDown = remember(sheetState) {
+        object : NestedScrollConnection {
+            // Pushing back up takes the pull back before the content scrolls.
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (available.y >= 0f || pull <= 0f) return Offset.Zero
+                val used = available.y.coerceAtLeast(-pull)
+                pull += used
+                return Offset(0f, used)
+            }
+
+            // What the content can't scroll down any further pulls the sheet.
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                if (available.y <= 0f || source != NestedScrollSource.UserInput) return Offset.Zero
+                pull += available.y
+                return Offset(0f, available.y)
+            }
+
+            override suspend fun onPreFling(available: Velocity): Velocity {
+                if (pull <= 0f) return Velocity.Zero
+                if (pull > closeDistance || available.y > closeDistance * 10) {
+                    scope.launch { sheetState.hide() }.invokeOnCompletion { onDismiss() }
+                } else {
+                    animate(pull, 0f) { value, _ -> pull = value }
+                }
+                return available
+            }
         }
     }
+    // The sheet itself ignores drags: on a OnePlus 7 Pro its drag and the content's scroll moved
+    // it up and down, past the top of the screen, whenever the content was scrolled to its end.
+    // A pull down with the content at its top moves it instead (pullDown), and closes it when far
+    // or fast enough; so do a tap beside it and back. Below the status bar, without overscroll.
     ModalBottomSheet(
         onDismissRequest = onDismiss,
+        modifier = Modifier.graphicsLayer { translationY = pull },
         sheetState = sheetState,
+        sheetGesturesEnabled = false,
         // The handle is drawn inside the header, so the cover's colour reaches the sheet's top.
         dragHandle = null,
     ) {
-        // Kept below the status bar and without overscroll: on a OnePlus 12 the sheet bounced up
-        // and down when scrolled, between its own drag and the content's overscroll.
-        BoxWithConstraints {
+        Box {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = maxHeight * MAX_HEIGHT_FRACTION)
-                    .onSizeChanged { contentHeight = it.height }
+                    .heightIn(max = maxHeight)
+                    .nestedScroll(pullDown)
                     .verticalScroll(rememberScrollState(), overscrollEffect = null)
                     .padding(bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -169,6 +203,9 @@ fun BookSheet(
 }
 
 private const val MAX_HEIGHT_FRACTION = 0.92f
+
+/** How far a pull down closes the sheet (or a fling at ten times that per second). */
+private val CLOSE_DISTANCE = 56.dp
 
 /** Reading time left (or for the whole book) at the reader's recent speed, as text; null without one. */
 @Composable

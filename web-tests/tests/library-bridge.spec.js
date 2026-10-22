@@ -480,11 +480,22 @@ test('word marks: the page asks about the paragraphs on screen and marks what th
   await expect.poll(() => marked(page)).toEqual({ 'honmani-learning': ['吾輩'], 'honmani-new': ['猫'] });
   expect(await page.evaluate(() => CSS.highlights.get('honmani-learning-fresh').size)).toBe(0);
 
-  // The reader's words changed: the marks go, and the paragraphs on screen are asked about again.
+  // The reader's words changed (a lookup): the paragraphs on screen are asked about again, and
+  // the marks stay until the answer, so unchanged ones don't flash.
   const before = (await markRequests(page)).length;
   await page.evaluate(() => window.__reply({ type: 'marks.reset' }));
-  await expect.poll(() => marked(page)).toEqual({ 'honmani-learning': [], 'honmani-new': [] });
+  expect(await marked(page)).toEqual({ 'honmani-learning': ['吾輩'], 'honmani-new': ['猫'] });
   await expect.poll(async () => (await markRequests(page)).length).toBeGreaterThan(before);
+  const again = (await markRequests(page)).slice(before).find((m) => m.blocks.some((b) => b.id === block.id));
+
+  // 吾輩 stays as it was, 猫 is no longer new, 名前 is newly marked and only it fades in.
+  const after = await page.evaluate(([requestId, id]) => {
+    window.__reply({ type: 'marks', requestId, color: '#e91e63', blocks: [{ id, marks: [[0, 2, 0], [8, 2, 1]] }] });
+    const texts = (name) => [...(CSS.highlights.get(name) ?? [])].map((range) => range.toString());
+    return { learning: texts('honmani-learning'), freshLearning: texts('honmani-learning-fresh'), new: texts('honmani-new'), freshNew: texts('honmani-new-fresh') };
+  }, [again.requestId, block.id]);
+  expect(after).toEqual({ learning: ['吾輩'], freshLearning: [], new: [], freshNew: ['名前'] });
+  await expect.poll(() => marked(page)).toEqual({ 'honmani-learning': ['吾輩'], 'honmani-new': ['名前'] });
 });
 
 test('word marks leave furigana out of the text and the marks', async ({ page }) => {

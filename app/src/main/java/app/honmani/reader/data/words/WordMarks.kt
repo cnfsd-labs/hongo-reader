@@ -27,7 +27,7 @@ data class WordMark(val start: Int, val length: Int, val kind: Kind) {
         /** Looked up and not known yet (`WordProgress`). */
         LEARNING,
 
-        /** Never met in reading (nor among the [WordMarks.COMMON] most common words). */
+        /** Never met in reading. */
         NEW,
     }
 }
@@ -35,13 +35,10 @@ data class WordMark(val start: Int, val length: Int, val kind: Kind) {
 /**
  * The words to mark in the reader, split as books are graded ([Segmenter]). A new word is one the
  * reader has never met, not one the vocabulary estimate guesses they don't know: a mark is a claim
- * about one word, which a guess about frequency bands can't make. Only the very most common words
- * (particles, する, いる) are never new, or a new reader's first page would be all marks.
+ * about one word, which a guess about frequency bands can't make. A new reader's first pages are
+ * mostly marked; the particles and other common words lose their marks within a few pages.
  */
 object WordMarks {
-    /** Frequency ranks never marked new. */
-    const val COMMON = 100
-
     fun of(text: String, segmenter: Segmenter, knowledge: WordKnowledge, mode: WordMarksMode): List<WordMark> {
         if (mode == WordMarksMode.OFF) return emptyList()
         val marks = ArrayList<WordMark>()
@@ -50,7 +47,7 @@ object WordMarks {
             if (token.rank == Token.UNKNOWN) return@segment
             val kind = when {
                 token.key in knowledge.learning -> WordMark.Kind.LEARNING
-                mode == WordMarksMode.NEW && token.key !in knowledge.read && token.rank > COMMON -> WordMark.Kind.NEW
+                mode == WordMarksMode.NEW && token.key !in knowledge.read -> WordMark.Kind.NEW
                 else -> return@segment
             }
             marks += WordMark(token.start, token.length, kind)

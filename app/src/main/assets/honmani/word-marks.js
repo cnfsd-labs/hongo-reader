@@ -24,7 +24,8 @@
  * In page mode the book scrolls inside its own box, which clips what lies beyond the page: the
  * paragraphs are watched within that box, so the pages before and after the one on screen are
  * asked about ahead of time and their marks are there when the page turns. Marks that arrive
- * for the page on screen (when a book opens, after a lookup) fade in rather than pop up.
+ * for the page on screen (when a book opens, a word newly looked up) fade in rather than pop up;
+ * when the app asks for fresh marks (after a lookup) those already shown stay as they are.
  */
 (() => {
   'use strict';
@@ -75,6 +76,8 @@
   /** Bumped by a reset: answers to older requests are dropped. */
   let generation = 0;
   const pending = new Map();
+  /** The marks shown in each block: by "start:length:kind", their kind and ranges. */
+  const shown = new Map();
   const highlights = NAMES.map(() => new Highlight());
   const fresh = FRESH_NAMES.map(() => new Highlight());
   // Below the lookup mark.
@@ -263,21 +266,49 @@
         if (block && blocks.has(block.id)) ask(block.id);
         continue;
       }
+      const before = shown.get(block.id) || new Map();
+      const now = new Map();
       for (const mark of Array.isArray(block.marks) ? block.marks : []) {
         const [start, length, kind] = mark;
         if (!Number.isInteger(start) || !Number.isInteger(length) || !highlights[kind]) continue;
-        for (const range of rangesOf(block.id, start, length)) fresh[kind].add(range);
+        const key = `${start}:${length}:${kind}`;
+        const kept = before.get(key);
+        if (kept && kept.ranges.every((range) => range.startContainer.isConnected)) {
+          now.set(key, kept);
+          continue;
+        }
+        const ranges = rangesOf(block.id, start, length);
+        for (const range of ranges) fresh[kind].add(range);
+        now.set(key, { kind, ranges });
       }
+      for (const [key, mark] of before) {
+        if (now.get(key) === mark) continue;
+        for (const range of mark.ranges) {
+          highlights[mark.kind].delete(range);
+          fresh[mark.kind].delete(range);
+        }
+      }
+      shown.set(block.id, now);
     }
     if (fresh.some((highlight) => highlight.size > 0)) fadeIn();
   }
 
-  function reset() {
-    generation++;
-    pending.clear();
+  /** Clears every mark (another book, marks turned off). */
+  function clear() {
+    reset();
     if (fadeFrame) cancelAnimationFrame(fadeFrame);
     fadeFrame = 0;
     for (const highlight of [...highlights, ...fresh]) highlight.clear();
+    shown.clear();
+  }
+
+  /**
+   * Asks again about the paragraphs near the screen; the marks shown stay until the answers
+   * replace them, so a mark that doesn't change doesn't flash.
+   */
+  function reset() {
+    generation++;
+    pending.clear();
     queue.clear();
     if (!observer) return;
     // Observing again reports what is near the screen now.
@@ -295,7 +326,7 @@
     root = null;
     blocks.clear();
     elements.clear();
-    reset();
+    clear();
   }
 
   function start() {

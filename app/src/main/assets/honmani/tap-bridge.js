@@ -34,6 +34,11 @@
   window.__honmaniTapBridge = true;
 
   const SCAN_LENGTH = 20;
+  /** A tap moves at most this far (CSS px) and lasts at most this long (ms). */
+  const TAP_SLOP = 10;
+  const TAP_TIME = 500;
+  /** How long a tap's click may take before the tap is looked up without it (ms). */
+  const CLICK_WAIT = 350;
   const MAX_READING_LENGTH = 32;
   const MAX_SENTENCE_LENGTH = 400;
   const BOOK_ROOT_SELECTOR = '.book-content';
@@ -360,27 +365,66 @@
     app.postMessage(JSON.stringify(message));
   }
 
+  function onTap(x, y, target) {
+    if (!(target instanceof Element)) return;
+    const selection = window.getSelection();
+    if (selection && !selection.isCollapsed) return;
+
+    const message = lookupAt(x, y, target);
+    if (message) {
+      clearHighlight();
+      post(message);
+    } else if (isBookBackground(target)) {
+      clearHighlight();
+      post({ type: 'dismiss' });
+    }
+  }
+
   // Capture phase on window: ttu cancels clicks on <ruby> (to reveal furigana) with
   // stopImmediatePropagation(), so a bubbling listener would miss taps on ruby words.
   // The event is left untouched so ttu still handles it.
   window.addEventListener(
     'click',
     (event) => {
-      if (!(event.target instanceof Element)) return;
-      const selection = window.getSelection();
-      if (selection && !selection.isCollapsed) return;
-
-      const message = lookupAt(event.clientX, event.clientY, event.target);
-      if (message) {
-        clearHighlight();
-        post(message);
-      } else if (isBookBackground(event.target)) {
-        clearHighlight();
-        post({ type: 'dismiss' });
-      }
+      clearTimeout(tapWithoutClick);
+      tapWithoutClick = undefined;
+      onTap(event.clientX, event.clientY, event.target);
     },
     true,
   );
+
+  // Chromium sends no click for a tap that stops a fling, such as one up to a second after a
+  // page swipe (seen on a OnePlus 7 Pro): a short, still tap whose click doesn't follow is
+  // looked up all the same.
+  let tapStart = null;
+  let tapWithoutClick;
+  window.addEventListener(
+    'pointerdown',
+    (event) => {
+      tapStart = event.isPrimary ? { x: event.clientX, y: event.clientY, time: event.timeStamp } : null;
+    },
+    true,
+  );
+  window.addEventListener(
+    'pointerup',
+    (event) => {
+      const start = tapStart;
+      tapStart = null;
+      if (!start || !event.isPrimary) return;
+      const moved = Math.hypot(event.clientX - start.x, event.clientY - start.y);
+      if (moved > TAP_SLOP || event.timeStamp - start.time > TAP_TIME) return;
+      const { clientX: x, clientY: y, target } = event;
+      clearTimeout(tapWithoutClick);
+      tapWithoutClick = setTimeout(() => {
+        tapWithoutClick = undefined;
+        onTap(x, y, target);
+      }, CLICK_WAIT);
+    },
+    true,
+  );
+  window.addEventListener('pointercancel', () => {
+    tapStart = null;
+  }, true);
 
   // The fallback mark follows the text: capture catches scrolls of ttu's inner containers too.
   const redrawOverlay = () => {

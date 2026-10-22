@@ -173,6 +173,37 @@ test('a line break ends the scanned text and the sentence', async ({ page }) => 
   expect(next.ruby).toEqual([{ start: 0, end: 1, reading: 'ゆき' }]);
 });
 
+test('a tap whose click never comes (it stopped a fling) is looked up all the same', async ({ page }) => {
+  const { x, y } = await charCenter(page, '#v2', 'ど');
+  // Pointer events only, as Chromium sends for a tap right after a page swipe.
+  await page.evaluate(({ x, y }) => {
+    const target = document.elementFromPoint(x, y);
+    const init = { bubbles: true, cancelable: true, clientX: x, clientY: y, isPrimary: true, pointerId: 1 };
+    target.dispatchEvent(new PointerEvent('pointerdown', init));
+    target.dispatchEvent(new PointerEvent('pointerup', init));
+  }, { x, y });
+  expect(await messages(page)).toEqual([]);
+
+  await expect.poll(() => messages(page)).toHaveLength(1);
+  expect((await messages(page))[0].text).toBe('どこで生れたかとんと見当がつかぬ。');
+});
+
+test('a tap with its click is looked up once; a swipe is no tap', async ({ page }) => {
+  await tapChar(page, '#v2', 'ど');
+  await page.waitForTimeout(500);
+  expect(await messages(page)).toHaveLength(1);
+
+  const { x, y } = await charCenter(page, '#v2', 'こ');
+  await page.evaluate(({ x, y }) => {
+    const target = document.elementFromPoint(x, y);
+    const at = (dx) => ({ bubbles: true, clientX: x + dx, clientY: y, isPrimary: true, pointerId: 1 });
+    target.dispatchEvent(new PointerEvent('pointerdown', at(0)));
+    target.dispatchEvent(new PointerEvent('pointerup', at(80)));
+  }, { x, y });
+  await page.waitForTimeout(500);
+  expect(await messages(page)).toHaveLength(1);
+});
+
 test('characters outside the BMP are kept whole', async ({ page }) => {
   await tapChar(page, '#h2', '𠮟');
 
