@@ -37,23 +37,27 @@ class DifficultyTest {
     }
 
     @Test
-    fun scoreRisesWithRareWordsKanjiAndLongSentences() {
-        val base = Difficulty.score(r95 = 40_000, kanjiShare = 0.35, sentenceLength = 25.0)
-        assertTrue(Difficulty.score(80_000, 0.35, 25.0) > base)
-        assertTrue(Difficulty.score(40_000, 0.45, 25.0) > base)
-        assertTrue(Difficulty.score(40_000, 0.35, 35.0) > base)
-        assertEquals(1, Difficulty.score(1_000, 0.0, 5.0))
-        assertEquals(100, Difficulty.score(500_000, 0.9, 80.0))
+    fun scoreRisesWithRareWordsKanjiLongSentencesAndVariety() {
+        val base = Difficulty.score(rareShare = 0.25, kanjiShare = 0.35, sentenceLength = 25.0, variety = 0.83)
+        assertTrue(Difficulty.score(0.35, 0.35, 25.0, 0.83) > base)
+        assertTrue(Difficulty.score(0.25, 0.45, 25.0, 0.83) > base)
+        assertTrue(Difficulty.score(0.25, 0.35, 35.0, 0.83) > base)
+        assertTrue(Difficulty.score(0.25, 0.35, 25.0, 0.87) > base)
+        assertEquals(1, Difficulty.score(0.0, 0.0, 5.0, 0.5))
+        assertEquals(100, Difficulty.score(1.0, 1.0, 80.0, 1.0))
+        // The vocabulary part of the skill keeps version 6's rank model.
+        assertTrue(Difficulty.scoreOfRank(80_000, 0.35, 25.0) > Difficulty.scoreOfRank(40_000, 0.35, 25.0))
     }
 
     @Test
     fun theScaleFollowsTheBooksItWasFittedOn() {
-        // Measured with Honmani's splitting on the Aozora Bunko texts (2026-10-21); learnnatively.com
-        // grades 走れメロス 34 and 人間失格 41, editions of 手袋を買いに for learners 18 to 22.
-        assertEquals(34.0, Difficulty.nativelyLevel(79_756, 0.667, 18.1), 3.0)
-        assertEquals(41.0, Difficulty.nativelyLevel(101_177, 0.689, 39.6), 3.0)
-        assertTrue(Difficulty.nativelyLevel(53_640, 0.516, 32.0) < 28.0)
-        assertEquals(DifficultyBand.N2, DifficultyBand.of(Difficulty.score(79_756, 0.667, 18.1)))
+        // Measured with Honmani's splitting on the Aozora Bunko texts (2026-10-22): rare share,
+        // kanji share, sentence length, ln(distinct words) / ln(words). learnnatively.com grades
+        // 走れメロス 34 and 人間失格 41, editions of 手袋を買いに for learners 18 to 22.
+        assertEquals(34.0, Difficulty.nativelyLevel(0.2716, 0.6671, 18.09, 0.8656), 3.0)
+        assertEquals(41.0, Difficulty.nativelyLevel(0.3519, 0.6889, 39.62, 0.8317), 3.0)
+        assertTrue(Difficulty.nativelyLevel(0.1743, 0.5158, 32.0, 0.8442) < 27.0)
+        assertEquals(DifficultyBand.N1, DifficultyBand.of(Difficulty.score(0.2716, 0.6671, 18.09, 0.8656)))
     }
 
     @Test

@@ -336,9 +336,11 @@ private fun DifficultyCard(stats: BookStatistics, book: LibraryBook, skill: Int?
                 Text(
                     text = stringResource(
                         R.string.book_difficulty_detail,
-                        number(difficulty.r95.toLong()),
+                        (difficulty.rareShare * 100).roundToInt(),
                         (difficulty.kanjiShare * 100).roundToInt(),
                         difficulty.sentenceLength.roundToInt(),
+                        number(difficulty.distinctWords.toLong()),
+                        number(difficulty.words.toLong()),
                     ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,

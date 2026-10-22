@@ -108,6 +108,8 @@ class DifficultyStore(private val directory: File) {
                 .put("words", words)
                 .put("distinctWords", distinctWords)
                 .put("unknownShare", unknownShare.toDouble())
+                .put("rareShare", rareShare.toDouble())
+                .put("variety", variety.toDouble())
         }
 
         fun decode(json: JSONObject): StoredDifficulty = StoredDifficulty(
@@ -121,6 +123,8 @@ class DifficultyStore(private val directory: File) {
                 words = json.getInt("words"),
                 distinctWords = json.getInt("distinctWords"),
                 unknownShare = json.getDouble("unknownShare").toFloat(),
+                rareShare = json.optDouble("rareShare", 0.0).toFloat(),
+                variety = json.optDouble("variety", 0.0).toFloat(),
             ),
             signature = json.getString("signature"),
         )

@@ -30,6 +30,13 @@ data class BookDifficulty(
     val distinctWords: Int,
     /** Share of the text's words no dictionary knew (mostly names), 0 to 1. */
     val unknownShare: Float,
+    /**
+     * Share of the words beyond the [Difficulty.COMMON_WORDS] most common (or in no frequency
+     * list), 0 to 1, a word's later uses counting less like in [r95].
+     */
+    val rareShare: Float = 0f,
+    /** How varied the vocabulary is: ln(distinct words) / ln(words), about 0.75 to 0.9. */
+    val variety: Float = 0f,
 )
 
 /**
@@ -97,11 +104,11 @@ enum class DifficultyBand(val highest: Int) {
 }
 
 /**
- * Book difficulty from three measures of the text, weighted as fitted to how readers grade books
- * on learnnatively.com: how rare its vocabulary is (the frequency rank that covers 95% of the
- * words), how much of it is written in kanji, and how long its sentences are. In the first two a
- * word's later uses count less ([weightOfUses]), as a reader learns a word from its first few
- * uses; counting every use, a short story that keeps coming back to a few words in kanji (子狐,
+ * Book difficulty from four measures of the text, weighted as fitted to how readers grade books
+ * on learnnatively.com: how many of its words are rare (beyond the 10,000 most common), how much
+ * of it is written in kanji, how long its sentences are and how varied its vocabulary is. In the
+ * first two a word's later uses count less ([weightOfUses]), as a reader learns a word from its
+ * first few uses; counting every use, a short story that keeps coming back to a few words in kanji (子狐,
  * 手袋, 人間 in 手袋を買いに) was graded like a hard novel, and on the books compared both
  * measures followed the readers' grades much better weighted. Kanji with furigana count half,
  * as children's books with furigana throughout are graded about that much easier.
@@ -112,9 +119,11 @@ object Difficulty {
      * paragraphs end sentences (dialogue without 。 had made sentences far too long). 3: the
      * book's characters are kept. 4: the book's words are kept ([BookWords]). 5: names left out
      * ([isName]); every place a word occurs is kept. 6: a word's later uses count less
-     * ([weightOfUses]), refitted; Aozora Bunko's colophon left out ([storyEnd]).
+     * ([weightOfUses]), refitted; Aozora Bunko's colophon left out ([storyEnd]). 7: graded from
+     * the share of rare words and the vocabulary's variety instead of R95, refitted with light
+     * novels.
      */
-    const val VERSION = 6
+    const val VERSION = 7
 
     const val COVERAGE = 0.95
 
@@ -166,20 +175,38 @@ object Difficulty {
         return weight + (count - FIRST_USES.size).coerceAtLeast(0) * LATER_USE
     }
 
+    /** Words up to this frequency rank count as common for [BookDifficulty.rareShare]. */
+    const val COMMON_WORDS = 10_000
+
     /**
      * The grade on learnnatively.com's scale (0 to about 45; JLPT N5 is up to 12, N1 34 to 40),
-     * from the fit.
+     * from the fit: the share of rare words, of words in kanji, the sentence length and the
+     * vocabulary's variety ([BookDifficulty]).
      */
-    fun nativelyLevel(r95: Int, kanjiShare: Double, sentenceLength: Double): Double {
-        // The fit's ranks are jiten.moe's; on the same texts Honmani's split gives somewhat lower ones.
-        val rank = (r95 / SPLIT_RATIO).coerceIn(MIN_R95, MAX_R95)
+    fun nativelyLevel(rareShare: Double, kanjiShare: Double, sentenceLength: Double, variety: Double): Double {
+        // The fit's measures are jiten.moe's; on the same texts Honmani's split finds a little
+        // fewer rare words and words in kanji (furigana counts half here).
+        val rare = (rareShare / RARE_RATIO).coerceIn(0.0, 1.0)
+        val kanji = (kanjiShare / KANJI_RATIO).coerceIn(0.0, 1.0)
         val length = sentenceLength.coerceIn(MIN_SENTENCE, MAX_SENTENCE)
-        return INTERCEPT + RANK_WEIGHT * ln(rank) + KANJI_WEIGHT * kanjiShare + SENTENCE_WEIGHT * length
+        return INTERCEPT + RARE_WEIGHT * rare + KANJI_WEIGHT * kanji + SENTENCE_WEIGHT * length + VARIETY_WEIGHT * variety
     }
 
     /** 1–100 from [nativelyLevel]: level [TOP_LEVEL] and above is 100, so a score is about 2.2 levels. */
-    fun score(r95: Int, kanjiShare: Double, sentenceLength: Double): Int =
-        (1 + 99 * nativelyLevel(r95, kanjiShare, sentenceLength) / TOP_LEVEL).roundToInt().coerceIn(1, 100)
+    fun score(rareShare: Double, kanjiShare: Double, sentenceLength: Double, variety: Double): Int =
+        scoreOfLevel(nativelyLevel(rareShare, kanjiShare, sentenceLength, variety))
+
+    /**
+     * The score of a book whose R95 is [r95] (version 6's model): for the vocabulary part of the
+     * skill, which is a frequency rank. Same scale as [score].
+     */
+    fun scoreOfRank(r95: Int, kanjiShare: Double, sentenceLength: Double): Int {
+        val rank = (r95 / RANK_SPLIT_RATIO).coerceIn(MIN_R95, MAX_R95)
+        val length = sentenceLength.coerceIn(MIN_SENTENCE, MAX_SENTENCE)
+        return scoreOfLevel(RANK_INTERCEPT + RANK_WEIGHT * ln(rank) + RANK_KANJI_WEIGHT * kanjiShare + RANK_SENTENCE_WEIGHT * length)
+    }
+
+    private fun scoreOfLevel(level: Double): Int = (1 + 99 * level / TOP_LEVEL).roundToInt().coerceIn(1, 100)
 
     /** Splits [text] with [segmenter] and grades it; null for text with too few words to tell. */
     fun of(text: Sequence<RubyText>, segmenter: Segmenter): BookDifficulty? = measure(text, segmenter)?.difficulty
@@ -240,15 +267,19 @@ object Difficulty {
         if (wordCount < MIN_WORDS || sentences == 0L) return null
         val ranks = IntArray(keptIndices.size) { keyRanks[keptIndices[it]] }
         val r95 = r95(ranks, uses)
-        // Weighted like r95: a word's share of kanji counts as much as the word does.
+        // Weighted like r95: a word's share of kanji, or being rare, counts as much as the word does.
         var kanjiWeight = 0.0
+        var rareWeight = 0.0
         var allWeight = 0.0
         for (i in keptIndices.indices) {
             val weight = weightOfUses(uses[i])
             kanjiWeight += weight * kanjiHalves[keptIndices[i]] / (WHOLE_KANJI * uses[i])
+            if (ranks[i] > COMMON_WORDS) rareWeight += weight
             allWeight += weight
         }
         val kanjiShare = kanjiWeight / allWeight
+        val rareShare = rareWeight / allWeight
+        val variety = ln(keptIndices.size.coerceAtLeast(2).toDouble()) / ln(wordCount.toDouble())
         val sentenceLength = characters.toDouble() / sentences
         val length = offset.coerceAtLeast(1).toDouble()
         val kept = keys.keys.filterIndexed { index, _ -> !names[index] }
@@ -262,7 +293,7 @@ object Difficulty {
         )
         val difficulty = BookDifficulty(
             version = VERSION,
-            score = score(r95, kanjiShare, sentenceLength),
+            score = score(rareShare, kanjiShare, sentenceLength, variety),
             r95 = r95,
             kanjiShare = kanjiShare.toFloat(),
             sentenceLength = sentenceLength.toFloat(),
@@ -270,6 +301,8 @@ object Difficulty {
             words = wordCount,
             distinctWords = kept.size,
             unknownShare = unknown.toFloat() / (unknown + wordCount),
+            rareShare = rareShare.toFloat(),
+            variety = variety.toFloat(),
         )
         return Measured(difficulty, words)
     }
@@ -317,13 +350,26 @@ object Difficulty {
     private const val NAME_MIN_RANK = 5_000
     private const val NAME_EXCESS = 1_000.0
 
-    // Fitted on jiten.moe's word lists of the books learnnatively.com grades (2026-10-21); refit
-    // and raise VERSION together.
-    private const val INTERCEPT = -78.63
+    // Fitted on jiten.moe's word lists of 498 books and light novel series learnnatively.com
+    // grades (non-fiction left out; 2026-10-22), leave-one-out rank correlation 0.85 (R95 instead
+    // of the rare share: 0.81), then spread 1.1 times about the mean level 30.85, so that easy
+    // and hard books aren't pulled towards the middle. Refit and raise VERSION together.
+    private const val INTERCEPT = -54.78
+    private const val RARE_WEIGHT = 42.23
+    private const val KANJI_WEIGHT = 38.47
+    private const val SENTENCE_WEIGHT = 0.2236
+    private const val VARIETY_WEIGHT = 49.16
+
+    // Honmani's measure / jiten.moe's on eight Aozora Bunko works (median; variety is 0.996).
+    private const val RARE_RATIO = 0.838
+    private const val KANJI_RATIO = 0.895
+
+    // Version 6's model, for [scoreOfRank].
+    private const val RANK_INTERCEPT = -78.63
     private const val RANK_WEIGHT = 7.254
-    private const val KANJI_WEIGHT = 37.75
-    private const val SENTENCE_WEIGHT = 0.159
-    private const val SPLIT_RATIO = 0.86
+    private const val RANK_KANJI_WEIGHT = 37.75
+    private const val RANK_SENTENCE_WEIGHT = 0.159
+    private const val RANK_SPLIT_RATIO = 0.86
     private const val MIN_R95 = 3_000.0
     private const val MAX_R95 = 300_000.0
     private const val MIN_SENTENCE = 6.0

@@ -46,7 +46,7 @@ class SkillTracker(
             sentence += difficulty.sentenceLength * weight
         }
         if (weights <= 0.0) return null
-        val score = Difficulty.score(estimate.words, kanji / weights, sentence / weights)
+        val score = Difficulty.scoreOfRank(estimate.words, kanji / weights, sentence / weights)
         return VocabularySkill(score, estimate)
     }
 }
