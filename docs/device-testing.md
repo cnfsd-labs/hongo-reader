@@ -52,6 +52,8 @@ settings, Words (with Learning/Known progress), Progress (level, streak, calenda
 skill) and Statistics come back. Add one of the books again (the same file, or from the book
 server): it shows its old progress, opens at the old page and has its statistics. Restoring the
 same file again changes nothing.
+With progress sync signed in: read on in KOReader after the backup, then restore and add the
+book: it opens at KOReader's page ("Continued at …"), not at the backup's.
 
 ## Reading progress sync (KOReader)
 

@@ -453,13 +453,14 @@ class LibraryViewModel(
                     syncPosition = { book, ttuId ->
                         val ttu = container.ttuLibrary
                         // A restored backup's position, if ttu's own is behind it (ttu forgot the
-                        // book when Honmani was installed again).
+                        // book when Honmani was installed again). It keeps the time it was read,
+                        // so the sync below still takes the server's position if that is newer.
                         val restored = container.restoredBooks
                         withContext(Dispatchers.IO) { restored.takePosition(book.contentHash) }?.let { position ->
                             try {
                                 val (characters, _) = ttu.bookmark(ttuId)
                                 if (characters == null || characters < position.characters) {
-                                    ttu.setBookmark(ttuId, position.characters, position.progress.toDouble())
+                                    ttu.setBookmark(ttuId, position.characters, position.progress.toDouble(), position.savedAt)
                                 }
                             } catch (_: TtuLibraryException) {
                                 withContext(Dispatchers.IO) { restored.setPosition(book.contentHash, position) }

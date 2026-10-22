@@ -40,6 +40,11 @@ class BackupTest {
     private val phones = ArrayList<Phone>()
     private val today = LocalDate.of(2026, 10, 22)
 
+    private companion object {
+        /** When the book was last opened on the old phone: its position was read after that. */
+        const val LAST_OPENED = 1_700_000_000_000L
+    }
+
     /** One installation of the app: its database, preferences and files. */
     private inner class Phone(name: String) {
         private val context = ApplicationProvider.getApplicationContext<Context>()
@@ -69,7 +74,7 @@ class BackupTest {
             phones += this
         }
 
-        suspend fun addBook(hash: String, characters: Long = 0, progress: Float = 0f): BookEntity {
+        suspend fun addBook(hash: String, characters: Long = 0, progress: Float = 0f, lastOpenedAt: Long? = null): BookEntity {
             val book = BookEntity(
                 contentHash = hash,
                 title = "Book $hash",
@@ -78,6 +83,7 @@ class BackupTest {
                 addedAt = 1_000,
                 characters = characters,
                 progress = progress,
+                lastOpenedAt = lastOpenedAt,
             )
             return book.copy(id = database.bookDao().insert(book))
         }
@@ -127,7 +133,7 @@ class BackupTest {
 
     /** A phone with a book read on two days, a removed book's reading, words, settings and more. */
     private suspend fun oldPhone(): Phone = Phone("old").apply {
-        val book = addBook("hash-a", characters = 5_000, progress = 0.25f)
+        val book = addBook("hash-a", characters = 5_000, progress = 0.25f, lastOpenedAt = LAST_OPENED)
         read(book.id, "2026-10-20", seconds = 600, characters = 3_000)
         read(book.id, "2026-10-21", seconds = 400, characters = 2_000)
         // A book removed from the library: its reading still counts.
@@ -183,7 +189,7 @@ class BackupTest {
         assertEquals(5_000L, new.database.bookDao().find(added.id)?.characters)
         assertEquals(5_000L, new.days().filter { it.bookId == added.id }.sumOf { it.characters })
         assertEquals(1, new.database.wordDao().countLookups(added.id).first())
-        assertEquals(RestoredPosition(5_000, 0.25f), new.restored.takePosition("hash-a"))
+        assertEquals(RestoredPosition(5_000, 0.25f, savedAt = LAST_OPENED), new.restored.takePosition("hash-a"))
         assertNull(new.restored.takePosition("hash-a"))
         assertTrue(new.restored.waiting().none { it.key == "hash-a" })
     }
@@ -240,7 +246,19 @@ class BackupTest {
         assertEquals(2_000L, days.getValue("2026-10-21").characters)
         assertEquals(100L, days.getValue("2026-10-22").seconds)
         assertEquals(1, new.database.backupDao().words().count { it.expression == "猫" })
-        assertEquals(RestoredPosition(5_000, 0.25f), new.restored.takePosition("hash-a"))
+        assertEquals(RestoredPosition(5_000, 0.25f, savedAt = LAST_OPENED), new.restored.takePosition("hash-a"))
+    }
+
+    @Test
+    fun aBookWithoutAnOpeningDateTakesTheBackupsTimeForItsPosition() = runTest {
+        val old = Phone("old")
+        old.addBook("hash-b", characters = 800, progress = 0.5f)
+        val new = Phone("new")
+        val book = new.addBook("hash-b", characters = 100, progress = 0.1f)
+
+        new.backup.restore(throughFile(old.backup.export(readerSettings = null)))
+
+        assertEquals(RestoredPosition(800, 0.5f, savedAt = 1_800_000_000_000L), new.restored.takePosition(book.contentHash))
     }
 
     @Test(expected = BackupFormatException::class)

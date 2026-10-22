@@ -37,7 +37,7 @@ data class RestoreSummary(
     val wordsAdded: Int,
     /** Book servers added; their passwords have to be entered again. */
     val catalogsAdded: Int,
-    /** Library books whose reading position moved forward, for ttu (see [RestoredBooks.takePosition]). */
+    /** Library books whose reading position moved forward, for ttu ([RestoredBooks.takePosition]). */
     val positions: List<BookEntity> = emptyList(),
 )
 
@@ -155,6 +155,7 @@ class Backup(
         val waitingBefore = restored.waiting().associateBy { it.key }
         val newWaiting = ArrayList<WaitingBook>()
         val positions = ArrayList<BookEntity>()
+        val savedAt = HashMap<Long, Long>()
         val progressBefore = wordProgress.load()
         val progress = HashMap<Long, WordStep>()
         var booksInLibrary = 0
@@ -176,7 +177,10 @@ class Backup(
                     booksInLibrary++
                     val merged = merge(book, details)
                     if (merged != book) dao.updateBook(merged)
-                    if (merged.characters > book.characters) positions += merged
+                    if (merged.characters > book.characters) {
+                        positions += merged
+                        savedAt[book.id] = details.lastOpenedAt ?: backup.exportedAt
+                    }
                 } else if (entry.key !in waitingBefore && details != null) {
                     ids[entry.key] = nextId
                     newWaiting += WaitingBook(entry.key, nextId--, details)
@@ -264,7 +268,7 @@ class Backup(
             }
         }
         restored.addWaiting(newWaiting)
-        for (book in positions) restored.setPosition(book.contentHash, RestoredPosition(book.characters, book.progress))
+        for (book in positions) restored.setPosition(book.contentHash, position(book, savedAt[book.id] ?: backup.exportedAt))
         wordProgress.restore(progress)
         return RestoreSummary(
             booksInLibrary = booksInLibrary,
@@ -290,7 +294,7 @@ class Backup(
             if (merged != book) dao.updateBook(merged)
         }
         if (merged.characters > book.characters) {
-            restored.setPosition(book.contentHash, RestoredPosition(merged.characters, merged.progress))
+            restored.setPosition(book.contentHash, position(merged, details.lastOpenedAt ?: details.addedAt))
         }
         return merged
     }
@@ -324,6 +328,14 @@ class Backup(
             is Set<*> -> BackupValue(BackupValue.STRING_SET, JsonArray(value.filterIsInstance<String>().sorted().map(::JsonPrimitive)))
             else -> null
         }
+
+        /**
+         * [book]'s reading position, read at about [savedAt]: the last time the book was opened
+         * on the phone backed up. Its pages were read after that, and so were the positions it
+         * sent to a sync server then: a sync server with a position from that reading or later
+         * wins when the book opens; one only from before it doesn't.
+         */
+        fun position(book: BookEntity, savedAt: Long) = RestoredPosition(book.characters, book.progress, savedAt)
 
         fun details(book: BookEntity, score: Int) = BackupBookDetails(
             title = book.title,

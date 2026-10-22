@@ -19,9 +19,12 @@ import kotlinx.serialization.json.Json
 @Serializable
 data class WaitingBook(val key: String, val id: Long, val details: BackupBookDetails? = null)
 
-/** A reading position from a backup, for ttu when the book next opens. */
+/**
+ * A reading position from a backup, for ttu when the book next opens. [savedAt] (ms) is about when
+ * it was read, so progress sync takes the server's position instead when that is newer.
+ */
 @Serializable
-data class RestoredPosition(val characters: Long, val progress: Float)
+data class RestoredPosition(val characters: Long, val progress: Float, val savedAt: Long = 0)
 
 /**
  * What a restore left to do once books are back: books waiting to be added again, and reading

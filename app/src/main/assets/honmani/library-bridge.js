@@ -17,8 +17,9 @@
  *   honmaniLibrary.bookmark({ requestId, ttuId })
  *     → { type: 'library.bookmark', requestId, characters, modified }: the reading position ttu
  *     saved for the book (characters before it, when it was saved in ms); characters null if none.
- *   honmaniLibrary.setBookmark({ requestId, ttuId, characters, progress })
- *     Saves a reading position for the book (from progress sync), which ttu opens it at.
+ *   honmaniLibrary.setBookmark({ requestId, ttuId, characters, progress, modified })
+ *     Saves a reading position for the book (from progress sync or a backup), which ttu opens it
+ *     at. modified (ms) is when it was read, for a later sync to compare; now if not given.
  *     → { type: 'library.bookmarkSet', requestId }
  *   honmaniLibrary.progress()
  *     → { type: 'library.progress', books: [{ id, progress, characters }] }, progress 0..1 and
@@ -267,7 +268,7 @@
     });
   }
 
-  function setBookmark({ requestId, ttuId, characters, progress }) {
+  function setBookmark({ requestId, ttuId, characters, progress, modified }) {
     enqueue(async () => {
       try {
         await withDb(async (db) => {
@@ -277,7 +278,7 @@
             dataId: ttuId,
             exploredCharCount: Math.max(0, Math.floor(characters)),
             progress: Math.min(1, Math.max(0, progress)),
-            lastBookmarkModified: Date.now(),
+            lastBookmarkModified: Number.isFinite(modified) && modified > 0 ? modified : Date.now(),
           });
           await committed(transaction);
         });

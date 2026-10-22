@@ -339,6 +339,22 @@ test('resetting progress makes ttu open the book at the start', async ({ page })
   await expect(page.locator('.book-content p').first()).toBeInViewport();
 });
 
+test('a position set from a backup keeps the time it was read, for progress sync to compare', async ({ page }) => {
+  await setUp(page);
+  await page.goto(`${server.url}/manage`);
+  const book = await ensure(page, 'long.epub');
+
+  await call(page, 'setBookmark', { ttuId: book.id, characters: 1234, progress: 0.1, modified: 1_700_000_000_000 });
+  expect(await call(page, 'bookmark', { ttuId: book.id })).toMatchObject({ characters: 1234, modified: 1_700_000_000_000 });
+
+  // From progress sync: no time given, so now.
+  const before = Date.now();
+  await call(page, 'setBookmark', { ttuId: book.id, characters: 2000, progress: 0.2 });
+  const synced = await call(page, 'bookmark', { ttuId: book.id });
+  expect(synced.characters).toBe(2000);
+  expect(synced.modified).toBeGreaterThanOrEqual(before);
+});
+
 test('removing a book deletes it from ttu', async ({ page }) => {
   await setUp(page);
   await page.goto(`${server.url}/manage`);

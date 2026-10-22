@@ -119,13 +119,17 @@ class TtuLibrary(
             ?: throw TtuLibraryException("Unexpected reply")
     }
 
-    /** Saves a reading position for the book, which ttu opens it at next. */
-    suspend fun setBookmark(ttuId: Long, characters: Long, progress: Double) {
+    /**
+     * Saves a reading position for the book, which ttu opens it at next; [modified] (ms) is when
+     * it was read (progress sync compares it with the server's), now if null.
+     */
+    suspend fun setBookmark(ttuId: Long, characters: Long, progress: Double, modified: Long? = null) {
         command(pageTimeoutMs, "setBookmark") { requestId ->
             put("requestId", requestId)
             put("ttuId", ttuId)
             put("characters", characters)
             put("progress", progress)
+            modified?.let { put("modified", it) }
         }
     }
 

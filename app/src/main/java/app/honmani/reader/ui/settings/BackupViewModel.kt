@@ -75,14 +75,17 @@ class BackupViewModel(private val container: AppContainer, private val resolver:
         container.appearanceSettings.reload()
         container.ankiSettings.reload()
         val ttu = container.ttuLibrary
-        // Books in the library whose position moved forward: ttu opens them there.
+        // Books in the library whose position moved forward: ttu opens them there, unless progress
+        // sync has a newer one when the book opens (the position keeps the time it was read).
+        val restored = container.restoredBooks
         for (book in summary.positions) {
             val ttuId = book.ttuId ?: continue
+            val position = withContext(Dispatchers.IO) { restored.takePosition(book.contentHash) } ?: continue
             try {
-                ttu.setBookmark(ttuId, book.characters, book.progress.toDouble())
-                withContext(Dispatchers.IO) { container.restoredBooks.takePosition(book.contentHash) }
+                ttu.setBookmark(ttuId, position.characters, position.progress.toDouble(), position.savedAt)
             } catch (_: TtuLibraryException) {
                 // Given to ttu when the book opens.
+                withContext(Dispatchers.IO) { restored.setPosition(book.contentHash, position) }
             }
         }
         backup.readerSettings?.let { stored ->
