@@ -485,6 +485,11 @@
     <string name="book_difficulty_no_dictionaries">The difficulty needs a dictionary and a frequency list, such as Jiten. Get them in Settings → Dictionaries.</string>
     <string name="book_time_whole">About %1$s to read</string>
     <string name="book_time_left">About %1$s left</string>
+    <string name="book_coverage_all">You know all its words.</string>
+    <plurals name="book_coverage">
+        <item quantity="one">You know about %1$d%% of its words; one is new to you.</item>
+        <item quantity="other">You know about %1$d%% of its words; about %2$s are new to you.</item>
+    </plurals>
     <string name="book_fit_easy">Easy read</string>
     <string name="book_fit_fits">Fits you</string>
     <string name="book_fit_challenge">A challenge</string>

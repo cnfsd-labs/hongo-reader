@@ -31,6 +31,13 @@ class WordKnowledge(
 
     fun isKnown(word: WordEntity): Boolean = steps(word) >= WordProgress.KNOWN
 
+    /**
+     * Whether the reader probably knows the word [key] of frequency [rank], as the vocabulary
+     * estimate counts it: not being learned, and met in reading or within the reader's
+     * [vocabulary] (a frequency rank, `VocabularyEstimate.words`).
+     */
+    fun knows(key: String, rank: Int, vocabulary: Int): Boolean = key !in learning && (key in read || rank <= vocabulary)
+
     /** Words known from reading alone (never looked up), with how often each was read, most read first. */
     fun knownByReading(lookedUp: Set<String>): List<Pair<String, Int>> =
         read.filter { (key, word) -> word.reads >= WordProgress.KNOWN && key !in lookedUp }

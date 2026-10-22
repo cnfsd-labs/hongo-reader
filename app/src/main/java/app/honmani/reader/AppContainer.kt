@@ -13,10 +13,12 @@ import app.honmani.reader.data.HonmaniDatabase
 import app.honmani.reader.data.backup.Backup
 import app.honmani.reader.data.backup.RestoredBooks
 import app.honmani.reader.data.difficulty.BookGrader
+import app.honmani.reader.data.difficulty.BookWords
 import app.honmani.reader.data.difficulty.DifficultyStore
 import app.honmani.reader.data.difficulty.DifficultyWorker
 import app.honmani.reader.data.difficulty.LexiconLoader
 import app.honmani.reader.data.difficulty.LexiconSources
+import app.honmani.reader.data.difficulty.StoredDifficulty
 import app.honmani.reader.data.dictionary.DictionaryDownloader
 import app.honmani.reader.data.fonts.FontStore
 import app.honmani.reader.data.dictionary.DictionaryImportScheduler
@@ -47,6 +49,7 @@ import app.honmani.reader.data.sync.KoSyncSettings
 import app.honmani.reader.data.sync.ProgressSync
 import app.honmani.reader.data.sync.UnsentPositions
 import app.honmani.reader.data.sync.RubyText
+import app.honmani.reader.data.words.BookCoverage
 import app.honmani.reader.data.words.ReadStretchStore
 import app.honmani.reader.data.words.WordKnowledge
 import app.honmani.reader.data.words.WordKnowledgeTracker
@@ -68,6 +71,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.launch
@@ -329,6 +333,25 @@ class AppContainer(context: Context) {
             bookWords = difficultyStore::words,
             store = wordProgressStore,
         ).knowledge.shareIn(applicationScope, SharingStarted.WhileSubscribed(5_000), replay = 1)
+    }
+
+    /**
+     * How much of a graded book's words the reader knows, once their vocabulary is estimated
+     * (the skill's vocabulary part); null before.
+     */
+    fun bookCoverage(contentHash: String): Flow<BookCoverage?> {
+        var words: Pair<StoredDifficulty, BookWords?>? = null
+        return combine(
+            wordKnowledge,
+            skillTracker.estimate.map { it.vocabulary?.estimate?.words }.distinctUntilChanged(),
+            difficultyStore.grades.map { it[contentHash] }.distinctUntilChanged(),
+        ) { knowledge, vocabulary, grade ->
+            if (vocabulary == null || grade == null || grade.difficulty.score <= 0) return@combine null
+            // The book's words only change when it is graded again.
+            val bookWords = words?.takeIf { it.first == grade }?.second
+                ?: difficultyStore.words(contentHash).also { words = grade to it }
+            bookWords?.let { BookCoverage.of(it, knowledge, vocabulary) }
+        }.flowOn(Dispatchers.Default)
     }
 
     /** The reader's skill: fluency and vocabulary in graded books. */

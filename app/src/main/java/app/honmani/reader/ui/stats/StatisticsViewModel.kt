@@ -15,6 +15,7 @@ import app.honmani.reader.data.stats.ReadingDayEntity
 import app.honmani.reader.data.stats.ReadingStats
 import app.honmani.reader.data.stats.PeriodSummary
 import app.honmani.reader.data.stats.StatsPeriod
+import app.honmani.reader.data.words.BookCoverage
 import app.honmani.reader.data.words.WordCounts
 import java.time.Instant
 import java.time.LocalDate
@@ -26,6 +27,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -58,6 +60,8 @@ data class BookStatistics(
     val grading: GradingState = GradingState.IDLE,
     /** The reader's speed (characters per hour), recent if there is enough, else overall. */
     val readerSpeed: Long? = null,
+    /** How much of the book's words the reader knows; null until graded and the vocabulary is estimated. */
+    val coverage: BookCoverage? = null,
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -72,6 +76,8 @@ class StatisticsViewModel(
     /** Book grades by content hash. */
     private val grades: Flow<Map<String, StoredDifficulty>> = flowOf(emptyMap()),
     private val grading: Flow<GradingState> = flowOf(GradingState.IDLE),
+    /** How much of a book (by content hash) the reader knows. */
+    private val coverage: (contentHash: String) -> Flow<BookCoverage?> = { flowOf(null) },
     private val today: () -> LocalDate = LocalDate::now,
     private val zone: () -> ZoneId = ZoneId::systemDefault,
 ) : ViewModel() {
@@ -140,7 +146,11 @@ class StatisticsViewModel(
                 readerSpeed = ReadingStats.period(allDays, today(), StatsPeriod.ALL).charactersPerHour
                     ?: ReadingStats.book(allDays).charactersPerHour,
             )
-        }
+        }.combine(
+            books.map { all -> all.firstOrNull { it.id == bookId }?.contentHash }
+                .distinctUntilChanged()
+                .flatMapLatest { hash -> hash?.let(coverage) ?: flowOf(null) },
+        ) { statistics, coverage -> statistics?.copy(coverage = coverage) }
 
     companion object {
         val Factory = viewModelFactory {
@@ -155,6 +165,7 @@ class StatisticsViewModel(
                     words = container.wordRepository.counts,
                     grades = container.difficultyStore.grades,
                     grading = container.bookGrader.state,
+                    coverage = container::bookCoverage,
                 )
             }
         }

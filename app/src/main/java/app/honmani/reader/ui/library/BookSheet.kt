@@ -281,8 +281,8 @@ private fun StatusPill(book: LibraryBook) {
 }
 
 /**
- * How hard the book is: the score, how it fits the reader's skill, and its band with about which
- * JLPT level that is. A tap shows the measures behind the score. Without a grade: that it is being worked out, or what is missing.
+ * How hard the book is: the score, how it fits the reader's skill, its band with about which
+ * JLPT level that is, and how much of its words the reader knows. A tap shows the measures behind the score. Without a grade: that it is being worked out, or what is missing.
  */
 @Composable
 private fun DifficultyCard(stats: BookStatistics, book: LibraryBook, skill: Int?) {
@@ -332,6 +332,18 @@ private fun DifficultyCard(stats: BookStatistics, book: LibraryBook, skill: Int?
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             ProgressBar(progress = { difficulty.score / 100f }, modifier = Modifier.fillMaxWidth())
+            stats.coverage?.let { coverage ->
+                Text(
+                    text = if (coverage.newWords == 0) {
+                        stringResource(R.string.book_coverage_all)
+                    } else {
+                        // Rounded down: 99.6% isn't all of them.
+                        val percent = (coverage.known * 100).toInt()
+                        pluralStringResource(R.plurals.book_coverage, coverage.newWords, percent, number(coverage.newWords.toLong()))
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
             if (expanded) {
                 Text(
                     text = stringResource(
