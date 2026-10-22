@@ -207,13 +207,24 @@ class DictionaryLookupTest {
     }
 
     @Test
-    fun furiganaDoesNotBeatALongerMatch() = runTest {
-        jmdict()
+    fun aLongerMatchTheFuriganaContradictsRanksBelowOneItAgreesWith() = runTest {
+        install(
+            "JMdict",
+            listOf("誰", "だれ", "", 10, "who"),
+            listOf("誰が", "たが", "", 10, "whose (archaic)"),
+            listOf("上", "うえ", "", 10, "above"),
+            listOf("上野", "こうずけ", "", 10, "Kōzuke"),
+        )
 
-        // ねこ over 食 is nonsense, but the longest match still wins; furigana only orders
-        // entries for the same part of the text.
-        val result = lookup.lookup("食べ物を", ruby = listOf(RubySpan(0, 1, "ねこ")))
-        assertEquals("食べ物", result.headwords().first())
+        assertEquals(listOf("誰が", "誰"), lookup.lookup("誰が来た").headwords())
+        val who = lookup.lookup("誰が来た", ruby = listOf(RubySpan(0, 1, "だれ")))
+        assertEquals(listOf("誰", "誰が"), who.headwords())
+        assertEquals(1, who.matchedLength)
+
+        // With no entry agreeing (a name read うえの), the longest match still comes first.
+        val ueno = lookup.lookup("上野に", ruby = listOf(RubySpan(0, 2, "うえの")))
+        assertEquals("上野", ueno.headwords().first())
+        assertEquals(2, ueno.matchedLength)
     }
 
     @Test

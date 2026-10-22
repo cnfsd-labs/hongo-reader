@@ -47,8 +47,9 @@ repository is public: never copy those notes, personal details or discussions in
 - **Reader settings:** ttu's localStorage is the only store, so Honmani's screen and ttu's own
   settings page never disagree. The theme follows the system until the reader picks one
   (`honmaniAutoTheme`).
-- **Lookup** is tap-based, scan length 20, longest match first; deinflection rules are Honmani's
-  own (`lookup/Deinflector`). Glossaries are always stored deflated (`GlossaryPacker`).
+- **Lookup** is tap-based, scan length 20, longest match first, except that an entry the book's
+  furigana contradicts ranks below the entries it agrees with (誰が with だれ is 誰, not 誰が
+  たが); deinflection rules are Honmani's own (`lookup/Deinflector`). Glossaries are always stored deflated (`GlossaryPacker`).
 - **Saved words** are recorded on every lookup, ranked by a decayed score (half-life 14 days),
   never deleted for age. "Learned", not "Known". Anki cards are suggested, never pushed.
 - **Anki:** own client for AnkiDroid's content provider (not the LGPL library); note type and

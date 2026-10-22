@@ -72,8 +72,9 @@ fun metaKey(expression: String, reading: String): String = "$expression\u0000$re
 /**
  * Finds dictionary entries for the text after a tap, Yomitan-style: every prefix of the text is
  * deinflected, candidates are looked up by written form and reading, entries whose word class
- * does not fit the deinflection are dropped, and the rest are ranked. Furigana in the book, if
- * any, ranks the entry with that reading first among matches of the same length.
+ * does not fit the deinflection are dropped, and the rest are ranked, longest match first.
+ * Furigana in the book, if any, ranks the entries with that reading first, above longer matches
+ * it contradicts.
  */
 class DictionaryLookup(
     private val dictionaryDao: DictionaryDao,
@@ -172,7 +173,14 @@ class DictionaryLookup(
             pointers = pointers + morePointers
         }
         val meta = meta(entries, dictionaries)
-        val order = compareByDescending<LookupEntry> { it.source.length }
+        // An entry the book's furigana contradicts ranks below every entry it agrees with, even a
+        // shorter one: 誰が with だれ over 誰 is 誰 + が, not the archaic 誰が (たが). With no
+        // entry agreeing, the longest match still comes first.
+        val furiganaDecides = entries.any { it.matchesFurigana }
+        fun contradicted(entry: LookupEntry) =
+            furiganaDecides && !entry.matchesFurigana && readingPrefix(entry.source) != null
+        val order = compareBy<LookupEntry> { contradicted(it) }
+            .thenByDescending { it.source.length }
             // A pointer whose target is missing says nothing itself.
             .thenBy { it.term.id in pointers }
             .thenByDescending { it.matchesFurigana }
