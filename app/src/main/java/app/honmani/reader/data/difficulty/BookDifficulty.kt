@@ -197,13 +197,15 @@ object Difficulty {
         scoreOfLevel(nativelyLevel(rareShare, kanjiShare, sentenceLength, variety))
 
     /**
-     * The score of a book whose R95 is [r95] (version 6's model): for the vocabulary part of the
-     * skill, which is a frequency rank. Same scale as [score].
+     * The score of a book whose R95 is [r95]: for the vocabulary part of the skill, which is a
+     * frequency rank. Fitted to [score] on the books [score] was fitted on, so a reader whose
+     * vocabulary reaches a book's R95 gets about that book's score.
      */
     fun scoreOfRank(r95: Int, kanjiShare: Double, sentenceLength: Double): Int {
         val rank = (r95 / RANK_SPLIT_RATIO).coerceIn(MIN_R95, MAX_R95)
+        val kanji = (kanjiShare / KANJI_RATIO).coerceIn(0.0, 1.0)
         val length = sentenceLength.coerceIn(MIN_SENTENCE, MAX_SENTENCE)
-        return scoreOfLevel(RANK_INTERCEPT + RANK_WEIGHT * ln(rank) + RANK_KANJI_WEIGHT * kanjiShare + RANK_SENTENCE_WEIGHT * length)
+        return scoreOfLevel(RANK_INTERCEPT + RANK_WEIGHT * ln(rank) + RANK_KANJI_WEIGHT * kanji + RANK_SENTENCE_WEIGHT * length)
     }
 
     private fun scoreOfLevel(level: Double): Int = (1 + 99 * level / TOP_LEVEL).roundToInt().coerceIn(1, 100)
@@ -364,11 +366,13 @@ object Difficulty {
     private const val RARE_RATIO = 0.838
     private const val KANJI_RATIO = 0.895
 
-    // Version 6's model, for [scoreOfRank].
-    private const val RANK_INTERCEPT = -78.63
-    private const val RANK_WEIGHT = 7.254
-    private const val RANK_KANJI_WEIGHT = 37.75
-    private const val RANK_SENTENCE_WEIGHT = 0.159
+    // [scoreOfRank]: R95, kanji share and sentence length fitted to [nativelyLevel] on the same
+    // books (2026-10-22; mean error under 0.6 levels in every band). Version 6's rank model, kept
+    // until then, gave easy books 2 to 4 points too much and hard ones about 5 too little.
+    private const val RANK_INTERCEPT = -100.89
+    private const val RANK_WEIGHT = 8.752
+    private const val RANK_KANJI_WEIGHT = 43.29
+    private const val RANK_SENTENCE_WEIGHT = 0.2552
     private const val RANK_SPLIT_RATIO = 0.86
     private const val MIN_R95 = 3_000.0
     private const val MAX_R95 = 300_000.0

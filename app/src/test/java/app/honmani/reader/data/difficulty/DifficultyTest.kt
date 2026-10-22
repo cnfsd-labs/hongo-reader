@@ -45,8 +45,24 @@ class DifficultyTest {
         assertTrue(Difficulty.score(0.25, 0.35, 25.0, 0.87) > base)
         assertEquals(1, Difficulty.score(0.0, 0.0, 5.0, 0.5))
         assertEquals(100, Difficulty.score(1.0, 1.0, 80.0, 1.0))
-        // The vocabulary part of the skill keeps version 6's rank model.
         assertTrue(Difficulty.scoreOfRank(80_000, 0.35, 25.0) > Difficulty.scoreOfRank(40_000, 0.35, 25.0))
+    }
+
+    @Test
+    fun theVocabularyScaleFollowsTheBookScale() {
+        // Two books of the fit (jiten.moe's measures converted to Honmani's: R95 × 0.86, kanji ×
+        // 0.895, rare share × 0.838, variety × 0.996): 星のカービィ 夢幻の歯車を探せ！ and 愚物語.
+        // A reader whose vocabulary reaches a book's R95 gets about the book's score.
+        assertEquals(
+            Difficulty.score(0.2639, 0.4718, 16.26, 0.8150).toDouble(),
+            Difficulty.scoreOfRank(49_818, 0.4718, 16.26).toDouble(),
+            3.0,
+        )
+        assertEquals(
+            Difficulty.score(0.3224, 0.6679, 42.49, 0.8144).toDouble(),
+            Difficulty.scoreOfRank(55_031, 0.6679, 42.49).toDouble(),
+            3.0,
+        )
     }
 
     @Test
