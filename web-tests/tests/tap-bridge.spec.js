@@ -173,7 +173,7 @@ test('a line break ends the scanned text and the sentence', async ({ page }) => 
   expect(next.ruby).toEqual([{ start: 0, end: 1, reading: 'ゆき' }]);
 });
 
-test('a tap whose click never comes (it stopped a fling) is looked up all the same', async ({ page }) => {
+test('a tap is looked up when the finger goes up, also when its click never comes (it stopped a fling)', async ({ page }) => {
   const { x, y } = await charCenter(page, '#v2', 'ど');
   // Pointer events only, as Chromium sends for a tap right after a page swipe.
   await page.evaluate(({ x, y }) => {
@@ -182,10 +182,17 @@ test('a tap whose click never comes (it stopped a fling) is looked up all the sa
     target.dispatchEvent(new PointerEvent('pointerdown', init));
     target.dispatchEvent(new PointerEvent('pointerup', init));
   }, { x, y });
-  expect(await messages(page)).toEqual([]);
-
-  await expect.poll(() => messages(page)).toHaveLength(1);
+  // At once: no waiting for a click.
+  expect(await messages(page)).toHaveLength(1);
   expect((await messages(page))[0].text).toBe('どこで生れたかとんと見当がつかぬ。');
+});
+
+test('a click without a tap before it (a keyboard, an accessibility service) is looked up', async ({ page }) => {
+  const { x, y } = await charCenter(page, '#v2', 'ど');
+  await page.evaluate(({ x, y }) => {
+    document.elementFromPoint(x, y).dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: x, clientY: y }));
+  }, { x, y });
+  expect(await messages(page)).toHaveLength(1);
 });
 
 test('a tap with its click is looked up once; a swipe is no tap', async ({ page }) => {
@@ -276,7 +283,7 @@ test('each tap logs how long its steps took until its mark was painted, once', a
   await tapChar(page, '#v1', '猫');
   await reply(page, { type: 'highlight', length: 3 });
   await expect.poll(() => logs.length).toBe(1);
-  expect(logs[0]).toMatch(/^honmani tap timing: click \+\d+ ms after finger up, message \+\d+, marked \+\d+, painted \+\d+$/);
+  expect(logs[0]).toMatch(/^honmani tap timing: tap \+\d+ ms after finger up, message \+\d+, marked \+\d+, painted \+\d+$/);
 
   // The same mark again (a new accent colour, say) is not a new tap.
   await reply(page, { type: 'highlight', length: 3, color: '#8A5CF5' });

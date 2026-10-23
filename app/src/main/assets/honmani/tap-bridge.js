@@ -38,8 +38,8 @@
   /** A tap moves at most this far (CSS px) and lasts at most this long (ms). */
   const TAP_SLOP = 10;
   const TAP_TIME = 500;
-  /** How long a tap's click may take before the tap is looked up without it (ms). */
-  const CLICK_WAIT = 350;
+  /** How long after a tap its click may come, and be left to ttu as already looked up (ms). */
+  const CLICK_AFTER_TAP = 1000;
   const MAX_READING_LENGTH = 32;
   const MAX_SENTENCE_LENGTH = 400;
   const BOOK_ROOT_SELECTOR = '.book-content';
@@ -445,18 +445,26 @@
   window.addEventListener(
     'click',
     (event) => {
-      clearTimeout(tapWithoutClick);
-      tapWithoutClick = undefined;
+      const tap = lastTapUp;
+      lastTapUp = null;
+      // The click of a tap already looked up when the finger went up.
+      if (
+        tap &&
+        event.timeStamp - tap.time < CLICK_AFTER_TAP &&
+        Math.hypot(event.clientX - tap.x, event.clientY - tap.y) <= TAP_SLOP
+      ) {
+        return;
+      }
       onTap(event.clientX, event.clientY, event.target, event.timeStamp, 'click');
     },
     true,
   );
 
-  // Chromium sends no click for a tap that stops a fling, such as one up to a second after a
-  // page swipe (seen on a OnePlus 7 Pro): a short, still tap whose click doesn't follow is
-  // looked up all the same.
+  // A short, still tap is looked up when the finger goes up, not at its click: the click comes
+  // a little later, and not at all for a tap that stops a fling, such as one up to a second
+  // after a page swipe (seen on a OnePlus 7 Pro), which then waited 350 ms for it.
   let tapStart = null;
-  let tapWithoutClick;
+  let lastTapUp = null;
   window.addEventListener(
     'pointerdown',
     (event) => {
@@ -473,12 +481,8 @@
       if (!start || !event.isPrimary) return;
       const moved = Math.hypot(event.clientX - start.x, event.clientY - start.y);
       if (moved > TAP_SLOP || event.timeStamp - start.time > TAP_TIME) return;
-      const { clientX: x, clientY: y, target } = event;
-      clearTimeout(tapWithoutClick);
-      tapWithoutClick = setTimeout(() => {
-        tapWithoutClick = undefined;
-        onTap(x, y, target, performance.now(), 'no click');
-      }, CLICK_WAIT);
+      lastTapUp = { x: event.clientX, y: event.clientY, time: event.timeStamp };
+      onTap(event.clientX, event.clientY, event.target, event.timeStamp, 'tap');
     },
     true,
   );
