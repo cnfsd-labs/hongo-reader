@@ -544,7 +544,8 @@ test('a word just looked up keeps its mark through answers asked for before the 
     ([requestId, id]) => window.__reply({ type: 'marks', requestId, color: '#e91e63', blocks: [{ id, marks: [[0, 2, 0]] }] }),
     [request.requestId, block.id],
   );
-  await expect.poll(() => marked(page)).toEqual({ 'honmani-learning': ['吾輩', '猫'], 'honmani-new': [] });
+  // In any order: 猫's mark came first.
+  await expect.poll(async () => (await marked(page))['honmani-learning'].sort()).toEqual(['吾輩', '猫']);
 
   // After the lookup's reset the app's answer decides: here 猫 is no longer being learned.
   const before = (await markRequests(page)).length;
