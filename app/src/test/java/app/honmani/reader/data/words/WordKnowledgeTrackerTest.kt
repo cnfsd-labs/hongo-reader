@@ -16,7 +16,11 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 
+// Robolectric for org.json, which the progress store writes with.
+@RunWith(RobolectricTestRunner::class)
 class WordKnowledgeTrackerTest {
     private val book = BookEntity(contentHash = "h", title = "Book", format = BookFormat.EPUB, fileName = "h.epub", addedAt = 0)
     private val grade = StoredDifficulty(
