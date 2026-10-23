@@ -143,10 +143,11 @@ private fun ReaderWithTabs(viewModel: ReaderViewModel) {
         viewModel.ankiResults.collect { (expression, result) -> showAnkiResult(context, expression, result) }
     }
 
-    // While a book is open: the words being learned, so marks follow lookups (word-marks.js).
-    val learning by produceState<Set<String>?>(null, atLibrary) {
+    // While a book is open: the words being learned and how they were written, so marks follow
+    // lookups (word-marks.js).
+    val learning by produceState<Pair<Set<String>, Set<String>>?>(null, atLibrary) {
         value = null
-        if (!atLibrary) container.wordKnowledge.map { it.learning }.distinctUntilChanged().collect { value = it }
+        if (!atLibrary) container.wordKnowledge.map { it.learning to it.learningForms }.distinctUntilChanged().collect { value = it }
     }
 
     // The book's background, also behind the status and navigation bars while a book is shown.

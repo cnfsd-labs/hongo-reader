@@ -523,6 +523,41 @@ test('a word just looked up is marked as being learned at once, before the app a
   expect(await marked(page)).toEqual({ 'honmani-learning': ['猫'], 'honmani-new': [] });
 });
 
+test('a word just looked up keeps its mark through answers asked for before the lookup counted', async ({ page }) => {
+  await openWithMarks(page, 'neko.epub', null);
+  await expect.poll(async () => (await markRequests(page)).flatMap((m) => m.blocks.map((b) => b.text))).toContain('吾輩は猫である。名前はまだ無い。');
+  const request = (await markRequests(page)).find((m) => m.blocks.some((b) => b.text.startsWith('吾輩')));
+  const block = request.blocks.find((b) => b.text.startsWith('吾輩'));
+
+  // The answer to a request sent before the tap arrives after the lookup's mark, without 猫.
+  await page.evaluate(() => {
+    const walker = document.createTreeWalker(document.querySelector('.book-content'), NodeFilter.SHOW_TEXT);
+    let node = walker.nextNode();
+    while (node && !node.data.includes('吾輩は猫')) node = walker.nextNode();
+    const range = document.createRange();
+    const at = node.data.indexOf('猫');
+    range.setStart(node, at);
+    range.setEnd(node, at + 1);
+    window.dispatchEvent(new CustomEvent('honmani-looked-up', { detail: { ranges: [range], color: '#e91e63' } }));
+  });
+  await page.evaluate(
+    ([requestId, id]) => window.__reply({ type: 'marks', requestId, color: '#e91e63', blocks: [{ id, marks: [[0, 2, 0]] }] }),
+    [request.requestId, block.id],
+  );
+  await expect.poll(() => marked(page)).toEqual({ 'honmani-learning': ['吾輩', '猫'], 'honmani-new': [] });
+
+  // After the lookup's reset the app's answer decides: here 猫 is no longer being learned.
+  const before = (await markRequests(page)).length;
+  await page.evaluate(() => window.__reply({ type: 'marks.reset' }));
+  await expect.poll(async () => (await markRequests(page)).length).toBeGreaterThan(before);
+  const again = (await markRequests(page)).slice(before).find((m) => m.blocks.some((b) => b.id === block.id));
+  await page.evaluate(
+    ([requestId, id]) => window.__reply({ type: 'marks', requestId, color: '#e91e63', blocks: [{ id, marks: [[0, 2, 0]] }] }),
+    [again.requestId, block.id],
+  );
+  await expect.poll(() => marked(page)).toEqual({ 'honmani-learning': ['吾輩'], 'honmani-new': [] });
+});
+
 test('word marks leave furigana out of the text and the marks', async ({ page }) => {
   await openWithMarks(page, 'ruby.epub', 'new');
 

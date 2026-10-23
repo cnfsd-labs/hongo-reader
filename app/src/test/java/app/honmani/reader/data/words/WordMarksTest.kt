@@ -61,4 +61,20 @@ class WordMarksTest {
     fun offMarksNothing() {
         assertEquals(emptyList<Pair<String, WordMark.Kind>>(), marks("私は猫を食べなかった", WordMarksMode.OFF))
     }
+
+    @Test
+    fun aWordIsAlsoMarkedAsItWasWrittenWhereItWasLookedUp() {
+        // Looked up as 猫 where the book wrote ねこ, and 食べ過ぎた as one word (the splitter has
+        // no 過ぎる here): the splitter finds neither, the forms as written mark them.
+        val looked = WordKnowledge(
+            read = emptyMap(),
+            progress = emptyMap(),
+            learning = setOf("猫", "食べ過ぎる"),
+            learningForms = setOf("ねこ", "食べ過ぎた"),
+        )
+        val text = "私はねこを食べ過ぎた"
+        val marks = WordMarks.of(text, segmenter, looked, WordMarksMode.LEARNING)
+            .map { text.substring(it.start, it.start + it.length) to it.kind }
+        assertEquals(listOf("ねこ" to WordMark.Kind.LEARNING, "食べ過ぎた" to WordMark.Kind.LEARNING), marks)
+    }
 }

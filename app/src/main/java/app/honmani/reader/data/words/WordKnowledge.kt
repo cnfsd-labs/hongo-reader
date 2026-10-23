@@ -26,7 +26,22 @@ class WordKnowledge(
     val learning: Set<String>,
     /** The share of each graded book read (0 to 1), by content hash. */
     val readShares: Map<String, Float> = emptyMap(),
+    /**
+     * How words not known yet were written where they were last looked up (食べました, ねこ):
+     * marked as written, also where the book's splitter finds another word there (ねこ for
+     * 猫) or splits it otherwise.
+     */
+    val learningForms: Set<String> = emptySet(),
 ) {
+    /** [learningForms] by first character, longest first. */
+    private val formsByFirst: Map<Char, List<String>> by lazy {
+        learningForms.filter { it.isNotEmpty() }.groupBy { it[0] }.mapValues { (_, forms) -> forms.sortedByDescending { it.length } }
+    }
+
+    /** The longest of [learningForms] written in [text] at [index], if any. */
+    fun learningFormAt(text: String, index: Int): String? =
+        formsByFirst[text[index]]?.firstOrNull { text.startsWith(it, index) }
+
     fun steps(word: WordEntity): Int = progress[word.id]?.steps ?: 0
 
     fun isKnown(word: WordEntity): Boolean = steps(word) >= WordProgress.KNOWN
@@ -150,8 +165,14 @@ class WordKnowledgeTracker(
         if (updated != previous) store.save(updated, loaded)
         progress = updated
         generation = loaded
-        val learning = words.filter { (updated[it.id]?.steps ?: 0) < WordProgress.KNOWN }.mapTo(HashSet()) { it.expression }
-        WordKnowledge(read, updated, learning, shares)
+        val notKnown = words.filter { (updated[it.id]?.steps ?: 0) < WordProgress.KNOWN }
+        val learning = notKnown.mapTo(HashSet()) { it.expression }
+        val forms = notKnown.mapNotNullTo(HashSet()) { word ->
+            word.lastSentence.takeIf { 0 <= word.lastSurfaceStart && word.lastSurfaceStart < word.lastSurfaceEnd && word.lastSurfaceEnd <= it.length }
+                ?.substring(word.lastSurfaceStart, word.lastSurfaceEnd)
+                ?.takeIf { it.isNotBlank() }
+        }
+        WordKnowledge(read, updated, learning, shares, forms)
     }.flowOn(context)
 
     private fun wordsOf(contentHash: String, signature: String): BookWords? {

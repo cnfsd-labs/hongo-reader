@@ -286,6 +286,12 @@
       }
       for (const [key, mark] of before) {
         if (now.get(key) === mark) continue;
+        // Marked at a lookup, and this answer was asked for before the app counted it: kept
+        // until the answers after the lookup's reset.
+        if (mark.lookedUp === request.generation) {
+          now.set(key, mark);
+          continue;
+        }
         for (const range of mark.ranges) {
           highlights[mark.kind].delete(range);
           fresh[mark.kind].delete(range);
@@ -412,7 +418,9 @@
     if (!marks.has(key)) {
       const own = rangesOf(id, start, length);
       for (const range of own) highlights[0].add(range);
-      marks.set(key, { kind: 0, ranges: own });
+      marks.set(key, { kind: 0, ranges: own, lookedUp: generation });
+    } else {
+      marks.get(key).lookedUp = generation;
     }
     shown.set(id, marks);
   }
