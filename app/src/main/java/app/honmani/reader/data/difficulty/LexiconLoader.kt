@@ -54,22 +54,38 @@ class LexiconLoader(private val dao: DifficultyDao) {
             }
             after = page.last().id
         }
-        // A rank counts for the written form, and for the reading the word is written in kana.
         after = 0L
         while (true) {
             val page = dao.frequencies(sources.frequency.id, after, PAGE)
             if (page.isEmpty()) break
-            for (row in page) {
-                val rank = row.rank.toInt()
-                builder.add(row.expression, 0, rank)
-                row.reading?.let { if (it != row.expression) builder.add(it, 0, rank) }
-            }
+            for (row in page) addRank(builder, row)
             after = page.last().id
         }
         return Difficulty.addGrammar(builder).build()
     }
 
-    private companion object {
-        const val PAGE = 20_000
+    companion object {
+        private const val PAGE = 20_000
+
+        /** Jiten's mark for a rank of the word written in kana ("615㋕"). */
+        private const val KANA_MARK = '\u32D5'
+
+        /**
+         * A rank counts for the written form, and for the reading the word is written in kana.
+         * A rank Jiten marks as the word's in kana counts for the reading only: 或る's "615㋕" is
+         * ある's rank, while 或る itself is rank 53,486. Counted for 或る too, rare spellings of
+         * common words (或る, 此, 筈, 所謂) looked common, and classics, which use many, read
+         * easier than the scale was fitted on.
+         */
+        fun addRank(builder: Lexicon.Builder, row: LexiconFrequency) {
+            val rank = row.rank.toInt()
+            val reading = row.reading?.takeIf { it.isNotEmpty() }
+            if (row.display?.trimEnd()?.endsWith(KANA_MARK) == true) {
+                builder.add(reading ?: row.expression, 0, rank)
+                return
+            }
+            builder.add(row.expression, 0, rank)
+            if (reading != null && reading != row.expression) builder.add(reading, 0, rank)
+        }
     }
 }

@@ -50,30 +50,33 @@ class DifficultyTest {
 
     @Test
     fun theVocabularyScaleFollowsTheBookScale() {
-        // Two books of the fit (jiten.moe's measures converted to Honmani's: R95 × 0.86, kanji ×
-        // 0.895, rare share × 0.838, variety × 0.996): 星のカービィ 夢幻の歯車を探せ！ and 愚物語.
+        // Two books of the fit (jiten.moe's measures converted to Honmani's: R95 × 1.04, kanji ×
+        // 0.99, rare share × 0.97, variety × 0.996): 星のカービィ 夢幻の歯車を探せ！ and 愚物語.
         // A reader whose vocabulary reaches a book's R95 gets about the book's score.
         assertEquals(
-            Difficulty.score(0.2639, 0.4718, 16.26, 0.8150).toDouble(),
-            Difficulty.scoreOfRank(49_818, 0.4718, 16.26).toDouble(),
+            Difficulty.score(0.3055, 0.5219, 16.26, 0.8150).toDouble(),
+            Difficulty.scoreOfRank(60_245, 0.5219, 16.26).toDouble(),
             3.0,
         )
         assertEquals(
-            Difficulty.score(0.3224, 0.6679, 42.49, 0.8144).toDouble(),
-            Difficulty.scoreOfRank(55_031, 0.6679, 42.49).toDouble(),
+            Difficulty.score(0.3732, 0.7388, 42.49, 0.8144).toDouble(),
+            Difficulty.scoreOfRank(66_549, 0.7388, 42.49).toDouble(),
             3.0,
         )
     }
 
     @Test
     fun theScaleFollowsTheBooksItWasFittedOn() {
-        // Measured with Honmani's splitting on the Aozora Bunko texts (2026-10-22): rare share,
-        // kanji share, sentence length, ln(distinct words) / ln(words). learnnatively.com grades
-        // 走れメロス 34 and 人間失格 41, editions of 手袋を買いに for learners 18 to 22.
-        assertEquals(34.0, Difficulty.nativelyLevel(0.2716, 0.6671, 18.09, 0.8656), 3.0)
-        assertEquals(41.0, Difficulty.nativelyLevel(0.3519, 0.6889, 39.62, 0.8317), 3.0)
-        assertTrue(Difficulty.nativelyLevel(0.1743, 0.5158, 32.0, 0.8442) < 27.0)
-        assertEquals(DifficultyBand.N1, DifficultyBand.of(Difficulty.score(0.2716, 0.6671, 18.09, 0.8656)))
+        // Measured with Honmani's splitting (version 8, 2026-10-23): rare share, kanji share,
+        // sentence length, ln(distinct words) / ln(words). learnnatively.com grades 走れメロス 34,
+        // 人間失格 41, editions of 手袋を買いに for learners 18 to 22, 無職転生 1 31 and
+        // また、同じ夢を見ていた 24.
+        assertEquals(34.0, Difficulty.nativelyLevel(0.2879, 0.6932, 18.09, 0.8649), 3.0)
+        assertEquals(41.0, Difficulty.nativelyLevel(0.3743, 0.7110, 39.62, 0.8312), 3.0)
+        assertTrue(Difficulty.nativelyLevel(0.2005, 0.5588, 32.0, 0.8435) < 27.0)
+        assertEquals(31.0, Difficulty.nativelyLevel(0.2884, 0.7417, 19.09, 0.8170), 3.0)
+        assertEquals(24.0, Difficulty.nativelyLevel(0.1927, 0.6663, 24.60, 0.7607), 3.0)
+        assertEquals(DifficultyBand.N2, DifficultyBand.of(Difficulty.score(0.2884, 0.7417, 19.09, 0.8170)))
     }
 
     @Test
@@ -141,14 +144,28 @@ class DifficultyTest {
     }
 
     @Test
-    fun kanjiWithFuriganaCountHalf() {
+    fun kanjiWithFuriganaCountWhole() {
+        // As in jiten.moe's measure, which the scale was fitted on: counted half, classics full
+        // of furigana read easier than their readers graded them.
         val text = "猫が好きです。".repeat(130)
         val ruby = BitSet().apply { for (i in text.indices step 7) set(i) }
         val withFurigana = Difficulty.of(sequenceOf(RubyText(text, ruby)), Segmenter(lexicon))!!
 
-        // 猫 (with furigana) counts half, 好き (without) whole: 1.5 of 4 words.
-        assertEquals(0.375f, withFurigana.kanjiShare, 0.001f)
-        assertEquals(0.5f, Difficulty.of(sequenceOf(RubyText(text)), Segmenter(lexicon))!!.kanjiShare, 0.001f)
+        assertEquals(0.5f, withFurigana.kanjiShare, 0.001f)
+    }
+
+    @Test
+    fun aRankOfTheWordInKanaCountsForTheKanaOnly() {
+        val builder = Lexicon.Builder()
+        LexiconLoader.addRank(builder, LexiconFrequency(1, "或る", "ある", 615.0, "615\u32D5"))
+        LexiconLoader.addRank(builder, LexiconFrequency(2, "或る", "ある", 53_486.0, "53486"))
+        LexiconLoader.addRank(builder, LexiconFrequency(3, "猫", "ねこ", 900.0, null))
+        val ranks = builder.build()
+
+        assertEquals(53_486, ranks.rank(ranks.find("或る")))
+        assertEquals(615, ranks.rank(ranks.find("ある")))
+        assertEquals(900, ranks.rank(ranks.find("猫")))
+        assertEquals(900, ranks.rank(ranks.find("ねこ")))
     }
 
     @Test

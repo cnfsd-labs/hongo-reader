@@ -16,10 +16,7 @@ data class BookDifficulty(
      * ([Difficulty.r95]).
      */
     val r95: Int,
-    /**
-     * Share of the words written with kanji, 0 to 1, a word's later uses counting less like in
-     * [r95]; a word whose kanji all have furigana counts half.
-     */
+    /** Share of the words written with kanji, 0 to 1, a word's later uses counting less like in [r95]. */
     val kanjiShare: Float,
     /** Characters per sentence, on average. */
     val sentenceLength: Float,
@@ -110,8 +107,7 @@ enum class DifficultyBand(val highest: Int) {
  * first two a word's later uses count less ([weightOfUses]), as a reader learns a word from its
  * first few uses; counting every use, a short story that keeps coming back to a few words in kanji (子狐,
  * 手袋, 人間 in 手袋を買いに) was graded like a hard novel, and on the books compared both
- * measures followed the readers' grades much better weighted. Kanji with furigana count half,
- * as children's books with furigana throughout are graded about that much easier.
+ * measures followed the readers' grades much better weighted.
  */
 object Difficulty {
     /**
@@ -121,9 +117,11 @@ object Difficulty {
      * ([isName]); every place a word occurs is kept. 6: a word's later uses count less
      * ([weightOfUses]), refitted; Aozora Bunko's colophon left out ([storyEnd]). 7: graded from
      * the share of rare words and the vocabulary's variety instead of R95, refitted with light
-     * novels.
+     * novels. 8: Jiten's ranks of words in kana no longer rank their kanji spellings
+     * (`LexiconLoader.addRank`), kanji with furigana count whole, the ratios to jiten.moe's
+     * measures measured again.
      */
-    const val VERSION = 7
+    const val VERSION = 8
 
     const val COVERAGE = 0.95
 
@@ -185,7 +183,7 @@ object Difficulty {
      */
     fun nativelyLevel(rareShare: Double, kanjiShare: Double, sentenceLength: Double, variety: Double): Double {
         // The fit's measures are jiten.moe's; on the same texts Honmani's split finds a little
-        // fewer rare words and words in kanji (furigana counts half here).
+        // fewer rare words and words in kanji.
         val rare = (rareShare / RARE_RATIO).coerceIn(0.0, 1.0)
         val kanji = (kanjiShare / KANJI_RATIO).coerceIn(0.0, 1.0)
         val length = sentenceLength.coerceIn(MIN_SENTENCE, MAX_SENTENCE)
@@ -215,12 +213,12 @@ object Difficulty {
 
     /** [of], with the book's words. */
     fun measure(text: Sequence<RubyText>, segmenter: Segmenter): Measured? {
-        // First the words: how often each is used and how much in kanji (in halves, see
-        // WHOLE_KANJI). Names are only known once the whole book is counted.
+        // First the words: how often each is used and how often in kanji. Names are only known
+        // once the whole book is counted.
         val keys = LinkedHashMap<String, Int>()
         val keyRanks = IntList()
         val occurrences = ArrayList<IntList>()
-        val kanjiHalves = IntList()
+        val kanjiUses = IntList()
         var counted = 0
         var offset = 0L
         var unknown = 0
@@ -236,17 +234,12 @@ object Difficulty {
                 val index = keys.getOrPut(token.key) {
                     keyRanks.add(token.rank)
                     occurrences += IntList(4)
-                    kanjiHalves.add(0)
+                    kanjiUses.add(0)
                     keys.size
                 }
                 counted++
                 occurrences[index].add((offset + token.start).coerceAtMost(Int.MAX_VALUE.toLong()).toInt())
-                val inKanji = (token.start until token.start + token.length).filter { JapaneseText.isKanji(part[it].code) }
-                kanjiHalves[index] += when {
-                    inKanji.isEmpty() -> NO_KANJI
-                    inKanji.all { chapter.ruby[it] } -> FURIGANA_KANJI
-                    else -> WHOLE_KANJI
-                }
+                if ((token.start until token.start + token.length).any { JapaneseText.isKanji(part[it].code) }) kanjiUses[index]++
             }
             var inSentence = false
             for (c in part) {
@@ -275,7 +268,7 @@ object Difficulty {
         var allWeight = 0.0
         for (i in keptIndices.indices) {
             val weight = weightOfUses(uses[i])
-            kanjiWeight += weight * kanjiHalves[keptIndices[i]] / (WHOLE_KANJI * uses[i])
+            kanjiWeight += weight * kanjiUses[keptIndices[i]] / uses[i]
             if (ranks[i] > COMMON_WORDS) rareWeight += weight
             allWeight += weight
         }
@@ -340,11 +333,6 @@ object Difficulty {
 
     private const val SENTENCE_ENDS = "。！？!?\n"
 
-    // A word written in kanji counts 1, with furigana over all its kanji 0.5 (stored in halves).
-    private const val NO_KANJI = 0
-    private const val WHOLE_KANJI = 2
-    private const val FURIGANA_KANJI = 1
-
     private val FIRST_USES = doubleArrayOf(1.0, 0.75, 0.5, 0.25)
     private const val LATER_USE = 0.0
 
@@ -362,9 +350,12 @@ object Difficulty {
     private const val SENTENCE_WEIGHT = 0.2236
     private const val VARIETY_WEIGHT = 49.16
 
-    // Honmani's measure / jiten.moe's on eight Aozora Bunko works (median; variety is 0.996).
-    private const val RARE_RATIO = 0.838
-    private const val KANJI_RATIO = 0.895
+    // Honmani's measure / jiten.moe's (median; variety is 0.996) on five Aozora Bunko works and
+    // three modern novels (each book: rare 0.87-0.98, kanji 0.98-1.01). Before version 8 they were 0.838 and
+    // 0.895, from the Aozora works only: their rare spellings (或る) and furigana had made
+    // Honmani's shares lower there, and modern books came out about 10 points too hard.
+    private const val RARE_RATIO = 0.97
+    private const val KANJI_RATIO = 0.99
 
     // [scoreOfRank]: R95, kanji share and sentence length fitted to [nativelyLevel] on the same
     // books (2026-10-22; mean error under 0.6 levels in every band). Version 6's rank model, kept
@@ -373,7 +364,8 @@ object Difficulty {
     private const val RANK_WEIGHT = 8.752
     private const val RANK_KANJI_WEIGHT = 43.29
     private const val RANK_SENTENCE_WEIGHT = 0.2552
-    private const val RANK_SPLIT_RATIO = 0.86
+    // Honmani's R95 / jiten.moe's on the same eight books (median; 0.99-1.10).
+    private const val RANK_SPLIT_RATIO = 1.04
     private const val MIN_R95 = 3_000.0
     private const val MAX_R95 = 300_000.0
     private const val MIN_SENTENCE = 6.0

@@ -13,6 +13,8 @@ data class LexiconFrequency(
     val expression: String,
     val reading: String?,
     @ColumnInfo(name = "value") val rank: Double,
+    /** As the list shows it: Jiten marks a rank of the word written in kana with ㋕ ("615㋕"). */
+    val display: String? = null,
 )
 
 /**
@@ -28,7 +30,7 @@ interface DifficultyDao {
     suspend fun terms(dictionaries: List<Long>, after: Long, limit: Int): List<LexiconTerm>
 
     @Query(
-        "SELECT id, expression, reading, value FROM term_meta WHERE dictionary_id = :dictionary " +
+        "SELECT id, expression, reading, value, display FROM term_meta WHERE dictionary_id = :dictionary " +
             "AND kind = 'FREQUENCY' AND value IS NOT NULL AND id > :after ORDER BY id LIMIT :limit",
     )
     suspend fun frequencies(dictionary: Long, after: Long, limit: Int): List<LexiconFrequency>
