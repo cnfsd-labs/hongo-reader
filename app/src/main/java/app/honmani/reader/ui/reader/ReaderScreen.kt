@@ -27,6 +27,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -158,11 +159,7 @@ private fun ReaderWithTabs(viewModel: ReaderViewModel) {
             ReaderWebView(
                 onLookup = viewModel::onTap,
                 onDismiss = viewModel::dismiss,
-                highlight = when (val shown = panel) {
-                    is LookupPanelState.Results -> shown.highlight
-                    is LookupPanelState.Kanji -> shown.highlight
-                    else -> null
-                },
+                highlight = viewModel.highlight,
                 diagnostics = viewModel.diagnostics,
                 ttuLibrary = viewModel.ttuLibrary,
                 booksDir = viewModel.booksDir,
@@ -192,6 +189,11 @@ private fun ReaderWithTabs(viewModel: ReaderViewModel) {
             )
             val state = panel
             if (state != null && !atLibrary) {
+                // The frame after this state was first composed: it has been drawn (for the log).
+                LaunchedEffect(state) {
+                    withFrameNanos {}
+                    viewModel.onPanelDrawn(state)
+                }
                 // Composed after the WebView, so back closes the panel first.
                 BackHandler { if (!viewModel.back()) viewModel.dismiss() }
                 LookupPanel(

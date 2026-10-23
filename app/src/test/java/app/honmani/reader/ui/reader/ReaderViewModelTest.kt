@@ -9,7 +9,9 @@ import app.honmani.reader.lookup.Inflection
 import app.honmani.reader.lookup.KanjiInfo
 import app.honmani.reader.lookup.LookupEntry
 import app.honmani.reader.lookup.LookupResult
+import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -192,6 +194,38 @@ class ReaderViewModelTest {
         pending.getValue("猫").complete(LookupResult(emptyList(), dictionariesAvailable = false))
 
         assertEquals(LookupPanelState.NoDictionaries(tap("猫")), viewModel.panel.value)
+    }
+
+    @Test
+    fun theBookMarksTheWordBeforeThePanelIsBuilt_andTheMarkFollowsThePanel() {
+        // Runs the work sent off the main thread one step at a time: the lookup, then the grouping.
+        val compute = object : CoroutineDispatcher() {
+            val steps = ArrayDeque<Runnable>()
+
+            override fun dispatch(context: CoroutineContext, block: Runnable) {
+                steps.addLast(block)
+            }
+        }
+        val viewModel = ReaderViewModel(
+            lookup = { _, _ -> LookupResult(listOf(entry("食べる", "食べました"))) },
+            compute = compute,
+            recordLookup = {},
+            lookupKanji = { text -> kanji.filterKeys { it in text } },
+        )
+        viewModel.onTap(tap("食べました。"))
+        compute.steps.removeFirst().run()
+
+        // Found: the mark goes to the book while the panel's results are still being grouped.
+        assertEquals(5, viewModel.highlight.value?.length)
+        assertNull(viewModel.panel.value)
+
+        compute.steps.removeFirst().run()
+        val results = viewModel.panel.value as LookupPanelState.Results
+        assertEquals(results.highlight, viewModel.highlight.value)
+        viewModel.showKanji("食")
+        assertEquals(results.highlight, viewModel.highlight.value)
+        viewModel.dismiss()
+        assertNull(viewModel.highlight.value)
     }
 
     @Test

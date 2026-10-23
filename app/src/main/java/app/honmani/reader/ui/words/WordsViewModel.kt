@@ -14,9 +14,13 @@ import app.honmani.reader.data.words.WordEntity
 import app.honmani.reader.data.words.WordKnowledge
 import app.honmani.reader.data.words.WordLookupEntity
 import app.honmani.reader.data.words.WordRepository
+import app.honmani.reader.lookup.LookupGroup
+import app.honmani.reader.lookup.LookupGroups
 import java.io.IOException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -58,6 +62,8 @@ data class WordsUiState(
     val expanded: Long? = null,
     /** The expanded word's latest lookups, newest first. */
     val lookups: List<WordLookupEntity> = emptyList(),
+    /** The word known from reading alone whose meaning is shown, if any. */
+    val readWord: ReadWordDetails? = null,
     /** Words added so far and how many in all, while "Add all" or a package for Anki runs. */
     val ankiProgress: Pair<Int, Int>? = null,
     /** The progress is that of an Anki package being saved, not of "Add all". */
@@ -115,6 +121,8 @@ class WordsViewModel(
         { _, _, _ -> null },
     /** What was read and how well each word is known; null while it is worked out. */
     private val knowledge: Flow<WordKnowledge?> = flowOf(null),
+    /** Looks a word up in the dictionaries, as a tap in a book would. */
+    private val lookUp: suspend (String) -> List<LookupGroup> = { emptyList() },
 ) : ViewModel() {
     private val filter = MutableStateFlow(WordFilter.LEARNING)
     private val expanded = MutableStateFlow<Long?>(null)
@@ -123,6 +131,8 @@ class WordsViewModel(
     private val ankiProgress = MutableStateFlow<Pair<Int, Int>?>(null)
     private val savingPackage = MutableStateFlow(false)
     private val addingToAnki = MutableStateFlow<Set<Long>>(emptySet())
+    private val readWord = MutableStateFlow<ReadWordDetails?>(null)
+    private var readWordJob: Job? = null
 
     /** Results of adding to Anki, to tell the reader. */
     val ankiOutcomes: Flow<AnkiOutcome> = _ankiOutcomes.receiveAsFlow()
@@ -158,17 +168,48 @@ class WordsViewModel(
         }.combine(ankiProgress) { state, progress -> state.copy(ankiProgress = progress) }
             .combine(addingToAnki) { state, adding -> state.copy(addingToAnki = adding) }
             .combine(savingPackage) { state, saving -> state.copy(savingPackage = saving) }
+            .combine(readWord) { state, word -> state.copy(readWord = word) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), WordsUiState())
 
     fun setFilter(value: WordFilter) {
         if (filter.value == value) return
         filter.value = value
         expanded.value = null
+        closeReadWord()
     }
 
     /** Shows or hides the details of a word. */
     fun toggleExpanded(id: Long) {
         expanded.value = if (expanded.value == id) null else id
+        closeReadWord()
+    }
+
+    /**
+     * Shows or hides the meaning of [expression], a word known from reading alone: it was never
+     * looked up, so the dictionaries are asked now.
+     */
+    fun toggleReadWord(expression: String) {
+        val open = readWord.value?.expression == expression
+        closeReadWord()
+        if (open) return
+        expanded.value = null
+        readWord.value = ReadWordDetails(expression)
+        readWordJob = viewModelScope.launch {
+            val entry = try {
+                ReadWordDetails.entryFor(expression, withContext(Dispatchers.Default) { lookUp(expression) })
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // No meaning to show is all a failed lookup means here.
+                null
+            }
+            readWord.value = ReadWordDetails(expression, loading = false, entry = entry)
+        }
+    }
+
+    private fun closeReadWord() {
+        readWordJob?.cancel()
+        readWord.value = null
     }
 
     fun setStarred(id: Long, starred: Boolean) {
@@ -307,6 +348,7 @@ class WordsViewModel(
                         out.use { container.ankiExporter.ankiPackage(list, it, onProgress) }
                     },
                     knowledge = container.wordKnowledge,
+                    lookUp = { word -> LookupGroups.from(container.dictionaryLookup.lookup(word, emptyList())) },
                 )
             }
         }

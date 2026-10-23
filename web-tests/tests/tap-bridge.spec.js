@@ -268,6 +268,22 @@ test('the app can highlight the matched text, skipping furigana, and clear it', 
   expect(await highlighted(page)).toBeNull();
 });
 
+test('each tap logs how long its steps took until its mark was painted, once', async ({ page }) => {
+  const logs = [];
+  page.on('console', (message) => {
+    if (message.text().startsWith('honmani tap timing')) logs.push(message.text());
+  });
+  await tapChar(page, '#v1', '猫');
+  await reply(page, { type: 'highlight', length: 3 });
+  await expect.poll(() => logs.length).toBe(1);
+  expect(logs[0]).toMatch(/^honmani tap timing: click \+\d+ ms after finger up, message \+\d+, marked \+\d+, painted \+\d+$/);
+
+  // The same mark again (a new accent colour, say) is not a new tap.
+  await reply(page, { type: 'highlight', length: 3, color: '#8A5CF5' });
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  expect(logs).toHaveLength(1);
+});
+
 test('the highlighted word is announced to the word marks, with its colour', async ({ page }) => {
   await page.evaluate(() => {
     window.__lookedUp = [];

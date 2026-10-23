@@ -4,6 +4,7 @@ import app.honmani.reader.data.words.WordEntity
 import app.honmani.reader.data.words.WordKnowledge
 import app.honmani.reader.data.words.WordProgress
 import app.honmani.reader.data.words.WordStatus
+import app.honmani.reader.lookup.LookupGroup
 
 /**
  * The Words tab's two lists. [learning]: saved words not known yet, starred first, then the most
@@ -33,6 +34,26 @@ data class WordLists(
                 knownByReading = knowledge.knownByReading(words.mapTo(HashSet()) { it.expression }),
                 steps = words.associate { it.id to knowledge.steps(it) },
             )
+        }
+    }
+}
+
+/**
+ * A word known from reading alone, opened in the known list: what the dictionaries say about it
+ * ([entry], null if none has it), or null while they are looked up ([loading]).
+ */
+data class ReadWordDetails(val expression: String, val loading: Boolean = true, val entry: LookupGroup? = null) {
+    companion object {
+        /**
+         * The entry for [key], a dictionary form from the book's words, among the results of
+         * looking it up: one covering all of it, the uninflected word written that way first,
+         * then one read that way (a word read in kana); null if none covers it.
+         */
+        fun entryFor(key: String, groups: List<LookupGroup>): LookupGroup? {
+            val whole = groups.filter { it.source == key }
+            return whole.firstOrNull { it.expression == key && it.inflections.isEmpty() }
+                ?: whole.firstOrNull { it.reading == key && it.inflections.isEmpty() }
+                ?: whole.firstOrNull { it.expression == key || it.reading == key }
         }
     }
 }

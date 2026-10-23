@@ -375,6 +375,7 @@
       overlayMark = { ranges, background: highlightBackground(color) };
       drawOverlay();
     }
+    logTiming(performance.now());
   }
 
   function onAppMessage(event) {
@@ -399,7 +400,30 @@
     app.postMessage(JSON.stringify(message));
   }
 
-  function onTap(x, y, target) {
+  /**
+   * When the last tap's finger went up and how it arrived (page clock, ms), to log how long each
+   * step until its mark took for "Share diagnostics"; null once logged.
+   */
+  let tapTiming = null;
+  let lastUp = 0;
+
+  /** Logs the steps of the last tap once its mark is on screen (two frames: after the paint). */
+  function logTiming(marked) {
+    const timing = tapTiming;
+    tapTiming = null;
+    if (!timing) return;
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        const since = (time) => Math.round(time - timing.up);
+        console.info(
+          `honmani tap timing: ${timing.via} +${since(timing.arrived)} ms after finger up, ` +
+            `message +${since(timing.posted)}, marked +${since(marked)}, painted +${since(performance.now())}`,
+        );
+      }),
+    );
+  }
+
+  function onTap(x, y, target, arrived, via) {
     if (!(target instanceof Element)) return;
     const selection = window.getSelection();
     if (selection && !selection.isCollapsed) return;
@@ -408,6 +432,7 @@
     if (message) {
       clearHighlight();
       post(message);
+      tapTiming = { up: lastUp || arrived, arrived, posted: performance.now(), via };
     } else if (isBookBackground(target)) {
       clearHighlight();
       post({ type: 'dismiss' });
@@ -422,7 +447,7 @@
     (event) => {
       clearTimeout(tapWithoutClick);
       tapWithoutClick = undefined;
-      onTap(event.clientX, event.clientY, event.target);
+      onTap(event.clientX, event.clientY, event.target, event.timeStamp, 'click');
     },
     true,
   );
@@ -444,6 +469,7 @@
     (event) => {
       const start = tapStart;
       tapStart = null;
+      lastUp = event.timeStamp;
       if (!start || !event.isPrimary) return;
       const moved = Math.hypot(event.clientX - start.x, event.clientY - start.y);
       if (moved > TAP_SLOP || event.timeStamp - start.time > TAP_TIME) return;
@@ -451,7 +477,7 @@
       clearTimeout(tapWithoutClick);
       tapWithoutClick = setTimeout(() => {
         tapWithoutClick = undefined;
-        onTap(x, y, target);
+        onTap(x, y, target, performance.now(), 'no click');
       }, CLICK_WAIT);
     },
     true,

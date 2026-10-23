@@ -47,6 +47,7 @@ import androidx.webkit.WebViewFeature
 import java.io.File
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
@@ -119,7 +120,7 @@ fun isReaderWebViewSupported(): Boolean =
 fun ReaderWebView(
     onLookup: (TapLookup) -> Unit,
     onDismiss: () -> Unit,
-    highlight: Highlight?,
+    highlight: StateFlow<Highlight?>,
     diagnostics: ReaderDiagnostics,
     ttuLibrary: TtuLibrary,
     booksDir: File,
@@ -188,16 +189,20 @@ fun ReaderWebView(
         ttuLibrary.setAccent(accent.toHex(), onAccent.toHex())
     }
 
+    // Collected rather than passed as a value: a change reaches the page at once, not after the
+    // composition that also builds the lookup panel.
     LaunchedEffect(highlight, highlightColor) {
-        val message = if (highlight != null) {
-            val color = highlightColor.toHex()
-            """{"type":"highlight","length":${highlight.length},"color":"$color"}"""
-        } else {
-            """{"type":"clear"}"""
-        }
-        // Replies go to the page that sent the last message; nothing to clear before that.
-        if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
-            webViewRef.replyProxy?.postMessage(message)
+        highlight.collect { shown ->
+            val message = if (shown != null) {
+                val color = highlightColor.toHex()
+                """{"type":"highlight","length":${shown.length},"color":"$color"}"""
+            } else {
+                """{"type":"clear"}"""
+            }
+            // Replies go to the page that sent the last message; nothing to clear before that.
+            if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
+                webViewRef.replyProxy?.postMessage(message)
+            }
         }
     }
 

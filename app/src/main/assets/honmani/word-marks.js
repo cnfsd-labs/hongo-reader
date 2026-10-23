@@ -200,6 +200,9 @@
     }
   }
 
+  /** When the marks were last reset (page clock), until the first answer after it; 0 otherwise. */
+  let resetAt = 0;
+
   function textOf(id) {
     return (blocks.get(id) || []).map((node) => node.data).join('');
   }
@@ -291,6 +294,11 @@
       shown.set(block.id, now);
     }
     if (fresh.some((highlight) => highlight.size > 0)) fadeIn();
+    if (resetAt) {
+      // For "Share diagnostics": lookups reset the marks, which may slow the next tap.
+      console.info(`honmani marks: first answer ${Math.round(performance.now() - resetAt)} ms after a reset`);
+      resetAt = 0;
+    }
   }
 
   /** Clears every mark (another book, marks turned off). */
@@ -308,6 +316,7 @@
    */
   function reset() {
     generation++;
+    resetAt = performance.now();
     pending.clear();
     queue.clear();
     if (!observer) return;

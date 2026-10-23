@@ -19,6 +19,7 @@ import app.honmani.reader.lookup.LookupResult
 import app.honmani.reader.lookup.RubySpan
 import java.io.File
 import kotlin.coroutines.cancellation.CancellationException
+import kotlin.time.TimeMark
 import kotlin.time.TimeSource
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -96,8 +97,19 @@ class ReaderViewModel(
     private val _panel = MutableStateFlow<LookupPanelState?>(null)
     val panel: StateFlow<LookupPanelState?> = _panel.asStateFlow()
 
+    private val _highlight = MutableStateFlow<Highlight?>(null)
+
+    /**
+     * What is marked in the book: the panel's word, set as soon as the lookup has found it,
+     * before the panel is built, so the book marks it while the panel is still being drawn.
+     */
+    val highlight: StateFlow<Highlight?> = _highlight.asStateFlow()
+
     private var lookupJob: Job? = null
     private var lookupCount = 0L
+
+    /** The last tap and when its message came, until its panel is drawn ([onPanelDrawn]). */
+    private var tapStarted: Pair<TapLookup, TimeMark>? = null
 
     private val _ankiResults = Channel<Pair<String, AnkiResult>>(Channel.BUFFERED)
 
@@ -109,12 +121,17 @@ class ReaderViewModel(
         val lookupId = ++lookupCount
         lookupJob = viewModelScope.launch {
             val start = TimeSource.Monotonic.markNow()
+            tapStarted = tap to start
             // Deinflection and matching take up to ~20 ms on older phones: not on the main thread,
             // where the reader draws.
             val result = withContext(compute) { lookup(tap.text, tap.ruby) }
             log("Lookup of ${tap.text.length} chars: ${result.entries.size} entries in ${start.elapsedNow()}")
+            if (result.entries.isNotEmpty()) {
+                _highlight.value = Highlight(lookupId, result.matchedLength)
+                log("Mark sent ${start.elapsedNow()} after the tap's message")
+            }
             // Keep the previous panel on screen until the new result is ready, to avoid flicker.
-            _panel.value = when {
+            show(when {
                 !result.dictionariesAvailable -> LookupPanelState.NoDictionaries(tap)
                 result.entries.isEmpty() -> {
                     // A kanji no word starts with (often a name) is still worth explaining.
@@ -129,7 +146,7 @@ class ReaderViewModel(
                     record(tap, groups.first())
                     LookupPanelState.Results(tap = tap, groups = groups, highlight = Highlight(lookupId, result.matchedLength))
                 }
-            }
+            })
             log("Panel shown ${start.elapsedNow()} after the tap's message")
             // Which words are in Anki (another app's content provider) and the kanji come a moment
             // later, while the panel slides in: waiting for them made every lookup slower.
@@ -151,12 +168,14 @@ class ReaderViewModel(
             val result = withContext(compute) { lookup(word, emptyList()) }
             if (result.entries.isEmpty()) return@launch
             val groups = withContext(compute) { LookupGroups.from(result) }
-            _panel.value = current.copy(
-                groups = groups,
-                inAnki = wordsInAnki(groups),
-                addingToAnki = emptySet(),
-                previous = current,
-                kanji = kanjiOf(groups),
+            show(
+                current.copy(
+                    groups = groups,
+                    inAnki = wordsInAnki(groups),
+                    addingToAnki = emptySet(),
+                    previous = current,
+                    kanji = kanjiOf(groups),
+                ),
             )
         }
     }
@@ -166,7 +185,7 @@ class ReaderViewModel(
         val current = _panel.value as? LookupPanelState.Results ?: return
         val kanji = current.kanji[character] ?: return
         lookupJob?.cancel()
-        _panel.value = LookupPanelState.Kanji(current.tap, kanji, previous = current)
+        show(LookupPanelState.Kanji(current.tap, kanji, previous = current))
     }
 
     /** Back from a referenced word or a kanji; false if the panel shows a tap in the book. */
@@ -177,7 +196,7 @@ class ReaderViewModel(
             else -> null
         } ?: return false
         lookupJob?.cancel()
-        _panel.value = previous
+        show(previous)
         return true
     }
 
@@ -285,7 +304,24 @@ class ReaderViewModel(
 
     fun dismiss() {
         lookupJob?.cancel()
-        _panel.value = null
+        show(null)
+    }
+
+    /** The panel showing [state] has been drawn: logs how long after its tap's message, once per tap. */
+    fun onPanelDrawn(state: LookupPanelState) {
+        val start = tapStarted?.takeIf { it.first == state.tap }?.second ?: return
+        tapStarted = null
+        log("Panel drawn ${start.elapsedNow()} after the tap's message")
+    }
+
+    /** Shows [state] in the panel (null: closes it) and marks its word in the book. */
+    private fun show(state: LookupPanelState?) {
+        _panel.value = state
+        _highlight.value = when (state) {
+            is LookupPanelState.Results -> state.highlight
+            is LookupPanelState.Kanji -> state.highlight
+            else -> null
+        }
     }
 
     companion object {
@@ -295,7 +331,11 @@ class ReaderViewModel(
                 val lookup = container.dictionaryLookup
                 ReaderViewModel(
                     lookup = { text, ruby -> lookup.lookup(text, ruby) },
-                    log = { Log.d("Honmani.lookup", it) },
+                    log = {
+                        Log.d("Honmani.lookup", it)
+                        // Timings for "Share diagnostics", beside the page's tap timing.
+                        container.readerDiagnostics.log("lookup: $it")
+                    },
                     diagnostics = container.readerDiagnostics,
                     ttuLibrary = container.ttuLibrary,
                     booksDir = container.booksDir,

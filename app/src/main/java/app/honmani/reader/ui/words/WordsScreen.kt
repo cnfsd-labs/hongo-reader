@@ -84,10 +84,12 @@ import app.honmani.reader.data.words.WordEntity
 import app.honmani.reader.data.words.WordLookupEntity
 import app.honmani.reader.data.words.WordProgress
 import app.honmani.reader.data.words.WordStatus
+import app.honmani.reader.lookup.LookupGroups
 import app.honmani.reader.ui.ProgressBar
 import app.honmani.reader.ui.anki.label
 import app.honmani.reader.ui.anki.rememberAnkiAccess
 import app.honmani.reader.ui.anki.showAnkiResult
+import app.honmani.reader.ui.reader.GlossLines
 import app.honmani.reader.ui.theme.HonmaniTheme
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -176,6 +178,7 @@ fun WordsScreen(
         bottomBar = bottomBar,
         onFilter = viewModel::setFilter,
         onToggleExpanded = viewModel::toggleExpanded,
+        onToggleReadWord = viewModel::toggleReadWord,
         onSetStarred = viewModel::setStarred,
         onMarkLearned = viewModel::markLearned,
         onMarkLearning = viewModel::markLearning,
@@ -195,6 +198,7 @@ private fun WordsContent(
     bottomBar: @Composable () -> Unit,
     onFilter: (WordFilter) -> Unit,
     onToggleExpanded: (id: Long) -> Unit,
+    onToggleReadWord: (expression: String) -> Unit,
     onSetStarred: (id: Long, starred: Boolean) -> Unit,
     onMarkLearned: (WordEntity) -> Unit,
     onMarkLearning: (id: Long) -> Unit,
@@ -277,6 +281,7 @@ private fun WordsContent(
                     uiState = uiState,
                     now = now,
                     onToggleExpanded = onToggleExpanded,
+                    onToggleReadWord = onToggleReadWord,
                     onSetStarred = onSetStarred,
                     onMarkLearned = onMarkLearned,
                     onMarkLearning = onMarkLearning,
@@ -298,6 +303,7 @@ private fun WordList(
     uiState: WordsUiState,
     now: Long,
     onToggleExpanded: (id: Long) -> Unit,
+    onToggleReadWord: (expression: String) -> Unit,
     onSetStarred: (id: Long, starred: Boolean) -> Unit,
     onMarkLearned: (WordEntity) -> Unit,
     onMarkLearning: (id: Long) -> Unit,
@@ -364,28 +370,69 @@ private fun WordList(
                 HorizontalDivider()
             }
             items(knownByReading, key = { "read:" + it.first }) { (expression, reads) ->
-                ReadWordRow(expression, reads)
+                ReadWordRow(
+                    expression = expression,
+                    reads = reads,
+                    details = uiState.readWord?.takeIf { it.expression == expression },
+                    onToggle = { onToggleReadWord(expression) },
+                )
                 HorizontalDivider()
             }
         }
     }
 }
 
-/** A word known from reading alone: no lookup, so no reading or meaning saved; how often it was read. */
+/**
+ * A word known from reading alone, with how often it was read. It was never looked up, so no
+ * reading or meaning is saved: a tap asks the dictionaries ([details], null while closed).
+ */
 @Composable
-private fun ReadWordRow(expression: String, reads: Int) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
+private fun ReadWordRow(expression: String, reads: Int, details: ReadWordDetails?, onToggle: () -> Unit) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(4.dp),
         modifier = Modifier
             .fillMaxWidth()
+            .clickable(onClick = onToggle)
             .padding(horizontal = 16.dp, vertical = 10.dp),
     ) {
-        Text(expression, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-        Text(
-            text = pluralStringResource(R.plurals.word_read_times, reads, reads),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(expression, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+            Text(
+                text = pluralStringResource(R.plurals.word_read_times, reads, reads),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        val entry = details?.entry
+        when {
+            details == null -> Unit
+            details.loading -> CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+            entry == null -> Text(
+                text = stringResource(R.string.words_read_no_entry),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            else -> {
+                if (entry.reading.isNotEmpty() && entry.reading != expression) {
+                    Text(entry.reading, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+                }
+                // The short meaning, as a lookup in the reader first shows it.
+                entry.sections.firstOrNull()?.let { section ->
+                    if (section.lines.isNotEmpty()) {
+                        GlossLines(LookupGroups.brief(section.lines), onLookup = {})
+                    } else {
+                        val senses = section.senses.take(LookupGroups.BRIEF_SENSES)
+                        senses.forEachIndexed { i, sense ->
+                            val glosses = sense.glosses.joinToString("; ")
+                            Text(
+                                text = if (section.senses.size > 1) "${i + 1}. $glosses" else glosses,
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -732,6 +779,7 @@ private fun WordsPreview() {
             bottomBar = {},
             onFilter = {},
             onToggleExpanded = {},
+            onToggleReadWord = {},
             onSetStarred = { _, _ -> },
             onMarkLearned = {},
             onMarkLearning = {},

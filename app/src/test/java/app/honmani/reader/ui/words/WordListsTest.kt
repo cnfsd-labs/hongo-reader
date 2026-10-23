@@ -5,6 +5,8 @@ import app.honmani.reader.data.words.WordEntity
 import app.honmani.reader.data.words.WordKnowledge
 import app.honmani.reader.data.words.WordStatus
 import app.honmani.reader.data.words.WordStep
+import app.honmani.reader.lookup.Inflection
+import app.honmani.reader.lookup.LookupGroup
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -50,5 +52,19 @@ class WordListsTest {
         val lists = WordLists.of(words + word(5, "空", 0.1, status = WordStatus.LEARNED), knowledge = null)
         assertEquals(listOf("空"), lists.known.map { it.expression })
         assertEquals("鳥", lists.learning.first().expression)
+    }
+
+    @Test
+    fun aWordKnownFromReadingOpensItsOwnEntry() {
+        fun group(expression: String, reading: String, source: String, inflections: List<Inflection> = emptyList()) =
+            LookupGroup(expression, reading, source, inflections, sections = emptyList())
+        // Looking up 見る also finds 見 (a prefix); and 見る read as an inflected form comes after
+        // the word itself.
+        val groups = listOf(group("見", "み", "見"), group("見る", "みる", "見る", listOf(Inflection.STEM)), group("見る", "みる", "見る"))
+        assertEquals(emptyList<Inflection>(), ReadWordDetails.entryFor("見る", groups)?.inflections)
+        // A word the book writes in kana: the entry read that way.
+        assertEquals("猫", ReadWordDetails.entryFor("ねこ", listOf(group("猫", "ねこ", "ねこ")))?.expression)
+        // Only a shorter match: no entry for this word.
+        assertEquals(null, ReadWordDetails.entryFor("見る", listOf(group("見", "み", "見"))))
     }
 }
