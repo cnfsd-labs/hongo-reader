@@ -31,7 +31,12 @@ data class WordLists(
             return WordLists(
                 learning = learning.sortedWith(compareByDescending<WordEntity> { it.starred }.thenByDescending { it.rankKey }),
                 known = known.sortedBy { it.expression },
-                knownByReading = knowledge.knownByReading(words.mapTo(HashSet()) { it.expression }),
+                // A word looked up in kana is read as its reading (わかる for 分かる): not a word of its own.
+                knownByReading = knowledge.knownByReading(
+                    words.flatMapTo(HashSet()) { word ->
+                        if (knowledge.progress[word.id]?.kana == true) listOf(word.expression, word.reading) else listOf(word.expression)
+                    },
+                ),
                 steps = words.associate { it.id to knowledge.steps(it) },
             )
         }

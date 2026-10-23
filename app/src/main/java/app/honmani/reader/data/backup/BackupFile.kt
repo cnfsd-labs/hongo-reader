@@ -134,7 +134,7 @@ data class BackupWord(
 )
 
 @Serializable
-data class BackupWordStep(val steps: Int, val reads: Int, val lookups: Int, val learned: Boolean)
+data class BackupWordStep(val steps: Int, val reads: Int, val lookups: Int, val learned: Boolean, val kana: Boolean = false)
 
 @Serializable
 data class BackupWordLookup(

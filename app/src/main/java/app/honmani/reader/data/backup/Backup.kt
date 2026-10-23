@@ -115,7 +115,7 @@ class Backup(
                 lastSurfaceEnd = word.lastSurfaceEnd,
                 lastBookTitle = word.lastBookTitle,
                 ankiNoteId = word.ankiNoteId,
-                progress = progress[word.id]?.let { BackupWordStep(it.steps, it.reads, it.lookups, it.learned) },
+                progress = progress[word.id]?.let { BackupWordStep(it.steps, it.reads, it.lookups, it.learned, it.kana) },
                 lookups = lookups[word.id].orEmpty().map { lookup ->
                     BackupWordLookup(
                         surface = lookup.surface,
@@ -223,7 +223,7 @@ class Backup(
                     current.id
                 }
                 word.progress?.takeIf { current == null || id !in progressBefore }?.let {
-                    progress[id] = WordStep(it.steps, it.reads, it.lookups, it.learned)
+                    progress[id] = WordStep(it.steps, it.reads, it.lookups, it.learned, it.kana)
                 }
                 val known = lookups[id].orEmpty().mapTo(HashSet()) { Triple(it.lookedUpAt, it.sentence, it.surfaceStart) }
                 val added = word.lookups

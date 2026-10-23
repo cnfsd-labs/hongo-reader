@@ -3,6 +3,7 @@ package app.honmani.reader.data.words
 import app.honmani.reader.data.difficulty.BookWords
 import app.honmani.reader.data.difficulty.StoredDifficulty
 import app.honmani.reader.data.library.BookEntity
+import app.honmani.reader.lookup.JapaneseText
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.coroutines.CoroutineContext
@@ -97,7 +98,7 @@ class WordProgressStore(private val file: File) {
         val json = JSONObject(file.readText())
         json.keys().asSequence().associate { id ->
             val values = json.getJSONArray(id)
-            id.toLong() to WordStep(values.getInt(0), values.getInt(1), values.getInt(2), values.getBoolean(3))
+            id.toLong() to WordStep(values.getInt(0), values.getInt(1), values.getInt(2), values.getBoolean(3), values.optBoolean(4))
         }
     }.getOrDefault(emptyMap())
 
@@ -105,7 +106,7 @@ class WordProgressStore(private val file: File) {
         synchronized(this) {
             val json = JSONObject()
             for ((id, step) in progress) {
-                json.put(id.toString(), JSONArray().put(step.steps).put(step.reads).put(step.lookups).put(step.learned))
+                json.put(id.toString(), JSONArray().put(step.steps).put(step.reads).put(step.lookups).put(step.learned).put(step.kana))
             }
             file.parentFile?.mkdirs()
             val temporary = File(file.path + ".tmp")
@@ -155,12 +156,14 @@ class WordKnowledgeTracker(
         val loaded = store.generation
         val previous = progress?.takeIf { generation == loaded } ?: store.load()
         val updated = words.associate { word ->
+            val before = previous[word.id]
+            val kana = before?.kana == true || lookedUpInKana(word)
             word.id to WordProgress.update(
-                previous[word.id],
-                reads = read[word.expression]?.reads ?: 0,
+                before,
+                reads = readsOf(word, kana, read),
                 lookups = word.lookupCount,
                 learned = word.status == WordStatus.LEARNED,
-            )
+            ).copy(kana = kana)
         }
         if (updated != previous) store.save(updated, loaded)
         progress = updated
@@ -174,6 +177,24 @@ class WordKnowledgeTracker(
         }
         WordKnowledge(read, updated, learning, shares, forms)
     }.flowOn(context)
+
+    /**
+     * How often [word] was read: as written in its entry (分かる), and if it was looked up in kana,
+     * also as its reading in kana (わかる), which is how the books' words count it there.
+     */
+    private fun readsOf(word: WordEntity, kana: Boolean, read: Map<String, ReadWord>): Int {
+        val asWritten = read[word.expression]?.reads ?: 0
+        if (!kana || word.reading.isEmpty() || word.reading == word.expression) return asWritten
+        return asWritten + (read[word.reading]?.reads ?: 0)
+    }
+
+    /** Whether the book wrote [word] without kanji where it was last looked up. */
+    private fun lookedUpInKana(word: WordEntity): Boolean {
+        val sentence = word.lastSentence
+        if (word.lastSurfaceStart < 0 || word.lastSurfaceEnd > sentence.length || word.lastSurfaceStart >= word.lastSurfaceEnd) return false
+        val surface = sentence.substring(word.lastSurfaceStart, word.lastSurfaceEnd)
+        return surface.isNotBlank() && surface.none { JapaneseText.isKanji(it.code) }
+    }
 
     private fun wordsOf(contentHash: String, signature: String): BookWords? {
         cache[contentHash]?.let { (cached, words) -> if (cached == signature) return words }

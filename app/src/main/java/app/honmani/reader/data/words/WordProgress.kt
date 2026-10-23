@@ -2,8 +2,12 @@ package app.honmani.reader.data.words
 
 import kotlin.math.roundToInt
 
-/** A looked-up word's progress, with what it was worked out from (to tell what is new next time). */
-data class WordStep(val steps: Int, val reads: Int, val lookups: Int, val learned: Boolean)
+/**
+ * A looked-up word's progress, with what it was worked out from (to tell what is new next time).
+ * [kana]: the word was looked up where the book wrote it in kana (わかった for 分かる), so its reading
+ * read in kana counts as reading it; it stays so, so the count of reads never drops back.
+ */
+data class WordStep(val steps: Int, val reads: Int, val lookups: Int, val learned: Boolean, val kana: Boolean = false)
 
 /**
  * How well the reader knows a word, in steps from 0 to [KNOWN]: each time the word is read is a
